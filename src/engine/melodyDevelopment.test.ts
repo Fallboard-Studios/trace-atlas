@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect } from 'vitest';
+import alea from 'alea';
 import { developMelody, developmentFloor, eventSixteenths } from './melodyDevelopment';
 import type { MelodyEvent, NoteDuration } from '../types/Robot';
 
@@ -139,5 +140,96 @@ describe('developMelody: home and the calm side (spec §1.6)', () => {
     for (let p = -1; p >= -3; p--) {
       for (const e of developMelody(home, p, OPTS)) expect(home.some((h) => h.id === e.id && h.startStep === e.startStep)).toBe(true);
     }
+  });
+});
+
+describe('developMelody: busier, the first pass of splits (spec §1.5, phase 1)', () => {
+  // The worked example: a half note at 1, a quarter at 9, an eighth at 13. T = 2; candidates at T: the quarter, the half.
+  const worked = [ev(1, '2n'), ev(9, '4n'), ev(13, '8n')];
+  /** draw k of the robot's development stream, as a direction. */
+  const directions = (seed: number, n: number) => {
+    const rand = alea(`${seed}:development`);
+    return Array.from({ length: n }, () => (rand() < 0.5 ? 1 : -1));
+  };
+
+  it('plays the worked example, position 1, literally', () => {
+    expect(bar(developMelody(worked, 1, OPTS))).toBe('1: 8, 9: 2, 11: 2, 13: 2');
+  });
+
+  it('splits a six-sixteenth note at an eighth-note threshold into four and two', () => {
+    const dotted = [ev(1, '8n'), ev(3, '4n', { sixteenths: 6 })];
+    expect(bar(developMelody(dotted, 1, OPTS))).toBe('1: 2, 3: 4, 7: 2');
+  });
+
+  it('keeps the split note id, slot, rest and mark, and gives the new note none, its derived id and a neighbour step', () => {
+    const marked = [ev(1, '2n'), ev(9, '4n', { noteIndex: 5, octave: 3, rest: 0.25, mark: 'accent', pitchLocked: true }), ev(13, '8n')];
+    const out = developMelody(marked, 1, OPTS);
+    const kept = out.find((e) => e.id === 'e9')!;
+    const added = out.find((e) => e.startStep === 11)!;
+    expect(kept).toMatchObject({ startStep: 9, noteIndex: 5, octave: 3, rest: 0.25, mark: 'accent', sixteenths: 2 });
+    expect(kept.pitchStep).toBeUndefined();
+    expect(added).toMatchObject({ id: 'e9:d1', startStep: 11, noteIndex: 5, octave: 3, sixteenths: 2, pitchStep: directions(OPTS.seed, 1)[0] });
+    expect(added.rest).toBeUndefined();
+    expect(added.mark).toBeUndefined();
+    expect(added.pitchLocked).toBeUndefined();
+    expect(out.find((e) => e.id === 'e1')).toBe(marked[0]);
+    expect(out.find((e) => e.id === 'e13')).toBe(marked[2]);
+  });
+
+  it('keeps the two parts of a split summing to the note split', () => {
+    const out = developMelody(worked, 1, OPTS);
+    const parts = out.filter((e) => e.startStep >= 9 && e.startStep < 13).map(eventSixteenths);
+    expect(parts.reduce((a, b) => a + b, 0)).toBe(4);
+  });
+
+  it('never splits a note shorter than 2T: a note one and a half thresholds long stays whole', () => {
+    // T = 2; the 3-long note is under 2T = 4, so the only candidate is the 4.
+    const melody = [ev(1, '8n'), ev(3, '4n', { sixteenths: 3 }), ev(6, '4n')];
+    expect(bar(developMelody(melody, 1, OPTS))).toBe('1: 2, 3: 3, 6: 2, 8: 2');
+  });
+
+  it('raises the threshold to a floor above T', () => {
+    const melody = [ev(1, '8n'), ev(3, '4n'), ev(7, '2n')];
+    // Floor 1: T = 2, candidates 3:4 and 7:8, half of two is one: the 4 splits at 2.
+    expect(bar(developMelody(melody, 1, { ...OPTS, floor: 1 }))).toBe('1: 2, 3: 2, 5: 2, 7: 8');
+    // Floor 3: T = 3, the only candidate is the 8, split at 3.
+    expect(bar(developMelody(melody, 1, { ...OPTS, floor: 3 }))).toBe('1: 2, 3: 4, 7: 5, 12: 3');
+  });
+
+  it('visits from alternating ends and stops at half the candidates, rounded up', () => {
+    // T = 2. Candidates at T, by length then start: 3, 7, 11 (all 4 long). Visits: 3, then 11; half of three is two.
+    const melody = [ev(1, '8n'), ev(3, '4n'), ev(7, '4n'), ev(11, '4n'), ev(15, '8n')];
+    expect(bar(developMelody(melody, 1, OPTS))).toBe('1: 2, 3: 2, 5: 2, 7: 4, 11: 4, 15: 2');
+    expect(bar(developMelody(melody, 2, OPTS))).toBe('1: 2, 3: 2, 5: 2, 7: 4, 11: 2, 13: 2, 15: 2');
+    // The third candidate is never split at T by this pass.
+    const third = developMelody(melody, 3, OPTS).find((e) => e.id === 'e7')!;
+    expect(eventSixteenths(third)).toBe(4);
+  });
+
+  it('makes no split with no candidate: a bar of sixteenths keeps its rhythm', () => {
+    const sixteenths = Array.from({ length: 16 }, (_, i) => ev(i + 1, '16n'));
+    expect(bar(developMelody(sixteenths, 1, OPTS))).toBe(bar(sixteenths));
+  });
+
+  it('takes change k direction from draw k of the seed development stream', () => {
+    const melody = [ev(1, '8n'), ev(3, '4n'), ev(7, '4n'), ev(11, '4n'), ev(15, '8n')];
+    const want = directions(OPTS.seed, 2);
+    const out = developMelody(melody, 2, OPTS);
+    expect(out.find((e) => e.id === 'e3:d1')!.pitchStep).toBe(want[0]);
+    expect(out.find((e) => e.id === 'e11:d2')!.pitchStep).toBe(want[1]);
+  });
+
+  it('gives the same directions for one seed every time, and the same rhythm with other directions for another', () => {
+    const melody = [ev(1, '8n'), ev(3, '4n'), ev(7, '4n'), ev(11, '4n'), ev(15, '8n')];
+    const a = developMelody(melody, 2, OPTS);
+    expect(developMelody(melody, 2, OPTS)).toEqual(a);
+    const steps = (out: MelodyEvent[]) => out.map((e) => e.pitchStep ?? 0).join(',');
+    const seeds = [0.1, 0.2, 0.3, 0.55, 0.7, 0.9];
+    for (const seed of seeds) expect(bar(developMelody(melody, 2, { ...OPTS, seed }))).toBe(bar(a));
+    expect(new Set(seeds.map((seed) => steps(developMelody(melody, 2, { ...OPTS, seed })))).size).toBeGreaterThan(1);
+  });
+
+  it('returns an empty home melody unchanged at any positive position', () => {
+    for (const p of [1, 2, 30]) expect(developMelody([], p, OPTS)).toEqual([]);
   });
 });

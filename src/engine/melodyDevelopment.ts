@@ -3,6 +3,7 @@
 // ========================================
 // The home melody at a position: busier changes above 0, calmer below it, home at 0. Pure: everything it reads is an
 // argument, as composeRobotMelody's is.
+import alea from 'alea';
 import { ATTACK_REACH_SHARE } from '../constants';
 import type { MelodyEvent, NoteDuration } from '../types/Robot';
 
@@ -93,14 +94,28 @@ function fromAlternatingEnds<T>(sorted: T[]): T[] {
   return out;
 }
 
+/** The longest note name not over `sixteenths`: a placeholder `length` for a note a change added, whose `sixteenths`
+ *  is its real length (§1.4). */
+function nameAtMost(sixteenths: number): NoteDuration {
+  if (sixteenths >= 16) return '1n';
+  if (sixteenths >= 8) return '2n';
+  if (sixteenths >= 4) return '4n';
+  if (sixteenths >= 2) return '8n';
+  return '16n';
+}
+
 /** The working bar back as events, in start order. A home note no change touched is its own home event (the same
- *  object); a changed one is a new object keeping its id, slot, octave, rest and mark. */
+ *  object); a changed one is a new object keeping its id, slot, octave, rest and mark. A note a change added carries
+ *  its source's slot and octave and nothing else of it: no rest, mark or pitch lock (A10). */
 function toEvents(notes: Note[]): MelodyEvent[] {
   return notes.map((n) => {
-    if (!n.added && n.len === eventSixteenths(n.src) && n.pitchStep === 0) return n.src;
-    const event: MelodyEvent = { ...n.src, id: n.id, startStep: n.start, sixteenths: n.len };
+    const homeLength = n.len === eventSixteenths(n.src);
+    if (!n.added && homeLength && n.pitchStep === 0) return n.src;
+    const event: MelodyEvent = n.added
+      ? { id: n.id, startStep: n.start, length: nameAtMost(n.len), noteIndex: n.src.noteIndex, octave: n.src.octave, sixteenths: n.len }
+      : { ...n.src };
+    if (!n.added && !homeLength) event.sixteenths = n.len;
     if (n.pitchStep !== 0) event.pitchStep = n.pitchStep;
-    else delete event.pitchStep;
     return event;
   });
 }
@@ -128,13 +143,63 @@ function calmer(home: MelodyEvent[], steps: number): MelodyEvent[] {
 }
 
 // ========================================
+// BUSIER (§1.5)
+// ========================================
+
+/** One busy phase: makes change `k` on the bar in the direction `dir` (+1 up, −1 down a palette step) and says so, or
+ *  says it has nothing left to do. A phase holds its own progress, so it is built fresh for each call. */
+type Phase = (notes: Note[], k: number, dir: number) => boolean;
+
+/** Splits `note` at `t` (§1.5): it keeps `L − t`, and a new `t`-long note starts where it now ends, one palette step
+ *  from it, with the id `${note.id}:d${k}`. Only called on a note at least `2t` long. */
+function split(notes: Note[], note: Note, t: number, k: number, dir: number): void {
+  note.len -= t;
+  const added: Note = { src: note.src, id: `${note.id}:d${k}`, start: note.start + note.len, len: t, pitchStep: note.pitchStep + dir, added: true };
+  notes.splice(notes.indexOf(note) + 1, 0, added);
+}
+
+/** Phase 1, the first pass of splits: the home notes at least `2T` long, by length then start, visited from
+ *  alternating ends, each split at `T`, until half of them (rounded up) are split. */
+function firstPass(notes: Note[], T: number): Phase {
+  const order = fromAlternatingEnds(notes.filter((n) => n.len >= 2 * T).sort(byLengthThenStart));
+  const limit = Math.ceil(order.length / 2);
+  let i = 0;
+  return (bar, k, dir) => {
+    if (i >= limit) return false;
+    split(bar, order[i++], T, k, dir);
+    return true;
+  };
+}
+
+/** `steps` busy changes on the home melody, phase after phase, each phase running until it has nothing left. Change k
+ *  reads draw k of the seed's development stream, one draw per change (§1.8). A position past the last change any
+ *  phase can make plays that last change. */
+function busier(home: MelodyEvent[], steps: number, options: DevelopmentOptions): MelodyEvent[] {
+  if (home.length === 0) return home;
+  const notes = homeNotes(home);
+  const floor = Math.max(1, options.floor);
+  const T = Math.max(Math.min(...notes.map((n) => n.len)), floor);
+  const phases: Phase[] = [firstPass(notes, T)];
+  const rand = alea(`${options.seed}:development`);
+  let phase = 0;
+  let made = 0;
+  for (let k = 1; k <= steps; k++) {
+    const dir = rand() < 0.5 ? 1 : -1;
+    while (phase < phases.length && !phases[phase](notes, k, dir)) phase++;
+    if (phase >= phases.length) break;
+    made++;
+  }
+  return made === 0 ? home : toEvents(notes);
+}
+
+// ========================================
 // THE MELODY AT A POSITION
 // ========================================
 
 /** The home melody at `position` (§1.5, §1.6): that many busy changes above 0, calm changes below it, home itself at
  *  0. Change k+1 is always one change on top of change k. Pure. */
 export function developMelody(home: MelodyEvent[], position: number, options: DevelopmentOptions): MelodyEvent[] {
-  void options;
   if (position < 0) return calmer(home, -position);
+  if (position > 0) return busier(home, position, options);
   return home;
 }
