@@ -52,15 +52,21 @@ before this piece, goes.
     as 1, below.)
 - **The changes per measure are worked out, not set.** Each measure the melody makes as many changes as it needs to
   reach the intensity on time, smoothly. The Development slider (changes per measure) goes.
-- **The shortest time is one measure:** the melody is at the intensity by the next measure. So an intensity that is
-  reached is always heard before the journey leaves it.
+- **The shortest time is a drop on the bar line.** His words: "the very developed measure ends and on the down beat of
+  the next measure we should be fully at the next intensity." The measure that reached an intensity plays it in full,
+  and the next measure plays the new one from its first beat. Whether that is written as a time of 1 or of 0 is the
+  spec's; this is what plays.
 - **Two settings bound the journey: max intensity and max time.** The user sets both, and the seeded journey stays
   within them. At a max intensity of 0 the robot plays its home melody.
+  - **Max intensity** goes from 0 to 16: the sixteen notes a measure can hold, for now.
+  - **Max time** goes up to 16 measures.
 - **The journey is seeded, for now.** Eventually it will be tied to the chord progressions.
 - **How the seeded journey leans** (his first gut, "generally", not a hard rule):
   - The closer an intensity is to 0, the slower the changes: more time to get there.
   - The further an intensity is from 0, the less time to get there.
   - The closer the journey is to max intensity, the more likely its next intensity is 0. At max, about half the time.
+  - Intensities can change sides from one pair to the next. Nothing makes them.
+  - A journey does not hold still. Occasionally a pair may take a long time over a small change in intensity.
 - **A robot is never asked for more calm than it has.** A calm intensity past the robot's floor (one note in a bar) is
   brought in to the floor before the changes per measure are worked out. The robot reaches its floor on the measure
   the journey turns, not early.
@@ -72,8 +78,9 @@ before this piece, goes.
   broadcast from the company and All Probes screens. Seeded: a family member starts on Company, a freelancer on Own.
 - **A shared journey is drawn once, as shares of the two bounds.** Each robot scales it by its own max intensity and
   max time. Robots with the same max time turn on the same measures, each to its own depth.
-- **The two bounds are seeded per robot from bands**, as density is, with a share of robots at a max intensity of 0 so
-  some always play their home melody.
+- **The two bounds are seeded per robot when the world loads**, as density is. Max intensity is drawn across its whole
+  range, 0 to the top, and is "inherited on load" (read as: a family member takes its founder's, as it takes its
+  founder's other melody settings; to confirm).
 - **Docking pitch drift is removed.** The journey replaces it.
 
 ## Style / constraint
@@ -113,8 +120,7 @@ before this piece, goes.
   with its slider, band, save and link entries. The spec's §1.3, §1.9, §1.10 and §5.1 and its assumptions A12 to A14
   describe the walk and the old slider.
 - **Left for the spec, as first cuts for Crawford's ear:**
-  - The range of each bound. He said "say 0 to 12" for time; his example used 16 for both.
-  - The two bands, and the share of robots at a max intensity of 0.
-  - The rest of the seeded journey's rules: whether intensities alternate sides, whether a journey ever holds still,
-    and how strongly it leans.
-  - How a time of one measure sits with times counted in chord holds.
+  - The range max time is seeded across, and whether a set share of robots sits at a max intensity of 0 (he agreed to
+    a share on 2026-11-17, then said max intensity ranges from 0 to the top).
+  - How strongly the seeded journey leans, and how often "occasionally" is.
+  - How the drop on the bar line sits with times counted in chord holds, so a drop can land on a chord change.
