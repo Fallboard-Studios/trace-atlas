@@ -171,6 +171,26 @@ function firstPass(notes: Note[], T: number): Phase {
   };
 }
 
+/** Phase 2, two thresholds: changes alternate between the subdivision `sub` and `T`, the subdivision first, and the
+ *  pick between the shortest and the longest note at least twice the change's threshold (pieces made earlier
+ *  included), change by change. A threshold with no candidate hands its turn to the other; the phase ends when
+ *  neither has one. With `sub` not under `T` (a `T` of 1, or a floor at or above `T`) there is the one threshold. */
+function twoThresholds(T: number, sub: number): Phase {
+  let j = 0;
+  return (bar, k, dir) => {
+    const nominal = j % 2 === 0 ? [sub, T] : [T, sub];
+    const thresholds = sub < T ? nominal : [T];
+    for (const t of thresholds) {
+      const candidates = bar.filter((n) => n.len >= 2 * t).sort(byLengthThenStart);
+      if (candidates.length === 0) continue;
+      split(bar, j % 2 === 0 ? candidates[0] : candidates[candidates.length - 1], t, k, dir);
+      j++;
+      return true;
+    }
+    return false;
+  };
+}
+
 /** `steps` busy changes on the home melody, phase after phase, each phase running until it has nothing left. Change k
  *  reads draw k of the seed's development stream, one draw per change (§1.8). A position past the last change any
  *  phase can make plays that last change. */
@@ -178,8 +198,11 @@ function busier(home: MelodyEvent[], steps: number, options: DevelopmentOptions)
   if (home.length === 0) return home;
   const notes = homeNotes(home);
   const floor = Math.max(1, options.floor);
+  // T is measured once, on the home melody; neither threshold is under the floor. An odd T (only a raised floor or a
+  // hand-made length gives one) subdivides at its whole half.
   const T = Math.max(Math.min(...notes.map((n) => n.len)), floor);
-  const phases: Phase[] = [firstPass(notes, T)];
+  const sub = Math.max(floor, Math.floor(T / 2));
+  const phases: Phase[] = [firstPass(notes, T), twoThresholds(T, sub)];
   const rand = alea(`${options.seed}:development`);
   let phase = 0;
   let made = 0;

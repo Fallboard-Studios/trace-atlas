@@ -233,3 +233,63 @@ describe('developMelody: busier, the first pass of splits (spec §1.5, phase 1)'
     for (const p of [1, 2, 30]) expect(developMelody([], p, OPTS)).toEqual([]);
   });
 });
+
+describe('developMelody: busier, two thresholds (spec §1.5, phase 2)', () => {
+  const worked = [ev(1, '2n'), ev(9, '4n'), ev(13, '8n')];
+  const lengths = (events: MelodyEvent[]) => events.map(eventSixteenths);
+
+  it('plays the worked example, positions 2 and 3, literally', () => {
+    expect(bar(developMelody(worked, 2, OPTS))).toBe('1: 8, 9: 1, 10: 1, 11: 2, 13: 2');
+    expect(bar(developMelody(worked, 3, OPTS))).toBe('1: 6, 7: 2, 9: 1, 10: 1, 11: 2, 13: 2');
+  });
+
+  it('splits a piece an earlier split made, when it is long enough', () => {
+    // Position 4 is at T / 2 = 1 again, the shortest: the 2 made at 7 by position 3.
+    expect(bar(developMelody(worked, 4, OPTS))).toBe('1: 6, 7: 1, 8: 1, 9: 1, 10: 1, 11: 2, 13: 2');
+  });
+
+  it('hands a threshold with no candidate its turn to the other', () => {
+    // T = 8, T / 2 = 4. Change 2 is at T, the longest, but nothing is 16 long: it splits the longest at 4.
+    const halves = [ev(1, '2n'), ev(9, '2n')];
+    expect(bar(developMelody(halves, 1, OPTS))).toBe('1: 4, 5: 4, 9: 8');
+    expect(bar(developMelody(halves, 2, OPTS))).toBe('1: 4, 5: 4, 9: 4, 13: 4');
+  });
+
+  it('ends with no note at least twice the smaller threshold', () => {
+    const at = developMelody(worked, 60, OPTS);
+    expect(Math.max(...lengths(at))).toBeLessThan(2);
+    const halves = developMelody([ev(1, '2n'), ev(9, '2n')], 60, OPTS);
+    expect(Math.max(...lengths(halves))).toBeLessThan(8);
+  });
+
+  it('uses the one threshold when T is 1, and still ends', () => {
+    const withSixteenth = [ev(1, '16n'), ev(2, '4n'), ev(6, '2n')];
+    expect(lengths(developMelody(withSixteenth, 60, OPTS)).every((l) => l === 1)).toBe(true);
+  });
+
+  it('uses the one threshold when the floor is at or above T, and still ends', () => {
+    const melody = [ev(1, '8n'), ev(3, '4n'), ev(7, '2n')];
+    const at = lengths(developMelody(melody, 60, { ...OPTS, floor: 4 }));
+    expect(Math.max(...at)).toBeLessThan(8);
+    expect(Math.min(...at)).toBeGreaterThanOrEqual(2);
+    // The home 2 is under the floor already; no change makes anything new under 4.
+    expect(developMelody(melody, 60, { ...OPTS, floor: 4 }).filter((e) => eventSixteenths(e) < 4).map((e) => e.id)).toEqual(['e1']);
+  });
+
+  it('reads an odd T subdivision as its whole half', () => {
+    // T = 3 (floor 1): the subdivision is 1. Phase 1 splits the 6 at 3; phase 2 then splits the shortest at 1.
+    const odd = [ev(1, '4n', { sixteenths: 3 }), ev(4, '2n', { sixteenths: 6 })];
+    expect(bar(developMelody(odd, 1, OPTS))).toBe('1: 3, 4: 3, 7: 3');
+    expect(bar(developMelody(odd, 2, OPTS))).toBe('1: 2, 3: 1, 4: 3, 7: 3');
+  });
+
+  it('never makes a note shorter than the floor, at any position', () => {
+    const melody = [ev(1, '2n'), ev(9, '4n'), ev(13, '8n'), ev(15, '8n')];
+    for (const floor of [1, 2, 3, 4]) {
+      for (let p = 1; p <= 40; p++) {
+        const made = developMelody(melody, p, { ...OPTS, floor }).filter((e) => !melody.includes(e) && e.id.includes(':d'));
+        for (const e of made) expect(eventSixteenths(e)).toBeGreaterThanOrEqual(floor);
+      }
+    }
+  });
+});
