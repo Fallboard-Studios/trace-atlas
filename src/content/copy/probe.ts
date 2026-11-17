@@ -297,7 +297,7 @@ export const probe = {
       company: { human: 'Company', lore: 'Convoy Drift' },
       fleet: { human: 'Fleet', lore: 'Fleet Drift' },
     },
-    help: { human: 'Who this probe’s melody wanders with. Own takes its own path; Company follows the same path as every member set to Company, so they get busier and calmer together; Fleet follows one path shared by every probe set to Fleet. A probe with no company on Company takes its own path. It does nothing while Development is 0.' },
+    help: { human: 'Who this probe’s melody wanders with. Own takes its own path; Company follows the same path as every member set to Company, so they get busier and calmer together; Fleet follows one path shared by every probe set to Fleet. A probe with no company on Company takes its own path. It does nothing while Max Intensity is 0.' },
   },
 
   // ---------------------------------------------------------------- Envelope

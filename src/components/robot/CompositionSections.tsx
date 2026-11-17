@@ -4,7 +4,7 @@ import { Toggle } from '@/components/ui/controls/Toggle';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import {
-  DEVELOPMENT_SCHEMA,
+  JOURNEY_MAX_INTENSITY_SCHEMA,
   JOURNEY_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
@@ -16,7 +16,7 @@ import {
   RESTS_SCHEMA,
   ACCENTS_SCHEMA,
 } from '@/data/robotOptionsConfig';
-import { DEV_TUNING } from '@/constants';
+import { DEFAULT_JOURNEY_MAX_INTENSITY, DEV_TUNING } from '@/constants';
 import type { DirectionalPanelSchema } from '@/types/controls';
 import type { JourneySetting } from '@/types/Robot';
 
@@ -55,12 +55,15 @@ export interface PingControlsValue {
    */
   clickTrackActive: boolean;
   /**
-   * The melody journey (docs/specs/MELODY_JOURNEY.md §1.9, §1.10): changes per measure, 0-2 in 0.125 stops, and whose
-   * journey it travels. Read by the engine when it plays, so neither regenerates the melody. Each caller resolves an
-   * absent field to DEFAULT_DEVELOPMENT and DEFAULT_JOURNEY.
+   * The melody journey (docs/specs/MELODY_JOURNEY.md §1.9, §1.10): max intensity, the bound on the journey in whole
+   * changes from home (0-16), and whose journey it travels. Read by the engine when it plays, so neither regenerates
+   * the melody. Each caller resolves an absent field to DEFAULT_JOURNEY_MAX_INTENSITY and DEFAULT_JOURNEY. Max
+   * intensity is optional until the company screen passes it (roadmap 92 Task 31).
    */
-  development: number;
+  journeyMaxIntensity?: number;
   journey: JourneySetting;
+  /** Development's value, no longer rendered (roadmap 92 Task 30); goes with the company screen's (Task 31). */
+  development?: number;
 }
 
 // ========================================
@@ -91,23 +94,26 @@ interface CompositionProps {
   onNoteVarianceChange: (value: number) => void;
   onRestsChange: (value: number) => void;
   onAccentsChange: (value: number) => void;
-  /** The melody journey's row: Development beside Journey (docs/specs/MELODY_JOURNEY.md §1.10). */
-  onDevelopmentChange: (value: number) => void;
+  /** The melody journey's row: Max Intensity beside Journey (docs/specs/MELODY_JOURNEY.md §1.10, C1). The slider
+   *  renders when its handler is given; required once the company screen passes it (roadmap 92 Task 31). */
+  onJourneyMaxIntensityChange?: (value: number) => void;
   onJourneyChange: (value: JourneySetting) => void;
+  /** Development's handler, no longer rendered (roadmap 92 Task 30); goes with the company screen's (Task 31). */
+  onDevelopmentChange?: (value: number) => void;
   disabled?: boolean;
 }
 
 type RhythmMelodyProps = Pick<
   CompositionProps,
   | 'onClickTrackActiveChange' | 'onDensityChange' | 'onMotifLengthChange' | 'onPitchRepeatChange' | 'onNoteVarianceChange'
-  | 'onDevelopmentChange' | 'onJourneyChange' | 'disabled'
+  | 'onJourneyMaxIntensityChange' | 'onDevelopmentChange' | 'onJourneyChange' | 'disabled'
 > & {
-  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'clickTrackActive' | 'development' | 'journey'>;
+  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'clickTrackActive' | 'journeyMaxIntensity' | 'development' | 'journey'>;
 };
 
 /**
  * Composition > Rhythm & Melody (docs/specs/CONTENT_LAYOUT.md §1.3): one box, Note Density beside Phrase Length, then
- * Pitch Repeat Chance beside Note Variance, then Development beside Journey (docs/specs/MELODY_JOURNEY.md §1.10), then
+ * Pitch Repeat Chance beside Note Variance, then Max Intensity beside Journey (docs/specs/MELODY_JOURNEY.md §1.10), then
  * the dev-only Click Track as its last row when the caller passes
  * `onClickTrackActiveChange` (the robot, company and All Probes screens; docs/tasks/ONE_MUSIC_CLOCK.md Tasks 10a and 10b,
  * so the downbeat can be heard). The sliders stay live while it plays: the engine registers the click pattern in place
@@ -116,13 +122,14 @@ type RhythmMelodyProps = Pick<
  */
 export const CompositionRhythmMelodySection = memo(function CompositionRhythmMelodySection({
   value, onClickTrackActiveChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange, onNoteVarianceChange,
-  onDevelopmentChange, onJourneyChange, disabled,
+  onJourneyMaxIntensityChange, onJourneyChange, disabled,
 }: RhythmMelodyProps) {
   // Pitch Repeat still needs a tiled motif to lock cells within — no cell concept exists when
   // Motif Length is off (docs/specs/archive/PITCH_REPEAT.md) — unrelated to the removed Click Track gate.
   const pitchRepeatDisabled = disabled || value.rhythmicMotifLength === 0;
-  // Journey does nothing while Development is 0: dimmed, its value kept (§1.10).
-  const journeyDisabled = disabled || value.development === 0;
+  // Journey does nothing while Max Intensity is 0: dimmed, its value kept (§1.10).
+  const maxIntensity = value.journeyMaxIntensity ?? DEFAULT_JOURNEY_MAX_INTENSITY;
+  const journeyDisabled = disabled || maxIntensity === 0;
   return (
     <DirectionalPanel schema={RHYTHM_MELODY_P1_SCHEMA}>
       <DirectionalPanel schema={RHYTHM_MELODY_P1_R1_SCHEMA}>
@@ -138,7 +145,9 @@ export const CompositionRhythmMelodySection = memo(function CompositionRhythmMel
         </div>
       </DirectionalPanel>
       <DirectionalPanel schema={RHYTHM_MELODY_P1_R3_SCHEMA}>
-        <SliderLinear schema={DEVELOPMENT_SCHEMA} value={value.development} onChange={onDevelopmentChange} disabled={disabled} />
+        {onJourneyMaxIntensityChange && (
+          <SliderLinear schema={JOURNEY_MAX_INTENSITY_SCHEMA} value={maxIntensity} onChange={onJourneyMaxIntensityChange} disabled={disabled} />
+        )}
         <RadioButton
           schema={JOURNEY_SCHEMA}
           value={value.journey}

@@ -28,7 +28,7 @@ import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '@/engine/melodyGenerator';
 import { SIGNATURE_ARRAY_CONFIG, BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
-import { DEFAULT_DEVELOPMENT, DEFAULT_JOURNEY } from '@/constants';
+import { DEFAULT_JOURNEY_MAX_INTENSITY, DEFAULT_JOURNEY } from '@/constants';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
 import {
   ROBOT_SECTIONS_CONFIG, SOURCE_OSCILLATOR_SUBSECTIONS,
@@ -43,7 +43,7 @@ import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
   applyAudioMode, applyVolume, applyPan, applyPanAuto, applySend, applyDynamics, applyRests, applyAccents,
-  applyClickTrackActive, applyDevelopment, applyJourney,
+  applyClickTrackActive, applyJourneyMaxIntensity, applyJourney,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags, useSendSwellingFlags } from '@/components/robot/useSwellingFlags';
@@ -249,11 +249,11 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     accents: robot.accents ?? DEFAULT_ACCENTS,
     octaveRange: robot.octaveRange,
     clickTrackActive: robot.clickTrackActive ?? false,
-    development: robot.development ?? DEFAULT_DEVELOPMENT,
+    journeyMaxIntensity: robot.journeyMaxIntensity ?? DEFAULT_JOURNEY_MAX_INTENSITY,
     journey: robot.journey ?? DEFAULT_JOURNEY,
   }), [
     robot.rhythmicDensity, robot.rhythmicMotifLength, robot.noteVariance, robot.pitchRepeat, robot.rests, robot.accents,
-    robot.octaveRange, robot.clickTrackActive, robot.development, robot.journey,
+    robot.octaveRange, robot.clickTrackActive, robot.journeyMaxIntensity, robot.journey,
   ]);
 
   const signatureArrayValue: SignatureArrayValue = useMemo(() => ({
@@ -307,7 +307,10 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   const handleAccentsChange = useCallback((v: number) => applyAccents(latestRobot.current, localeId, v), [localeId]);
   // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): the engine reads both when it plays, so each writes its
   // field only, no regeneration and no swell to cancel.
-  const handleDevelopmentChange = useCallback((v: number) => applyDevelopment(latestRobot.current, localeId, v), [localeId]);
+  const handleJourneyMaxIntensityChange = useCallback(
+    (v: number) => applyJourneyMaxIntensity(latestRobot.current, localeId, v),
+    [localeId],
+  );
   const handleJourneyChange = useCallback((v: JourneySetting) => applyJourney(latestRobot.current, localeId, v), [localeId]);
   // The dev-only Click Track (the section shows it only under DEV_TUNING): swaps the robot's melody for a pulse on
   // every beat, without touching the stored melody (docs/tasks/ONE_MUSIC_CLOCK.md Task 10a).
@@ -378,7 +381,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onMotifLengthChange={handleMotifLengthChange}
             onPitchRepeatChange={handlePitchRepeatChange}
             onNoteVarianceChange={handleNoteVarianceChange}
-            onDevelopmentChange={handleDevelopmentChange}
+            onJourneyMaxIntensityChange={handleJourneyMaxIntensityChange}
             onJourneyChange={handleJourneyChange}
           />
         );
@@ -439,7 +442,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     handleSendChange, handleDynamicsChange, sendSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, handleRestsChange, handleAccentsChange,
-    handleClickTrackActiveChange, handleDevelopmentChange, handleJourneyChange,
+    handleClickTrackActiveChange, handleJourneyMaxIntensityChange, handleJourneyChange,
     robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,
     signatureArrayValue, layer0Swelling, layer1Swelling, layer2Swelling,
     handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
