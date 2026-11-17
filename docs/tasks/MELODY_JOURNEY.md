@@ -30,6 +30,10 @@ Phase 8 built the same day on Crawford's word (Tasks 29–32, 4b0504b1, f85c7e41
 Checkpoint G's browser look and review still open; Checkpoint H's suite done (Results). Gate A, Crawford's ear, is
 next.
 
+**Phase 9 built 2026-11-17 on Crawford's word** (Tasks 33–37, c8262d96, bf836cf7, af66424f, 9fb95462, 9a8d11f4), with
+Gate A's numbers not recorded, so the plan's defaults stand (the band `{ min: 1, max: 16, lit: 0.7 }`, the key `ji`).
+Checkpoint I's suite, build and mutation checks done (Results). Gates B and C, Crawford's, are next.
+
 ## Overview
 
 A robot's melody develops while it plays: busier, home, calmer, home, on a seeded journey read from the music clock.
@@ -1088,7 +1092,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
 ### Phase 9: Seeding and saving max intensity
 
-- [ ] **Task 33: the band and its draw**
+- [x] **Task 33: the band and its draw**
 
   **Description:** `'robot.journeyMaxIntensity'` (`{ min: 1, max: 16, lit: 0.7 }`), or Gate A's numbers, joins the
   band keys (`bandKeys.ts`), Classic's column and the Melody family's keys (`MELODY_BAND_KEYS`, `aspects.ts`); no
@@ -1121,7 +1125,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** M
 
-- [ ] **Task 34: spawn, the baseline and the deal**
+- [x] **Task 34: spawn, the baseline and the deal**
 
   **Description:** `spawnRobot` writes max intensity (an original's own draw, with the alea fallback its neighbours
   have; a member's from its founder) and stops writing `development`. `generateRobotRosterBaseline` mirrors it. Max
@@ -1152,7 +1156,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** M
 
-- [ ] **Task 35: saves and links**
+- [x] **Task 35: saves and links**
 
   **Description:** `RobotAudioOverrideDiff` swaps `development` for max intensity. `sessionDiff.ts` diffs it against
   the baseline and applies it, with the finite-number check `development` has before the store sees it
@@ -1178,7 +1182,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** M
 
-- [ ] **Task 36: `development`'s band and draw go**
+- [x] **Task 36: `development`'s band and draw go**
 
   **Description:** Deletion only. `'robot.development'` leaves the band keys, Classic's column and
   `MELODY_BAND_KEYS`; `seedDevelopment` and the two `development` draws leave `robotFieldDerivation.ts`, with the
@@ -1203,7 +1207,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** S (deletion only)
 
-- [ ] **Task 37: `Robot.development` goes**
+- [x] **Task 37: `Robot.development` goes**
 
   **Description:** Deletion only. The field on `Robot`; `DEVELOPMENT_MIN`, `DEVELOPMENT_MAX`, `DEVELOPMENT_STEP` and
   `DEFAULT_DEVELOPMENT`; the store's snap and clamp for it and their tests; and any fixture that still sets it. The
@@ -1228,8 +1232,8 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Estimated scope:** S (deletion only)
 
 ### Checkpoint I: Gates B and C
-- [ ] `npm test`, `npm run build` clean.
-- [ ] Mutation checks, each killed: the lit share ignored (33), a member drawing its own max intensity (34), max
+- [x] `npm test`, `npm run build` clean.
+- [x] Mutation checks, each killed: the lit share ignored (33), a member drawing its own max intensity (34), max
       intensity left out of the deal's table (34), the diff key and the link key (35).
 - [ ] **Gate B (profile).** Run again, on the new journey, same session, `main` against the branch, one at a time.
       With the step harness if it has been mended, else the audio-thread A/B that stood in at Checkpoint E, this
@@ -1689,6 +1693,61 @@ only; five sliders in the box. Crawford's eye on the row (C1) is part of Gate A.
   unmodified (Task 31).
 - The `DEVELOPMENT_*` constants stay: the store's normalisation of `development`, its band test and its seeder read
   them until Tasks 36 and 37 (Task 32).
+
+### Checkpoint I (2026-11-17)
+
+**Tasks.** Task 33 c8262d96, Task 34 bf836cf7, Task 35 af66424f, Task 36 9fb95462, Task 37 9a8d11f4. Built on
+Crawford's word with Gate A not yet heard, so the band is the plan's default, `{ min: 1, max: 16, lit: 0.7 }`, and the
+link key is `ji` (unused before). From Task 34 a fresh world loads with about seven robots in ten on a journey.
+
+**Suite.** `npm test` at 9a8d11f4: 364 files, 14,766 passed, 2 skipped, 0 failed (266 s), no worker error. At Task 34
+(bf836cf7), the first commit that seeds journeys: 14,786 passed, 0 failed (266 s); the 20 fewer at the end are the
+development tests Tasks 36 and 37 deleted. `build:types` clean; `lint` clean apart from the four standing fast-refresh
+warnings; `npm run build` clean apart from its standing chunk-size and mixed-import notices.
+
+**The draw, measured.** Over the 121 worlds (1,452 robots, 707 members): 533 of the 745 robots that are not members
+load above 0, 71.5 % against a `lit` of 0.7. Of the 288 seeded companies, 206 move within 100 measures and 82 stay
+home; every company's members share one key and one max intensity and play the same starts and lengths at every
+measure (spec success criterion 3).
+
+**Mutation checks.** Nine mutants, each against the files named, all killed (scratchpad `mutate.mjs` +
+`mutants-i.json`; the tree was clean after):
+
+| Mutant | Failed |
+|---|---|
+| The lit share ignored: every robot lit (33) | 5 |
+| A lit robot allowed to seed 0: no floor of 1 (33) | 1 |
+| A member drawing its own max intensity (34) | 7 |
+| Max intensity left out of the deal's field table (34) | 1 |
+| The diff key never written (35) | 5 |
+| The restore without its finite check (35) | 1 |
+| The link key not encoded (35) | 4 |
+| The link key not decoded (35) | 4 |
+| The link decode without its finite check (35) | 2 |
+
+**Readings the plan did not cover (Phase 9).**
+
+- `seedJourneyMaxIntensity` floors a lit robot at 1 when a band reaches below 1, so a lit robot never seeds 0 and the
+  share above 0 is the lit share (Task 33).
+- Between Tasks 34 and 36 the deal's Melody case held `development` out, as spawn no longer wrote it; Task 36 put the
+  case back to the plain derivation (Task 34).
+- Task 19's development cases at spawn, over the 121 worlds and in the deal's widened file were swapped for max
+  intensity, not kept beside it: spawn no longer writes the field they read (Task 34).
+- The restore's finite check also drops an Infinity, which the store would otherwise clamp to 16 (Task 35).
+- A `development` in an old save, and a `dv` in an old link, are ignored; a case for each stays, since saves and links
+  made before this phase may still carry them (Tasks 35 and 37).
+- Tests deleted with the field beyond the store's (Task 37): the "no development written" assertions at spawn, and the
+  transition cases that handed a stray `development` or its handler to the company options hook, the company and
+  robot screens' section stubs, the Rhythm & Melody row and `robotJourney`. Nothing can put the key on a robot now.
+- What is left of the word in `src/` (Task 37's search): the changes module and its callers (`melodyDevelopment.ts`,
+  `developMelody`, `developmentFloor`, `DevelopmentOptions`, the `:development` stream), the old-save and old-link
+  handling and their two cases, `DEV_TUNING`'s doc, and four test comments that say Max Intensity took Development's
+  place.
+
+**Open at Checkpoint I.** Gate B: run on the new journey, `main` against the branch, with the step harness if mended,
+else the audio-thread A/B on a world set to max intensity 16 (Open Questions 5, Crawford's call). Gate C: a full
+seeded world on desktop and phone, Crawford's ear (the band, the share at home, the one max time). Checkpoint G's
+browser look and Gate A also remain open.
 
 ## Risks and Mitigations
 
