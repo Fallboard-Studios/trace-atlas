@@ -1410,24 +1410,24 @@ describe('useCompanyOptions', () => {
     });
   });
 
-  // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Task 17): broadcast, not link,
-  // through the real applies (each writes its field only, so nothing reaches the engine).
-  describe('Development and Journey (melody journey Task 17)', () => {
+  // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Tasks 17, 31): Max Intensity and
+  // Journey, broadcast, not link, through the real applies (each writes its field only, so nothing reaches the engine).
+  describe('Max Intensity and Journey (melody journey Tasks 17, 31)', () => {
     const member = (id: string) => useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === id)!;
     const snapshot = () => useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions;
 
     describe('the value', () => {
-      it('is the first member own development and journey, until an edit is recorded', () => {
-        twoDistinctMembers({ development: 0.375, journey: 'fleet' });
+      it('is the first member own max intensity and journey, until an edit is recorded', () => {
+        twoDistinctMembers({ journeyMaxIntensity: 7, journey: 'fleet' });
         const { result } = renderHook(() => useCompanyOptions('c1'));
-        expect(result.current.options.pingControlsValue.development).toBe(0.375);
+        expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(7);
         expect(result.current.options.pingControlsValue.journey).toBe('fleet');
       });
 
       it('is 0 and own for a first member with neither field', () => {
         twoDistinctMembers();
         const { result } = renderHook(() => useCompanyOptions('c1'));
-        expect(result.current.options.pingControlsValue.development).toBe(0);
+        expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(0);
         expect(result.current.options.pingControlsValue.journey).toBe('own');
       });
 
@@ -1435,21 +1435,52 @@ describe('useCompanyOptions', () => {
         addCompany('c1', []);
         const { result } = renderHook(() => useCompanyOptions('c1'));
         expect(result.current.options.active).toBe(false);
-        expect(result.current.options.pingControlsValue.development).toBe(0);
+        expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(0);
         expect(result.current.options.pingControlsValue.journey).toBe('own');
+      });
+
+      it('is the recorded max intensity once an edit is recorded, over the first member own', () => {
+        twoDistinctMembers({ journeyMaxIntensity: 7 });
+        useLocaleStore.getState().updateCompany(localeId, 'c1', { lastEditedOptions: { journeyMaxIntensity: 12 } });
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(12);
+      });
+
+      it('carries no development, even for a first member that has one', () => {
+        twoDistinctMembers({ development: 1.5 });
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.pingControlsValue).not.toHaveProperty('development');
       });
     });
 
-    it('a Development edit writes every member development and records { development } alone', () => {
-      twoDistinctMembers({ development: 0.25 });
+    it('a Max Intensity edit writes every member max intensity and records { journeyMaxIntensity } alone', () => {
+      twoDistinctMembers({ journeyMaxIntensity: 2 });
       const engine = vi.spyOn(AudioEngine, 'registerRobotMelody');
       const { result } = renderHook(() => useCompanyOptions('c1'));
-      act(() => result.current.options.onDevelopmentChange(1.5));
-      expect(member('r1').development).toBe(1.5);
-      expect(member('r2').development).toBe(1.5);
-      expect(snapshot()).toEqual({ development: 1.5 });
-      expect(result.current.options.pingControlsValue.development).toBe(1.5);
+      act(() => result.current.options.onJourneyMaxIntensityChange(13));
+      expect(member('r1').journeyMaxIntensity).toBe(13);
+      expect(member('r2').journeyMaxIntensity).toBe(13);
+      expect(snapshot()).toEqual({ journeyMaxIntensity: 13 });
+      expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(13);
       expect(engine).not.toHaveBeenCalled();
+    });
+
+    it('a Max Intensity edit of 0 is recorded and reaches every member (home is a real value)', () => {
+      twoDistinctMembers({ journeyMaxIntensity: 9 });
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onJourneyMaxIntensityChange(0));
+      expect(member('r1').journeyMaxIntensity).toBe(0);
+      expect(member('r2').journeyMaxIntensity).toBe(0);
+      expect(snapshot()).toEqual({ journeyMaxIntensity: 0 });
+      expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(0);
+    });
+
+    it('leaves every member development as it was', () => {
+      twoDistinctMembers({ development: 0.5 });
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onJourneyMaxIntensityChange(4));
+      expect(member('r1').development).toBe(0.5);
+      expect(member('r2').development).toBeUndefined();
     });
 
     it('a Journey edit writes every member journey and records { journey } alone', () => {
@@ -1464,39 +1495,39 @@ describe('useCompanyOptions', () => {
 
     it('each edit goes through its apply once per member', () => {
       twoDistinctMembers();
-      const development = vi.spyOn(robotOptionsActions, 'applyDevelopment');
+      const maxIntensity = vi.spyOn(robotOptionsActions, 'applyJourneyMaxIntensity');
       const journey = vi.spyOn(robotOptionsActions, 'applyJourney');
       const { result } = renderHook(() => useCompanyOptions('c1'));
-      act(() => result.current.options.onDevelopmentChange(0.5));
+      act(() => result.current.options.onJourneyMaxIntensityChange(6));
       act(() => result.current.options.onJourneyChange('fleet'));
-      expect(development.mock.calls.map((c) => [c[0].id, c[2]])).toEqual([['r1', 0.5], ['r2', 0.5]]);
+      expect(maxIntensity.mock.calls.map((c) => [c[0].id, c[2]])).toEqual([['r1', 6], ['r2', 6]]);
       expect(journey.mock.calls.map((c) => [c[0].id, c[2]])).toEqual([['r1', 'fleet'], ['r2', 'fleet']]);
     });
 
     it('a robot outside the company is untouched', () => {
       twoDistinctMembers();
-      addRobot(makeRobot({ id: 'r3', companyId: undefined, development: 0.125 }));
+      addRobot(makeRobot({ id: 'r3', companyId: undefined, journeyMaxIntensity: 3 }));
       const { result } = renderHook(() => useCompanyOptions('c1'));
-      act(() => result.current.options.onDevelopmentChange(2));
+      act(() => result.current.options.onJourneyMaxIntensityChange(16));
       act(() => result.current.options.onJourneyChange('fleet'));
-      expect(member('r3').development).toBe(0.125);
+      expect(member('r3').journeyMaxIntensity).toBe(3);
       expect(member('r3').journey).toBeUndefined();
     });
 
     it('broadcast, not link: a member edited on its own afterwards keeps its own value', () => {
       twoDistinctMembers();
       const { result } = renderHook(() => useCompanyOptions('c1'));
-      act(() => result.current.options.onDevelopmentChange(1));
+      act(() => result.current.options.onJourneyMaxIntensityChange(10));
       act(() => result.current.options.onJourneyChange('company'));
       act(() => {
-        robotOptionsActions.applyDevelopment(member('r2'), localeId, 0.25);
+        robotOptionsActions.applyJourneyMaxIntensity(member('r2'), localeId, 4);
         robotOptionsActions.applyJourney(member('r2'), localeId, 'own');
       });
-      expect(member('r2').development).toBe(0.25);
+      expect(member('r2').journeyMaxIntensity).toBe(4);
       expect(member('r2').journey).toBe('own');
-      expect(member('r1').development).toBe(1);
+      expect(member('r1').journeyMaxIntensity).toBe(10);
       expect(member('r1').journey).toBe('company');
-      expect(snapshot()).toEqual({ development: 1, journey: 'company' });
+      expect(snapshot()).toEqual({ journeyMaxIntensity: 10, journey: 'company' });
     });
 
     it('All Probes: an edit reaches every robot, Freelance included, and records in allRobotsLastEditedOptions', () => {
@@ -1506,14 +1537,14 @@ describe('useCompanyOptions', () => {
       addCompany('c1', ['r1']);
       addCompany('c2', ['r2']);
       const { result } = renderHook(() => useCompanyOptions('all'));
-      act(() => result.current.options.onDevelopmentChange(0.875));
+      act(() => result.current.options.onJourneyMaxIntensityChange(14));
       act(() => result.current.options.onJourneyChange('fleet'));
       for (const id of ['r1', 'r2', 'r3']) {
-        expect(member(id).development).toBe(0.875);
+        expect(member(id).journeyMaxIntensity).toBe(14);
         expect(member(id).journey).toBe('fleet');
       }
       const all = useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions;
-      expect(all?.development).toBe(0.875);
+      expect(all?.journeyMaxIntensity).toBe(14);
       expect(all?.journey).toBe('fleet');
       expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toBeUndefined();
     });
@@ -1522,9 +1553,15 @@ describe('useCompanyOptions', () => {
       twoDistinctMembers();
       const { result } = renderHook(() => useCompanyOptions('c1'));
       const first = result.current.options;
-      act(() => result.current.options.onDevelopmentChange(1));
-      expect(result.current.options.onDevelopmentChange).toBe(first.onDevelopmentChange);
+      act(() => result.current.options.onJourneyMaxIntensityChange(1));
+      expect(result.current.options.onJourneyMaxIntensityChange).toBe(first.onJourneyMaxIntensityChange);
       expect(result.current.options.onJourneyChange).toBe(first.onJourneyChange);
+    });
+
+    it('offers no Development handler', () => {
+      twoDistinctMembers();
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      expect(result.current.options).not.toHaveProperty('onDevelopmentChange');
     });
   });
 

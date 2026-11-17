@@ -16,7 +16,7 @@ import {
   RESTS_SCHEMA,
   ACCENTS_SCHEMA,
 } from '@/data/robotOptionsConfig';
-import { DEFAULT_JOURNEY_MAX_INTENSITY, DEV_TUNING } from '@/constants';
+import { DEV_TUNING } from '@/constants';
 import type { DirectionalPanelSchema } from '@/types/controls';
 import type { JourneySetting } from '@/types/Robot';
 
@@ -57,13 +57,10 @@ export interface PingControlsValue {
   /**
    * The melody journey (docs/specs/MELODY_JOURNEY.md §1.9, §1.10): max intensity, the bound on the journey in whole
    * changes from home (0-16), and whose journey it travels. Read by the engine when it plays, so neither regenerates
-   * the melody. Each caller resolves an absent field to DEFAULT_JOURNEY_MAX_INTENSITY and DEFAULT_JOURNEY. Max
-   * intensity is optional until the company screen passes it (roadmap 92 Task 31).
+   * the melody. Each caller resolves an absent field to DEFAULT_JOURNEY_MAX_INTENSITY and DEFAULT_JOURNEY.
    */
-  journeyMaxIntensity?: number;
+  journeyMaxIntensity: number;
   journey: JourneySetting;
-  /** Development's value, no longer rendered (roadmap 92 Task 30); goes with the company screen's (Task 31). */
-  development?: number;
 }
 
 // ========================================
@@ -94,21 +91,18 @@ interface CompositionProps {
   onNoteVarianceChange: (value: number) => void;
   onRestsChange: (value: number) => void;
   onAccentsChange: (value: number) => void;
-  /** The melody journey's row: Max Intensity beside Journey (docs/specs/MELODY_JOURNEY.md §1.10, C1). The slider
-   *  renders when its handler is given; required once the company screen passes it (roadmap 92 Task 31). */
-  onJourneyMaxIntensityChange?: (value: number) => void;
+  /** The melody journey's row: Max Intensity beside Journey (docs/specs/MELODY_JOURNEY.md §1.10, C1). */
+  onJourneyMaxIntensityChange: (value: number) => void;
   onJourneyChange: (value: JourneySetting) => void;
-  /** Development's handler, no longer rendered (roadmap 92 Task 30); goes with the company screen's (Task 31). */
-  onDevelopmentChange?: (value: number) => void;
   disabled?: boolean;
 }
 
 type RhythmMelodyProps = Pick<
   CompositionProps,
   | 'onClickTrackActiveChange' | 'onDensityChange' | 'onMotifLengthChange' | 'onPitchRepeatChange' | 'onNoteVarianceChange'
-  | 'onJourneyMaxIntensityChange' | 'onDevelopmentChange' | 'onJourneyChange' | 'disabled'
+  | 'onJourneyMaxIntensityChange' | 'onJourneyChange' | 'disabled'
 > & {
-  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'clickTrackActive' | 'journeyMaxIntensity' | 'development' | 'journey'>;
+  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'clickTrackActive' | 'journeyMaxIntensity' | 'journey'>;
 };
 
 /**
@@ -128,8 +122,7 @@ export const CompositionRhythmMelodySection = memo(function CompositionRhythmMel
   // Motif Length is off (docs/specs/archive/PITCH_REPEAT.md) — unrelated to the removed Click Track gate.
   const pitchRepeatDisabled = disabled || value.rhythmicMotifLength === 0;
   // Journey does nothing while Max Intensity is 0: dimmed, its value kept (§1.10).
-  const maxIntensity = value.journeyMaxIntensity ?? DEFAULT_JOURNEY_MAX_INTENSITY;
-  const journeyDisabled = disabled || maxIntensity === 0;
+  const journeyDisabled = disabled || value.journeyMaxIntensity === 0;
   return (
     <DirectionalPanel schema={RHYTHM_MELODY_P1_SCHEMA}>
       <DirectionalPanel schema={RHYTHM_MELODY_P1_R1_SCHEMA}>
@@ -145,9 +138,12 @@ export const CompositionRhythmMelodySection = memo(function CompositionRhythmMel
         </div>
       </DirectionalPanel>
       <DirectionalPanel schema={RHYTHM_MELODY_P1_R3_SCHEMA}>
-        {onJourneyMaxIntensityChange && (
-          <SliderLinear schema={JOURNEY_MAX_INTENSITY_SCHEMA} value={maxIntensity} onChange={onJourneyMaxIntensityChange} disabled={disabled} />
-        )}
+        <SliderLinear
+          schema={JOURNEY_MAX_INTENSITY_SCHEMA}
+          value={value.journeyMaxIntensity}
+          onChange={onJourneyMaxIntensityChange}
+          disabled={disabled}
+        />
         <RadioButton
           schema={JOURNEY_SCHEMA}
           value={value.journey}

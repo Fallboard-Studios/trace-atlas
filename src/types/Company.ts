@@ -47,8 +47,8 @@ export interface CompanyOptionsSnapshot {
   dynamics?: number;
   rests?: number;
   accents?: number;
-  /** The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): as Robot.development and Robot.journey. */
-  development?: number;
+  /** The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): as Robot.journeyMaxIntensity and Robot.journey. */
+  journeyMaxIntensity?: number;
   journey?: JourneySetting;
 }
 

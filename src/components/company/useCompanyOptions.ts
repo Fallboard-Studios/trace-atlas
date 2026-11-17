@@ -12,13 +12,13 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto, applySend,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyDynamics, applyRests, applyAccents, applyClickTrackActive, applyDevelopment, applyJourney,
+  applyDynamics, applyRests, applyAccents, applyClickTrackActive, applyJourneyMaxIntensity, applyJourney,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags, useSendSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import type { RobotSendField } from '@/data/robotSends';
-import { DEFAULT_DEVELOPMENT, DEFAULT_JOURNEY, PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
+import { DEFAULT_JOURNEY_MAX_INTENSITY, DEFAULT_JOURNEY, PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
 import { clampSend } from '@/utils/clampSend';
 import { BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import type { ADSREnvelope, JourneySetting, Robot, WaveformType } from '@/types/Robot';
@@ -55,7 +55,7 @@ const DISABLED_PING_CONTROLS: PingControlsValue = {
   accents: 0,
   octaveRange: [1, 7],
   clickTrackActive: false,
-  development: DEFAULT_DEVELOPMENT,
+  journeyMaxIntensity: DEFAULT_JOURNEY_MAX_INTENSITY,
   journey: DEFAULT_JOURNEY,
 };
 
@@ -126,7 +126,7 @@ export interface CompanyOptions {
   onSendChange: (field: RobotSendField, pct: number) => void;
   onDynamicsChange: (value: number) => void;
   /** The melody journey's two settings, broadcast to every member (docs/specs/MELODY_JOURNEY.md §1.9). */
-  onDevelopmentChange: (value: number) => void;
+  onJourneyMaxIntensityChange: (value: number) => void;
   onJourneyChange: (value: JourneySetting) => void;
   onRestsChange: (value: number) => void;
   onAccentsChange: (value: number) => void;
@@ -271,7 +271,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const resolvedClickTrackActive = resolved?.clickTrackActive;
   const resolvedRests = resolved?.rests;
   const resolvedAccents = resolved?.accents;
-  const resolvedDevelopment = resolved?.development;
+  const resolvedJourneyMaxIntensity = resolved?.journeyMaxIntensity;
   const resolvedJourney = resolved?.journey;
   const pingControlsValue: PingControlsValue = useMemo(() => (
     active
@@ -284,13 +284,13 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
         accents: resolvedAccents!,
         octaveRange: resolvedOctaveRange!,
         clickTrackActive: resolvedClickTrackActive!,
-        development: resolvedDevelopment!,
+        journeyMaxIntensity: resolvedJourneyMaxIntensity!,
         journey: resolvedJourney!,
       }
       : DISABLED_PING_CONTROLS
   ), [
     active, resolvedRhythmicDensity, resolvedRhythmicMotifLength, resolvedNoteVariance, resolvedPitchRepeat,
-    resolvedOctaveRange, resolvedClickTrackActive, resolvedRests, resolvedAccents, resolvedDevelopment, resolvedJourney,
+    resolvedOctaveRange, resolvedClickTrackActive, resolvedRests, resolvedAccents, resolvedJourneyMaxIntensity, resolvedJourney,
   ]);
 
   const resolvedAdsr = resolved?.adsr;
@@ -446,9 +446,9 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): onDynamicsChange's shape. Each apply writes the member's field
   // alone (the engine reads it when the next note plays), so nothing regenerates and nothing is cancelled. Broadcast, not
   // link: a member edited on its own afterwards keeps its own value.
-  const onDevelopmentChange = useCallback((v: number) => {
-    latest.current.members.forEach((m) => applyDevelopment(m, localeId, v));
-    patchSnapshot({ development: v });
+  const onJourneyMaxIntensityChange = useCallback((v: number) => {
+    latest.current.members.forEach((m) => applyJourneyMaxIntensity(m, localeId, v));
+    patchSnapshot({ journeyMaxIntensity: v });
   }, [localeId, patchSnapshot]);
 
   const onJourneyChange = useCallback((v: JourneySetting) => {
@@ -560,7 +560,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onPanAutoChange,
     onSendChange,
     onDynamicsChange,
-    onDevelopmentChange,
+    onJourneyMaxIntensityChange,
     onJourneyChange,
     onRestsChange,
     onAccentsChange,
@@ -583,7 +583,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     heldOffSends, volumeSwelling, sendSwelling,
     adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
     onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
-    onDynamicsChange, onDevelopmentChange, onJourneyChange, onRestsChange, onAccentsChange,
+    onDynamicsChange, onJourneyMaxIntensityChange, onJourneyChange, onRestsChange, onAccentsChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onClickTrackActiveChange, onAdsrChange,
     onPortamentoChange, onBusFilterChange, onBusLinkChange,
     onLayerTypeChange, onLayerParamChange, onLayerLfoFieldChange,
