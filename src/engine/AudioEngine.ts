@@ -1532,7 +1532,7 @@ export const AudioEngine = {
    * - When the robot's own `clickTrackActive` flag (Robot.ts) is true, `melody` is ignored
    *   entirely and the fixed click-track pattern (src/engine/clickTrack.ts) is registered
    *   instead — enforced *here*, the one funnel every melody-registration call site shares
-   *   (spawn, Reset Melody, Density/Motif/Note Variance edits, docking's pitch-drift reroll,
+   *   (spawn, Reset Melody, Density/Motif/Note Variance edits,
    *   this file's own per-loop rhythmic/tonal variance), rather than trusting each call site to
    *   remember to check the flag itself. See docs/MELODY_SYSTEM.md's Click Track note.
    *

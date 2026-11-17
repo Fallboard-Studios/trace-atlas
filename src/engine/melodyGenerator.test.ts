@@ -1,12 +1,10 @@
 ﻿import { describe, it, expect, vi } from 'vitest';
 import alea from 'alea';
 import {
-  pickRandomIndices,
   buildMotifOnsets,
   computePitchLockPlan,
   pickDurationForGap,
   generateMelodyForRobot,
-  reRollMelodyPitches,
   buildSeededComposition,
   buildSeededRhythm,
   buildSeededPerformance,
@@ -40,50 +38,6 @@ function createMelodyEvent(overrides: Partial<MelodyEvent> = {}): MelodyEvent {
     ...overrides,
   };
 }
-
-// ========================================
-// TEST SUITE: pickRandomIndices
-// ========================================
-
-describe('pickRandomIndices', () => {
-  it('picks exact count from array', () => {
-    const arr = [1, 2, 3, 4, 5];
-    const indices = pickRandomIndices(arr, 2);
-    expect(indices).toHaveLength(2);
-    // All indices should be valid and unique
-    expect(new Set(indices).size).toBe(2);
-    expect(indices.every((i) => i >= 0 && i < arr.length)).toBe(true);
-  });
-
-  it('returns empty array when count is 0', () => {
-    const arr = [1, 2, 3];
-    const indices = pickRandomIndices(arr, 0);
-    expect(indices).toEqual([]);
-  });
-
-  it('returns all indices when count > array length', () => {
-    const arr = [1, 2, 3];
-    const indices = pickRandomIndices(arr, 10);
-    expect(indices).toHaveLength(3);
-    expect(new Set(indices).size).toBe(3);
-  });
-
-  it('respects custom RNG for determinism', () => {
-    const arr = [1, 2, 3, 4, 5];
-    let _callCount = 0;
-    const mockRand = () => {
-      _callCount++;
-      return 0.5; // Fixed RNG
-    };
-
-    const indices1 = pickRandomIndices(arr, 2, mockRand);
-    _callCount = 0;
-    const indices2 = pickRandomIndices(arr, 2, mockRand);
-
-    // With same RNG, should pick same indices
-    expect(indices1).toEqual(indices2);
-  });
-});
 
 // ========================================
 // TEST SUITE: buildMotifOnsets
@@ -1150,130 +1104,6 @@ describe('generateMelodyForRobot — Pitch Repeat', () => {
     });
     const unlockedIndices = melody.filter((e) => !e.pitchLocked).map((e) => e.noteIndex);
     expect(new Set(unlockedIndices).size).toBeLessThanOrEqual(3);
-  });
-});
-
-// ========================================
-// TEST SUITE: reRollMelodyPitches
-// ========================================
-
-describe('reRollMelodyPitches', () => {
-  /** 8-event melody with distinct, easily-diffable startStep/noteIndex/octave per event. */
-  function makeEightEventMelody(): MelodyEvent[] {
-    return Array.from({ length: 8 }, (_, i) =>
-      createMelodyEvent({ id: `e${i}`, startStep: i + 1, length: '16n', noteIndex: i % 8, octave: 3 + (i % 3) })
-    );
-  }
-
-  it('changes exactly round(length * ratio) events at a 25% ratio on an 8-event melody', () => {
-    const melody = makeEightEventMelody();
-    const rand = alea('reroll-seed-1');
-    const result = reRollMelodyPitches(melody, 0.25, { rand });
-
-    const changedCount = result.filter((e, i) => e.noteIndex !== melody[i].noteIndex).length;
-    expect(changedCount).toBe(2); // round(8 * 0.25) = 2
-  });
-
-  it('leaves startStep, length, and octave unchanged on every event, including changed ones', () => {
-    const melody = makeEightEventMelody();
-    const rand = alea('reroll-seed-2');
-    const result = reRollMelodyPitches(melody, 0.25, { rand });
-
-    expect(result.map((e) => e.startStep)).toEqual(melody.map((e) => e.startStep));
-    expect(result.map((e) => e.length)).toEqual(melody.map((e) => e.length));
-    expect(result.map((e) => e.octave)).toEqual(melody.map((e) => e.octave));
-  });
-
-  it('leaves unchanged events\' noteIndex byte-identical to the input', () => {
-    const melody = makeEightEventMelody();
-    const rand = alea('reroll-seed-3');
-    const result = reRollMelodyPitches(melody, 0.25, { rand });
-
-    result.forEach((e, i) => {
-      const isChanged = e.noteIndex !== melody[i].noteIndex;
-      if (!isChanged) expect(e.noteIndex).toBe(melody[i].noteIndex);
-    });
-  });
-
-  it('floors at 1 changed event even when round(length * ratio) would be 0', () => {
-    const melody = [createMelodyEvent({ id: 'only', startStep: 1, noteIndex: 5, octave: 4 })];
-    const rand = alea('reroll-seed-4');
-    const result = reRollMelodyPitches(melody, 0.25, { rand });
-
-    // A 1-event melody at 25% floors to "change 1", not "change 0".
-    expect(result).toHaveLength(1);
-    // Can't assert the new value differs from a possible-by-chance identical re-roll,
-    // but the function must have gone through the re-roll path (index 0 is always selected
-    // when count >= length), not a same-reference pass-through.
-    expect(result[0]).not.toBe(melody[0]);
-  });
-
-  it('noteVariance inactive (or absent) produces unweighted picks in the valid palette range', () => {
-    const melody = makeEightEventMelody();
-    const rand = alea('reroll-seed-5');
-    const result = reRollMelodyPitches(melody, 1, { rand }); // ratio 1 -> every event re-rolled
-    result.forEach((e) => {
-      expect(e.noteIndex).toBeGreaterThanOrEqual(0);
-      expect(e.noteIndex).toBeLessThan(NOTE_PALETTE_SIZE);
-    });
-  });
-
-  it('noteVariance active produces picks within the valid palette range (weighted selection)', () => {
-    const melody = makeEightEventMelody();
-    const rand = alea('reroll-seed-6');
-    const result = reRollMelodyPitches(melody, 1, { noteVariance: { active: true, value: 8 }, rand });
-    result.forEach((e) => {
-      expect(e.noteIndex).toBeGreaterThanOrEqual(0);
-      expect(e.noteIndex).toBeLessThan(NOTE_PALETTE_SIZE);
-    });
-  });
-
-  it('is deterministic — same rand sequence in, same output out', () => {
-    const melodyA = makeEightEventMelody();
-    const melodyB = makeEightEventMelody();
-    const resultA = reRollMelodyPitches(melodyA, 0.25, { rand: alea('reroll-determinism') });
-    const resultB = reRollMelodyPitches(melodyB, 0.25, { rand: alea('reroll-determinism') });
-    expect(resultA.map((e) => e.noteIndex)).toEqual(resultB.map((e) => e.noteIndex));
-  });
-
-  it('does not mutate the input melody array or its events', () => {
-    const melody = makeEightEventMelody();
-    const snapshot = melody.map((e) => ({ ...e }));
-    reRollMelodyPitches(melody, 0.25, { rand: alea('reroll-seed-7') });
-    expect(melody).toEqual(snapshot);
-  });
-
-  describe('Pitch Repeat — excluding pitchLocked events (Task 7)', () => {
-    it('a fully pitchLocked melody re-rolls zero events, not the old floor-of-1', () => {
-      const melody = makeEightEventMelody().map((e) => ({ ...e, pitchLocked: true }));
-      const result = reRollMelodyPitches(melody, 0.25, { rand: alea('reroll-all-locked') });
-      expect(result).toEqual(melody);
-    });
-
-    it('a single pitchLocked event is not force-changed by the old floor-of-1', () => {
-      const melody = [createMelodyEvent({ id: 'only', startStep: 1, noteIndex: 5, octave: 4, pitchLocked: true })];
-      const result = reRollMelodyPitches(melody, 0.25, { rand: alea('reroll-single-locked') });
-      expect(result).toBe(melody); // eligible pool is empty -> early-return the same reference
-    });
-
-    it('a partially-locked melody only ever selects unlocked events for change, across repeated seeded runs', () => {
-      // First 4 locked, last 4 unlocked. ratio=1 requests changing "all" 8, but only 4 are eligible.
-      const melody = makeEightEventMelody().map((e, i) => (i < 4 ? { ...e, pitchLocked: true } : e));
-      for (let seedNum = 0; seedNum < 20; seedNum++) {
-        const result = reRollMelodyPitches(melody, 1, { rand: alea(`reroll-partial-${seedNum}`) });
-        for (let i = 0; i < 4; i++) {
-          expect(result[i].noteIndex).toBe(melody[i].noteIndex); // locked events never change
-          expect(result[i].pitchLocked).toBe(true); // and stay flagged locked
-        }
-      }
-    });
-
-    it('a melody with no locked events behaves identically to before this change (regression guard)', () => {
-      const melody = makeEightEventMelody(); // no event has pitchLocked set
-      const result = reRollMelodyPitches(melody, 0.25, { rand: alea('reroll-seed-1') });
-      const changedCount = result.filter((e, i) => e.noteIndex !== melody[i].noteIndex).length;
-      expect(changedCount).toBe(2); // same seed/ratio as the very first test in this file — same result
-    });
   });
 });
 

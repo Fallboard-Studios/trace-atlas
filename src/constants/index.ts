@@ -227,9 +227,6 @@ export const BATTERY_CRITICAL_THRESHOLD = 10;
 /** Docked robot at or above this battery level begins Undocking (redeploy-eligible). */
 export const BATTERY_FULL_THRESHOLD = 100;
 
-/** Fraction of a robot's melody events whose pitch (noteIndex only) re-rolls each time it lands on Docked. */
-export const DOCKED_PITCH_DRIFT_RATIO = 0.25;
-
 // ========================================
 // THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)
 // ========================================

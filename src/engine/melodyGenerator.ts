@@ -272,31 +272,6 @@ export const DEFAULT_ACCENTS = 0;
 export const DEFAULT_SUBDIVISIONS = 16;
 
 // ========================================
-// EXPORTS
-// ========================================
-
-/**
- * Pick random indices from an array without replacement.
- * @param arr Array to pick from
- * @param count Number of items to pick
- * @param rand Optional RNG function (default: Math.random)
- * @returns Array of picked indices
- */
-export function pickRandomIndices(arr: unknown[], count: number, rand: () => number = Math.random): number[] {
-  const indices = Array.from({ length: arr.length }, (_, i) => i);
-  const picked: number[] = [];
-
-  for (let i = 0; i < Math.min(count, indices.length); i++) {
-    const idx = Math.floor(rand() * (indices.length - i));
-    picked.push(indices[idx]);
-    // Swap to end to remove from available pool
-    [indices[idx], indices[indices.length - 1 - i]] = [indices[indices.length - 1 - i], indices[idx]];
-  }
-
-  return picked;
-}
-
-// ========================================
 // MOTIF ALGORITHM HELPERS
 // ========================================
 
@@ -610,7 +585,7 @@ export function generateMelodyForRobot(
       noteIndex = basePositionNoteIndex.get(onsets[i] % motifLength!)!;
     } else if (!variance.active) {
       // Off: unweighted, unconstrained random pick from all 8 indices — deliberately
-      // NOT pickWeightedIndex(); "off" now means no weighting at all, not just no
+      // not weighted by NOTE_INDEX_WEIGHTS; "off" now means no weighting at all, not just no
       // uniqueness constraint (a behavior change from the old noteVariance === 0
       // default, which was still weighted).
       noteIndex = Math.floor(rand() * NOTE_PALETTE_SIZE);
@@ -659,64 +634,4 @@ export function generateMelodyForRobot(
   }
 
   return melody;
-}
-
-/**
- * Picks a weighted note index (0-7).
- * Lower indices are more common (35%, 20%, 15%, etc.)
- */
-export function pickWeightedIndex(rand: () => number = Math.random): number {
-  const r = rand();
-  let acc = 0;
-
-  for (let i = 0; i < NOTE_INDEX_WEIGHTS.length; i++) {
-    acc += NOTE_INDEX_WEIGHTS[i];
-    if (r <= acc) return i;
-  }
-
-  return NOTE_INDEX_WEIGHTS.length - 1;
-}
-
-/**
- * Re-roll a seeded ratio of a melody's note pitches, leaving rhythm untouched.
- * Used by robotSystems.ts every time a robot lands on Docked — `startStep`,
- * `length`, and `octave` are never modified, only `noteIndex`. Reuses
- * `pickRandomIndices` (which events change) and `pickWeightedIndex` (the new
- * pitch, when variance is active) rather than inventing new selection logic.
- *
- * @param melody Melody events to re-roll pitches within.
- * @param ratio Fraction (0-1) of events to change. Rounded, floored at 1 —
- *   a re-roll on a non-empty melody always changes at least one event.
- * @param opts.noteVariance When `active`, new pitches are weighted via
- *   `pickWeightedIndex`; otherwise unweighted (`Math.floor(rand() * 8)`),
- *   matching `generateMelodyForRobot`'s own off/on split.
- * @param opts.rand Seeded RNG — never Math.random (see CLAUDE.md).
- * @returns A new array; unchanged events are unchanged, changed events are new objects with only `noteIndex` different.
- *
- * Pitch Repeat (docs/specs/archive/PITCH_REPEAT.md): `pitchLocked` events are excluded from the candidate
- * pool entirely — locking should visibly resist drift, not quietly compensate to preserve a fixed
- * amount of change. The "always changes at least 1" floor only applies once the eligible
- * (unlocked) pool is non-empty; a fully-locked melody re-rolls zero events.
- */
-export function reRollMelodyPitches(
-  melody: MelodyEvent[],
-  ratio: number,
-  opts: { noteVariance?: ToggleValue; rand: () => number },
-): MelodyEvent[] {
-  if (melody.length === 0) return melody;
-
-  const eligible = melody.map((_, i) => i).filter((i) => !melody[i].pitchLocked);
-  if (eligible.length === 0) return melody;
-
-  const count = Math.max(1, Math.min(Math.round(melody.length * ratio), eligible.length));
-  const pickedPositions = pickRandomIndices(eligible, count, opts.rand);
-  const changeIndices = new Set(pickedPositions.map((p) => eligible[p]));
-
-  return melody.map((event, i) => {
-    if (!changeIndices.has(i)) return event;
-    const noteIndex = opts.noteVariance?.active
-      ? pickWeightedIndex(opts.rand)
-      : Math.floor(opts.rand() * 8);
-    return { ...event, noteIndex };
-  });
 }
