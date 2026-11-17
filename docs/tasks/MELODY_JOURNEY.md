@@ -18,8 +18,10 @@ Gate C was next.
 **Revised 2026-11-17, after Checkpoint E:** Crawford changed what a journey is (the intent and the spec, both revised
 that day): a list of intensity and time pairs bounded by two settings, in place of the walk and the Development
 slider. Phases 6 to 9 below (Tasks 24 to 37) rebuild the journey, the engine's read of it, the settings and the
-seeding on top of what Phases 1 to 5 built; the docs move to Phase 10 and keep their task numbers (21 to 23). Not
-started: the plan waits for Crawford's approval, and **Task 24 is next**.
+seeding on top of what Phases 1 to 5 built; the docs move to Phase 10 and keep their task numbers (21 to 23). Phase 6
+built the same day on Crawford's word (Tasks 24–26, 659f5f56, 840f9b01, 54cb4a74; a test tightened at the checkpoint,
+2f7796b0); Checkpoint F's suite, mutation checks and shape probe done (Results); its review with Crawford is next,
+then **Task 27**.
 
 ## Overview
 
@@ -737,7 +739,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
 ### Phase 6: The journey of pairs
 
-- [ ] **Task 24: `melodyJourney.ts` — the journey's shares**
+- [x] **Task 24: `melodyJourney.ts` — the journey's shares**
 
   **Description:** New pure `journeyShares(key, count)`: the first `count` pairs of a key's journey as shares,
   `{ intensity, time, drop }`, by the four rows of spec §1.3's table. An `alea` over the key, four draws per pair in
@@ -769,7 +771,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** S
 
-- [ ] **Task 25: `melodyJourney.ts` — the position inside a list of pairs**
+- [x] **Task 25: `melodyJourney.ts` — the position inside a list of pairs**
 
   **Description:** New pure `positionInPairs(pairs, measure)`. `pairs` are a robot's own, `{ intensity, time }` in
   whole changes and whole measures; the first starts at home on measure 0. In a pair that runs from `a` on measure
@@ -794,7 +796,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** S
 
-- [ ] **Task 26: `melodyJourney.ts`, `melodyDevelopment.ts` — a robot's pairs, and its calm limit**
+- [x] **Task 26: `melodyJourney.ts`, `melodyDevelopment.ts` — a robot's pairs, and its calm limit**
 
   **Description:** `calmLimit(home)` in `melodyDevelopment.ts`: the home notes less one, never below 0, which is how
   many calm changes `calmer` can make. `JourneyBounds` (`maxIntensity`, `maxTime`, `calmLimit`) and a pure
@@ -828,11 +830,11 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Estimated scope:** S
 
 ### Checkpoint F: the pure journey
-- [ ] `npm test` clean (full suite).
-- [ ] Mutation checks, each killed: the home roll ignored; the least move ignored; the time lean left out; a drop
+- [x] `npm test` clean (full suite).
+- [x] Mutation checks, each killed: the home roll ignored; the least move ignored; the time lean left out; a drop
       allowed after a drop; `positionInPairs` rounding in place of flooring (a robot arrives early); the calm limit
       not applied; the pair before a drop not shortened.
-- [ ] The journey's shape, measured once over long runs with a throwaway probe (not committed) and written under
+- [x] The journey's shape, measured once over long runs with a throwaway probe (not committed) and written under
       Results: at bounds of 16 and 16, the share of pairs that are drops, the share that head home, the mean time of
       a pair, and the mean measures between two visits home. Gate A's numbers are read against these.
 - [ ] Reviewed with Crawford before Phase 7.
@@ -1484,6 +1486,65 @@ a measure can carry the walk past a turning point, so the bars heard skip positi
 cache keeps positions, not rates, so it needs no change. For the spec's §8.
 
 **Gate C:** not yet run (Crawford's ear, desktop and phone).
+
+### Checkpoint F (2026-11-17)
+
+**Tasks.** Task 24 659f5f56, Task 25 840f9b01, Task 26 54cb4a74; a test tightened at the checkpoint 2f7796b0 (below).
+Nothing calls the three new functions yet; the engine still reads the walk.
+
+**Suite.** `npm test`: 364 files, 14,754 passed, 2 skipped, 0 failed (260 s). `build:types` clean; `lint` clean apart
+from the four standing fast-refresh warnings.
+
+**Mutation checks.** Sixteen mutants, run against `melodyJourney.test.ts` and `melodyDevelopment.test.ts`; all
+killed, one only after its test was tightened.
+
+| Mutant | Task | Failed |
+|---|---|---|
+| The home roll ignored (no pair ever heads home) | 24 | 1 |
+| The home odds flat, not scaled by how far out (`JOURNEY_HOME_ODDS` from anywhere) | 24 | 2 (survived first) |
+| The home odds squared, not a straight line | 24 | 1 |
+| The least move ignored (no stretch left out of the intensity draw) | 24 | 1 |
+| Home from anywhere (the least move ignored on the home row) | 24 | 2 |
+| The time lean left out | 24 | 1 |
+| A drop allowed after a drop | 24 | 2 |
+| The first pair may be a drop | 24 | 1 |
+| The drop odds ignored (every big move a drop) | 24 | 1 |
+| The drop's least move ignored | 24 | 1 |
+| `positionInPairs` rounding in place of flooring (a robot arrives early) | 25 | 5 |
+| The calm limit not applied | 26 | 3 |
+| Intensity rounded one way (`Math.round` on the signed value) | 26 | 1 |
+| The pair before a drop not shortened | 26 | 3 |
+| Time rounded to whole measures, not even ones | 26 | 2 |
+| `calmLimit` is the note count, not one less | 26 | 2 |
+
+The flat home odds survived the first run (103 passed): the near-home case counted every pair starting within 0.25,
+most of them at home, where no pair heads home, so the share stayed under its bound either way. The case now counts
+only pairs from `JOURNEY_MIN_MOVE` to 0.25 out, and a new case checks the odds halfway out are `JOURNEY_HOME_ODDS × 0.5`
+within five points (B2's straight line); 2f7796b0, tests only. Both home-odds mutants were then killed.
+
+**The journey's shape** (a throwaway probe, not committed: 400 keys × 2,000 pairs, bounds 16 and 16, through
+`journeyShares` and `robotPairs`). Gate A's numbers are read against these.
+
+| At max intensity 16, max time 16 | Calm limit 15 | Calm limit 4 |
+|---|---|---|
+| Pairs that are drops | 16.0 % | 16.0 % |
+| Pairs that head home | 22.3 % | 22.3 % |
+| Mean time of a pair | 7.37 measures | 7.37 measures |
+| Measures between two visits home: mean (median, 90th percentile) | 32.9 (26, 62) | 32.9 (26, 62) |
+| Drops that land home | 24.8 % of drops | 24.8 % of drops |
+| The biggest drop | 31 changes (+16 to −15) | 20 changes (+16 to −4) |
+
+The calm limit moves only the depth on the calm side: no pair's time, drop or home visit depends on it.
+
+**Readings the plan did not cover (Phase 6).**
+
+- The intensity draw's left-out stretch is clipped at −1 and 1, so a pair starting near an edge draws evenly over what
+  is left (Task 24).
+- A share's intensity can scale to 0 without heading home (under 1/32 at max intensity 16; under a half at 1), so a
+  small max intensity visits home more often than the shares' home odds alone say (Task 26).
+- A time share whose half lands on .5 rounds up (`Math.round`): at max time 6, a share of 0.5 is 4 measures (Task 26).
+- `robotPairs` sees a drop only in the shares it is handed, so the pair before a drop is shortened only when share
+  i + 1 is in the list; Task 28 hands in one share more than the pairs it reads.
 
 ## Risks and Mitigations
 
