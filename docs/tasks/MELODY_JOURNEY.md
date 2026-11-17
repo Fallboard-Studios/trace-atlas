@@ -4,7 +4,9 @@ Source spec: [docs/specs/MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md). Source 
 [docs/intent/melody-journey.md](../intent/melody-journey.md). Roadmap
 [92](../todo/roadmap.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer).
 
-**Status:** plan written 2026-11-17, not yet approved. Nothing built. Next: Task 1, on `feature/melody-journey`.
+**Status:** plan written 2026-11-17; Crawford asked for Phase 1 the same day. Phase 1 built on `feature/melody-journey`
+(Tasks 1–7, ab4c5bbc..8ca7100e). Checkpoint A's suite, mutation checks and path lengths done (Results); its review
+with Crawford is next, then Task 8.
 
 ## Overview
 
@@ -77,7 +79,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
 ### Phase 1: The walk and the changes
 
-- [ ] **Task 1: `melodyJourney.ts` — the walk**
+- [x] **Task 1: `melodyJourney.ts` — the walk**
 
   **Description:** New pure module. `journeyKey(worldKey, scope)` builds the three keys of spec §1.3;
   `journeyPosition(key, rate, measure)` returns the walk at `floor(rate × measure)`. The walk is an `alea` over the
@@ -89,12 +91,12 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Proof:** RED test — `src/engine/melodyJourney.test.ts`: the positions below.
 
   **Acceptance criteria:**
-  - [ ] Position is 0 at measure 0 for any key and rate, and at every measure when the rate is 0.
-  - [ ] The same key, rate and measure give the same position; a different key gives a different walk.
-  - [ ] The walk at consecutive counts differs by exactly one, over 5,000 counts.
-  - [ ] Over that run the position never passes `JOURNEY_SWING_MAX` either side, visits both sides, and returns to 0
+  - [x] Position is 0 at measure 0 for any key and rate, and at every measure when the rate is 0.
+  - [x] The same key, rate and measure give the same position; a different key gives a different walk.
+  - [x] The walk at consecutive counts differs by exactly one, over 5,000 counts.
+  - [x] Over that run the position never passes `JOURNEY_SWING_MAX` either side, visits both sides, and returns to 0
         between them.
-  - [ ] Own, a company id and fleet give three different keys for one world; one key gives one walk whoever asks.
+  - [x] Own, a company id and fleet give three different keys for one world; one key gives one walk whoever asks.
 
   **Verification:** `npx vitest run src/engine/melodyJourney.test.ts` passes.
 
@@ -104,7 +106,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** S
 
-- [ ] **Task 2: `Robot.ts`, `melodyDevelopment.ts` — the event's two fields, lengths and the floor**
+- [x] **Task 2: `Robot.ts`, `melodyDevelopment.ts` — the event's two fields, lengths and the floor**
 
   **Description:** `MelodyEvent` gains `sixteenths?: number` and `pitchStep?: number` (spec §1.4), documented as
   never written on a home event. New module `melodyDevelopment.ts` with `eventSixteenths(event)` (the `sixteenths`
@@ -114,8 +116,8 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Proof:** RED test — `src/engine/melodyDevelopment.test.ts`: both helpers.
 
   **Acceptance criteria:**
-  - [ ] `eventSixteenths` reads `'16n'`, `'8n'`, `'4n'`, `'2n'` as 1, 2, 4, 8, and prefers `sixteenths` when set.
-  - [ ] `developmentFloor` is 1 for attacks up to 0.3 s at a band top of 100 BPM, 4 at 1.14 s, and never below 1.
+  - [x] `eventSixteenths` reads `'16n'`, `'8n'`, `'4n'`, `'2n'` as 1, 2, 4, 8, and prefers `sixteenths` when set.
+  - [x] `developmentFloor` is 1 for attacks up to 0.3 s at a band top of 100 BPM, 4 at 1.14 s, and never below 1.
 
   **Verification:** `npx vitest run src/engine/melodyDevelopment.test.ts` passes.
 
@@ -125,7 +127,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** S
 
-- [ ] **Task 3: `melodyDevelopment.ts` — home and the calm side**
+- [x] **Task 3: `melodyDevelopment.ts` — home and the calm side**
 
   **Description:** `developMelody(home, position, options)` with `options = { floor, seed }`. Position 0 returns
   `home` itself. A negative position applies that many ties (spec §1.6): candidates are every home note but the
@@ -135,13 +137,13 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Proof:** RED test — `src/engine/melodyDevelopment.test.ts`: the calm side.
 
   **Acceptance criteria:**
-  - [ ] Position 0 is the same array reference as `home`.
-  - [ ] Position −1 removes the shortest candidate, and the note before it ends where the removed note ended, any
+  - [x] Position 0 is the same array reference as `home`.
+  - [x] Position −1 removes the shortest candidate, and the note before it ends where the removed note ended, any
         silence between them covered.
-  - [ ] The visits alternate: shortest, longest, second shortest.
-  - [ ] The floor is one note, the bar's first, at its home start; every position below the floor equals the floor.
-  - [ ] A one-note and an empty home melody come back unchanged at any negative position.
-  - [ ] A home event no tie touched is the same object; a lengthened one is a new object with its id, rest and mark.
+  - [x] The visits alternate: shortest, longest, second shortest.
+  - [x] The floor is one note, the bar's first, at its home start; every position below the floor equals the floor.
+  - [x] A one-note and an empty home melody come back unchanged at any negative position.
+  - [x] A home event no tie touched is the same object; a lengthened one is a new object with its id, rest and mark.
 
   **Verification:** `npx vitest run src/engine/melodyDevelopment.test.ts` passes.
 
@@ -151,7 +153,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** S
 
-- [ ] **Task 4: `melodyDevelopment.ts` — busier, the first pass of splits**
+- [x] **Task 4: `melodyDevelopment.ts` — busier, the first pass of splits**
 
   **Description:** Spec §1.5, phase 1. `T` is the shortest home note, raised to the floor. Candidates are the home
   notes at least `2T` long, sorted by length then start, visited from alternating ends, until half (rounded up) are
@@ -162,13 +164,13 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Proof:** RED test — `src/engine/melodyDevelopment.test.ts`: phase 1.
 
   **Acceptance criteria:**
-  - [ ] The spec's worked example, position 1, literally: `1: 8, 9: 2, 11: 2, 13: 2`.
-  - [ ] With an eighth-note threshold, a note six sixteenths long becomes four and two (Crawford's dotted quarter).
-  - [ ] The two parts of a split sum to the note split; the new note carries no rest, mark or accent and has the
+  - [x] The spec's worked example, position 1, literally: `1: 8, 9: 2, 11: 2, 13: 2`.
+  - [x] With an eighth-note threshold, a note six sixteenths long becomes four and two (Crawford's dotted quarter).
+  - [x] The two parts of a split sum to the note split; the new note carries no rest, mark or accent and has the
         derived id; the split note keeps its id, slot, rest and mark.
-  - [ ] A note shorter than `2T` is never split; a floor above `T` raises the threshold.
-  - [ ] The pass stops at half the candidates, rounded up. With no candidate, position 1 equals home.
-  - [ ] One seed gives the same directions every time; another seed gives the same rhythm with other directions.
+  - [x] A note shorter than `2T` is never split; a floor above `T` raises the threshold.
+  - [x] The pass stops at half the candidates, rounded up. With no candidate, position 1 equals home.
+  - [x] One seed gives the same directions every time; another seed gives the same rhythm with other directions.
 
   **Verification:** `npx vitest run src/engine/melodyDevelopment.test.ts` passes.
 
@@ -178,7 +180,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** M
 
-- [ ] **Task 5: `melodyDevelopment.ts` — busier, two thresholds**
+- [x] **Task 5: `melodyDevelopment.ts` — busier, two thresholds**
 
   **Description:** Spec §1.5, phase 2. Changes alternate between `T / 2` and `T`, starting with `T / 2`, neither
   below the floor. For each, the candidates are every note now in the melody at least twice that threshold, sorted
@@ -188,11 +190,11 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Proof:** RED test — `src/engine/melodyDevelopment.test.ts`: phase 2.
 
   **Acceptance criteria:**
-  - [ ] The worked example, positions 2 and 3, literally.
-  - [ ] A piece made by an earlier split is split again when it is long enough.
-  - [ ] With `T` of 1, or a floor at or above `T`, the phase uses the one threshold and still ends.
-  - [ ] After the phase's last change no note is at least twice the smaller threshold.
-  - [ ] No note is ever shorter than the floor.
+  - [x] The worked example, positions 2 and 3, literally.
+  - [x] A piece made by an earlier split is split again when it is long enough.
+  - [x] With `T` of 1, or a floor at or above `T`, the phase uses the one threshold and still ends.
+  - [x] After the phase's last change no note is at least twice the smaller threshold.
+  - [x] No note is ever shorter than the floor.
 
   **Verification:** `npx vitest run src/engine/melodyDevelopment.test.ts` passes.
 
@@ -202,7 +204,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** S
 
-- [ ] **Task 6: `melodyDevelopment.ts` — busier, the silence fills**
+- [x] **Task 6: `melodyDevelopment.ts` — busier, the silence fills**
 
   **Description:** Spec §1.5, phase 3. A gap is a run of silence inside the bar, measured on written lengths: before
   the first note, between two notes, after the last. While a gap is at least one fill length long (the smaller
@@ -213,12 +215,12 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Proof:** RED test — `src/engine/melodyDevelopment.test.ts`: phase 3.
 
   **Acceptance criteria:**
-  - [ ] In a bar with nothing left to split and one gap at its end, the next change adds a note at the end of that
+  - [x] In a bar with nothing left to split and one gap at its end, the next change adds a note at the end of that
         gap, as a neighbour of the bar's first note. (The worked example is not this case: after its position 3 it
         still has notes to split.)
-  - [ ] The longest gap fills first, the earliest on a tie, and a fill sits flush against the note it leads into.
-  - [ ] A rest stamped on a note is not a gap.
-  - [ ] The phase ends when no gap is a fill length long. A bar with no silence has no fills.
+  - [x] The longest gap fills first, the earliest on a tie, and a fill sits flush against the note it leads into.
+  - [x] A rest stamped on a note is not a gap.
+  - [x] The phase ends when no gap is a fill length long. A bar with no silence has no fills.
 
   **Verification:** `npx vitest run src/engine/melodyDevelopment.test.ts` passes.
 
@@ -228,7 +230,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** S
 
-- [ ] **Task 7: `melodyDevelopment.ts` — the shifts, and the whole path over the 121 worlds**
+- [x] **Task 7: `melodyDevelopment.ts` — the shifts, and the whole path over the 121 worlds**
 
   **Description:** Spec §1.5, phase 4: a change moves one note one `pitchStep`, notes visited in start order, round
   and round, without end. Then the sweep of spec §5.2 in its own file: every robot of the 121 sim worlds
@@ -239,11 +241,11 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   `src/engine/melodyDevelopment.worlds.test.ts` (the sweep; its shift-phase assertions fail first).
 
   **Acceptance criteria:**
-  - [ ] A shift changes one note's `pitchStep` by one and nothing else; the visit order is by start and wraps.
-  - [ ] Over the sweep: no two notes overlap, none leaves the bar, none is shorter than the robot's floor.
-  - [ ] Over the sweep: position p+1 is position p plus one change, and walking back from p+1 gives p exactly.
-  - [ ] Over the sweep: before the shift phase, every home note is present on its own slot and start.
-  - [ ] Over the sweep: the same inputs give the same events, ids included, and no melody is ever empty.
+  - [x] A shift changes one note's `pitchStep` by one and nothing else; the visit order is by start and wraps.
+  - [x] Over the sweep: no two notes overlap, none leaves the bar, none is shorter than the robot's floor.
+  - [x] Over the sweep: position p+1 is position p plus one change, and walking back from p+1 gives p exactly.
+  - [x] Over the sweep: before the shift phase, every home note is present on its own slot and start.
+  - [x] Over the sweep: the same inputs give the same events, ids included, and no melody is ever empty.
 
   **Verification:** `npx vitest run src/engine/melodyDevelopment.test.ts src/engine/melodyDevelopment.worlds.test.ts`
   passes; note the sweep file's run time in the commit.
@@ -256,10 +258,10 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Estimated scope:** M
 
 ### Checkpoint A: the pure core
-- [ ] `npm test` clean (full suite).
-- [ ] Mutation checks, each killed by a test: the alternation of ends (Tasks 3, 4), the `2T` rule (4), the half
+- [x] `npm test` clean (full suite).
+- [x] Mutation checks, each killed by a test: the alternation of ends (Tasks 3, 4), the `2T` rule (4), the half
       rounded up (4), the floor (5), the fill's gap choice (6), the one-draw-per-change rule (4).
-- [ ] The path lengths, measured once over the 121 worlds with a throwaway probe (not committed) and written under
+- [x] The path lengths, measured once over the 121 worlds with a throwaway probe (not committed) and written under
       Results below: per robot, the calm changes, the splits and the fills. Gate A's swing numbers are read against
       these.
 - [ ] Reviewed with Crawford before Phase 2.
@@ -728,6 +730,76 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 ## Results
 
 *(Filled in as the build goes: Checkpoint A's path lengths, what each gate moved, each mutation run.)*
+
+### Checkpoint A (2026-11-17)
+
+**Suite.** `npm test`: 364 files, 14,629 passed, 2 skipped, 0 failed (260 s). The sweep file
+(`melodyDevelopment.worlds.test.ts`) takes 4.7 s alone: 1.5 s of tests, 2.7 s collecting.
+
+**Mutation checks.** Thirteen mutants, each run against `melodyDevelopment.test.ts` and `melodyJourney.test.ts`; all
+killed.
+
+| Mutant | Task | Failed |
+|---|---|---|
+| The calm side visits in sorted order, not from alternating ends | 3 | 3 |
+| Phase 1 visits in sorted order, not from alternating ends | 4 | 2 |
+| A note longer than `T` is a candidate (not at least `2T`) | 4 | 2 |
+| Phase 1 stops at half rounded down | 4 | 5 |
+| Two draws per change | 4 | 1 |
+| Directions by change parity, not from the seed's stream | 4 | 5 |
+| The subdivision may fall under the floor | 5 | 8 |
+| `T` is not raised to the floor | 5 | 3 |
+| A fill takes the latest gap on a tie | 6 | 1 |
+| A fill takes the first gap long enough, not the longest | 6 | 1 |
+| The gap after the last note leads into the last note, not the bar's first | 6 | 1 |
+| The journey's sides do not alternate | 1 | 2 |
+| The swing never reaches `JOURNEY_SWING_MAX` | 1 | 1 |
+
+**Path lengths** (a throwaway probe over the 1,452 robots of the 121 sim worlds, Classic, bpm band top 100; home
+melodies through `composeRobotMelody` from the roster baselines, floors from each robot's seeded attack):
+
+| Per robot | Min | Median | Mean | Max |
+|---|---|---|---|---|
+| Calm changes (notes − 1) | 0 | 4 | 5.75 | 15 |
+| Splits (phases 1 and 2) | 0 | 0 | 0.97 | 9 |
+| Fills (phase 3) | 0 | 0 | 1.52 | 15 |
+| Busy changes before the shifts | 0 | 0 | 2.49 | 15 |
+
+- **Half the fleet has no split and no fill: 729 of 1,452 robots.** Their busy side is shifts from the first change.
+  The floor is most of it: 1,009 robots have a floor of 2 or more.
+
+  | Floor | Robots | Busy path, mean (max) | No split or fill |
+  |---|---|---|---|
+  | 1 | 443 | 6.40 (15) | 95 |
+  | 2 | 196 | 1.78 (6) | 98 |
+  | 3 | 169 | 0.86 (4) | 88 |
+  | 4 | 214 | 0.83 (3) | 99 |
+  | 5 | 144 | 0.49 (2) | 96 |
+  | 6 | 167 | 0.15 (2) | 145 |
+  | 7 | 119 | 0.09 (1) | 108 |
+
+  At floor 1 the 95 can only be full bars of sixteenths (worked from the rules, not measured: at floor 1 any note of
+  two or more splits and any gap fills); 199 robots have sixteen notes.
+- **The calm side:** 46 robots have one note (no calm change), 199 have sixteen (fifteen calm changes).
+- **Against the swing** (`JOURNEY_SWING_MIN` 2 to `JOURNEY_SWING_MAX` 8): a turning point past a robot's busy path
+  plays shifts for the rest of the way out; past its calm floor, the floor. With half the fleet at no busy path, most
+  busy turning points are heard as neighbour notes on the home rhythm. This is the plan's Low risk ("a slow-attack
+  robot's floor leaves it nothing to split") measured: it touches half the fleet, not a few robots. For Gate A.
+
+**Readings the spec did not cover (Phase 1).**
+
+- An odd `T` (only a raised floor or a hand-made length gives one) subdivides at `floor(T / 2)`, never under the
+  floor (Task 5).
+- A direction is up when its draw is under 0.5, down otherwise (Task 4).
+- A note a change adds carries a placeholder `length`, the longest note name not over its `sixteenths`; `sixteenths`
+  is its length. It carries its source's slot and octave and no rest, mark or pitch lock (Tasks 4, 6).
+- A home note whose length a change leaves alone gains no `sixteenths` field, so a shifted note differs from its home
+  event in `pitchStep` alone (Task 7).
+- Task 4's "with no candidate, position 1 equals home" holds until Task 7's shifts exist; the test pins the rhythm,
+  which holds for good. Task 3's "a positive position returns home for now" ended at Task 4, as planned.
+- The sweep mirrors `generateCompositionSeed`'s draw (`'robot.compositionSeed'`, even, 0 to 1), which spawnSystem does
+  not export. Its floor check counts only notes a change shortened or added: a tie lengthens a home note, which may
+  stay under the floor.
 
 ## Risks and Mitigations
 
