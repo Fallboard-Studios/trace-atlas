@@ -50,9 +50,6 @@ import {
   PORTAMENTO_MAX,
   ROBOT_BUS_FILTER_FREQ_RANGE,
   ROBOT_BUS_FILTER_Q_RANGE,
-  DEVELOPMENT_MIN,
-  DEVELOPMENT_MAX,
-  DEVELOPMENT_STEP,
   JOURNEY_INTENSITY_MAX,
 } from '@/constants';
 
@@ -274,20 +271,6 @@ export const OCTAVE_RANGE_MAX_SCHEMA: SliderLinearSchema = {
   min: OCTAVE_RANGE_MIN,
   max: OCTAVE_RANGE_MAX,
   step: 1,
-  orientation: 'horizontal',
-};
-
-/**
- * The melody journey (docs/specs/MELODY_JOURNEY.md §1.10): how fast the melody develops, in changes per measure
- * (Robot.development), stored and displayed alike; the bounds and the stop are the constants the store snaps with.
- */
-export const DEVELOPMENT_SCHEMA: SliderLinearSchema = {
-  id: 'robotOptions.development',
-  type: 'sliderLinear',
-  ...labels('probe.composition.development'),
-  min: DEVELOPMENT_MIN,
-  max: DEVELOPMENT_MAX,
-  step: DEVELOPMENT_STEP,
   orientation: 'horizontal',
 };
 

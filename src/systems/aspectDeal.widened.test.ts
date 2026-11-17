@@ -170,8 +170,8 @@ describe('rederiveLoading: every widened robot key is compared and pushed (theme
     expect(result.dropped).toEqual([]);
   });
 
-  // docs/tasks/MELODY_JOURNEY.md Task 19 (spec §1.9): the engine reads a robot's development as it plays, so the write
-  // is all, as the Development edit (applyDevelopment): no engine call, no melody regenerated.
+  // docs/tasks/MELODY_JOURNEY.md Task 19 (spec §1.9): a robot's development needs no push, so the write is all: no
+  // engine call, no melody regenerated.
   it('robot.development: the field alone, re-derived in place, no engine call and no melody regenerated', () => {
     const result = changeTheme({ 'robot.development': { min: 1.5, max: 2, lit: 1 } });
     expectFieldAlone(result, (r) => r.development, (_, f) => ({ development: f.development }));

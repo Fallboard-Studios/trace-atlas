@@ -1123,7 +1123,7 @@ const ROBOT_BOUNDS: Record<Exclude<BandKey, LoadingRangeKey | RobotPickKey>, rea
   'robot.lfoBusDepth': [LFO_DEPTH_MIN, LFO_DEPTH_MAX],
   'robot.rhythmicDensity': [0, 100],
   'robot.pitchRepeat': [0, 100],
-  'robot.development': [DEVELOPMENT_MIN, DEVELOPMENT_MAX], // the Development slider (DEVELOPMENT_SCHEMA)
+  'robot.development': [DEVELOPMENT_MIN, DEVELOPMENT_MAX], // the store's clamp on Robot.development
   'robot.noteVariance': [1, 8],
   'robot.rhythmicMotifLength': [1, 8],
   'robot.dynamics': [PERFORMANCE_MIN, PERFORMANCE_MAX],

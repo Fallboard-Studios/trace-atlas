@@ -113,11 +113,7 @@ export function applyDynamics(robot: Robot, localeId: string, value: number): vo
 
 // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): the engine reads both settings from the store when a note
 // plays (robotJourney), so each writes its field only, as Dynamics does: the home melody is untouched, no engine call.
-export function applyDevelopment(robot: Robot, localeId: string, value: number): void {
-  useLocaleStore.getState().updateRobot(localeId, robot.id, { development: value });
-}
-
-// Max intensity (§1.9): the bound on the robot's journey, read on the same path. The store owns the clamp and the stop.
+// Max intensity is the bound on the robot's journey; the store owns its clamp and stop.
 export function applyJourneyMaxIntensity(robot: Robot, localeId: string, value: number): void {
   useLocaleStore.getState().updateRobot(localeId, robot.id, { journeyMaxIntensity: value });
 }

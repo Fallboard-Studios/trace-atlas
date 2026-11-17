@@ -279,11 +279,6 @@ export const probe = {
   },
   // The melody journey (docs/specs/MELODY_JOURNEY.md §1.10). Stand-in copy, human and lore, until backlog 62's content
   // pass.
-  'probe.composition.development': {
-    human: 'Development',
-    lore: 'Payload Drift',
-    help: { human: 'How fast this probe’s melody wanders away from its home tune and back: busier, with notes split and gaps filled, then calmer, with notes tied together, always passing home in between. The number is how many changes it makes per measure; 0 always plays the home tune.' },
-  },
   'probe.composition.journeyMaxIntensity': {
     human: 'Max Intensity',
     lore: 'Drift Reach',
