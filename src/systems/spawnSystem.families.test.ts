@@ -238,9 +238,9 @@ describe('a seeded company is a family at spawn (Company Families Task 5)', () =
         developMelody(robot.melody, journeyPosition(journey.key, bounds, measure), journey).map((e) => `${e.startStep}:${eventSixteenths(e)}`).join(' '),
       );
     };
-    /** Bounds set by hand, one pair per company (Task 28): nothing seeds them until Task 34, which puts this case back
-     *  on the seeded ones. */
-    const HAND_BOUNDS: Array<[number, number]> = [[16, 16], [5, 8], [1, 2], [9, 4]];
+    /** Max intensities set by hand, one per company (Tasks 28 and 38): nothing seeds them until Task 34, which puts
+     *  this case back on the seeded ones. */
+    const HAND_MAX_INTENSITIES = [16, 5, 1, 9];
 
     it('every robot of a seeded company, founder included, is on Company; every freelancer on Own', () => {
       for (const { key, robots, companies } of WORLDS) {
@@ -265,16 +265,15 @@ describe('a seeded company is a family at spawn (Company Families Task 5)', () =
       }
     });
 
-    it('the members of a company share one journey key, and on one pair of bounds play the same starts and lengths at every measure of a 100-measure run', () => {
+    it('the members of a company share one journey key, and at one max intensity play the same starts and lengths at every measure of a 100-measure run', () => {
       let companiesSeen = 0;
       let moved = 0;
       for (const { key, robots, companies } of WORLDS) {
         companies.forEach((company, c) => {
-          const [maxIntensity, maxTime] = HAND_BOUNDS[(companiesSeen + c) % HAND_BOUNDS.length];
+          const maxIntensity = HAND_MAX_INTENSITIES[(companiesSeen + c) % HAND_MAX_INTENSITIES.length];
           const members = company.robotIds.map((id) => ({
             ...robots.find((r) => r.id === id)!,
             journeyMaxIntensity: maxIntensity,
-            journeyMaxTime: maxTime,
           }));
           const journeys = members.map((robot) => robotJourney(robot, key, bpmTop));
           expect(new Set(journeys.map((j) => j.key)).size, `${key} ${company.id} key`).toBe(1);

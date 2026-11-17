@@ -29,9 +29,6 @@ import {
   DEVELOPMENT_STEP,
   JOURNEY_SETTINGS,
   JOURNEY_INTENSITY_MAX,
-  JOURNEY_TIME_MIN,
-  JOURNEY_TIME_MAX,
-  JOURNEY_TIME_STEP,
 } from '../constants';
 import { clampSend } from '../utils/clampSend';
 import { ROBOT_SEND_FIELDS } from '../data/robotSends';
@@ -207,21 +204,13 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
           normalized.development = Math.max(DEVELOPMENT_MIN, Math.min(DEVELOPMENT_MAX, snapped));
         }
       }
-      // The journey's two bounds (§1.9): max intensity a whole number from 0 to 16, max time an even number from 2 to
-      // 16; NaN is dropped and the stored value kept.
+      // A robot's journey bound (§1.9): max intensity a whole number from 0 to 16; NaN is dropped and the stored value
+      // kept.
       if (typeof normalized.journeyMaxIntensity === 'number') {
         if (Number.isNaN(normalized.journeyMaxIntensity)) {
           delete normalized.journeyMaxIntensity;
         } else {
           normalized.journeyMaxIntensity = Math.max(0, Math.min(JOURNEY_INTENSITY_MAX, Math.round(normalized.journeyMaxIntensity)));
-        }
-      }
-      if (typeof normalized.journeyMaxTime === 'number') {
-        if (Number.isNaN(normalized.journeyMaxTime)) {
-          delete normalized.journeyMaxTime;
-        } else {
-          const snapped = Math.round(normalized.journeyMaxTime / JOURNEY_TIME_STEP) * JOURNEY_TIME_STEP;
-          normalized.journeyMaxTime = Math.max(JOURNEY_TIME_MIN, Math.min(JOURNEY_TIME_MAX, snapped));
         }
       }
       if ('journey' in normalized && !(JOURNEY_SETTINGS as readonly unknown[]).includes(normalized.journey)) {

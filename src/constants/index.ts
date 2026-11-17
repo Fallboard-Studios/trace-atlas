@@ -248,14 +248,14 @@ export const JOURNEY_MIN_MOVE = 0.125;
 export const JOURNEY_TIME_LEAN = 0.5;
 export const JOURNEY_DROP_ODDS = 0.3;
 export const JOURNEY_DROP_MIN_MOVE = 0.5;
-/** The journey's two bounds (§1.9): max intensity in whole changes from home, 0 to 16 (the sixteen notes a measure can
- *  hold); max time in even measures, 2 to 16. Absent reads as 0 and 8, so a robot built by hand plays its home melody. */
+/** A robot's bound on its journey (§1.9): max intensity in whole changes from home, 0 to 16 (the sixteen notes a
+ *  measure can hold). Absent reads as 0, so a robot built by hand plays its home melody. */
 export const JOURNEY_INTENSITY_MAX = 16;
-export const JOURNEY_TIME_MIN = 2;
-export const JOURNEY_TIME_MAX = 16;
-export const JOURNEY_TIME_STEP = 2;
 export const DEFAULT_JOURNEY_MAX_INTENSITY = 0;
-export const DEFAULT_JOURNEY_MAX_TIME = 8;
+/** Every journey's max time, in measures (§7.4): not a robot setting, so robots on one journey turn together. A pair's
+ *  time is its share of this, rounded to an even number from 2 (Crawford, 2026-11-17: "one max journey time of 16 for
+ *  now"). */
+export const JOURNEY_TIME_MAX = 16;
 /** The journey settings `Robot.journey` takes (§1.9): who a robot travels with. */
 export const JOURNEY_SETTINGS = ['own', 'company', 'fleet'] as const;
 

@@ -7,12 +7,12 @@ import alea from 'alea';
 import {
   DEFAULT_JOURNEY,
   DEFAULT_JOURNEY_MAX_INTENSITY,
-  DEFAULT_JOURNEY_MAX_TIME,
   JOURNEY_DROP_MIN_MOVE,
   JOURNEY_DROP_ODDS,
   JOURNEY_HOME_ODDS,
   JOURNEY_MIN_MOVE,
   JOURNEY_TIME_LEAN,
+  JOURNEY_TIME_MAX,
 } from '../constants';
 import { developmentFloor, type DevelopmentOptions } from './melodyDevelopment';
 import type { Robot } from '../types/Robot';
@@ -117,8 +117,9 @@ export interface JourneyPair {
   time: number;
 }
 
-/** What a robot scales its journey's shares by (§1.3): its two bounds and its calm limit (calmLimit, from its home
- *  melody). */
+/** What a robot scales its journey's shares by (§1.3): its max intensity, the journey's max time (JOURNEY_TIME_MAX for
+ *  every robot, §7.4; an argument here so the shape at other max times can be read) and its calm limit (calmLimit, from
+ *  its home melody). */
 export interface JourneyBounds {
   maxIntensity: number;
   maxTime: number;
@@ -236,15 +237,13 @@ export function worldKeyOf(coordinates: { x: number; y: number }): string {
 }
 
 /** What robotJourney reads from a stored robot; the settings absent read as their defaults. */
-export type RobotJourneyInputs = Pick<
-  Robot,
-  'compositionSeed' | 'companyId' | 'journeyMaxIntensity' | 'journeyMaxTime' | 'journey'
-> & {
+export type RobotJourneyInputs = Pick<Robot, 'compositionSeed' | 'companyId' | 'journeyMaxIntensity' | 'journey'> & {
   audioAttributes?: { adsr?: { attack?: number } };
 };
 
-/** A robot's journey as the engine plays it: the journey's key, the robot's two bounds, and the two things the changes
- *  read (developMelody's options): the floor and the seed. The calm limit is the home melody's (calmLimit). */
+/** A robot's journey as the engine plays it: the journey's key, the robot's max intensity, the journey's max time, and
+ *  the two things the changes read (developMelody's options): the floor and the seed. The calm limit is the home
+ *  melody's (calmLimit). */
 export interface RobotJourney extends DevelopmentOptions {
   key: string;
   maxIntensity: number;
@@ -253,9 +252,9 @@ export interface RobotJourney extends DevelopmentOptions {
 
 /**
  * The stored robot's journey (§1.7, §1.9): the key its Journey setting names (a robot on Company with no company
- * travels as Own), its two bounds, its attack's floor at `bpmTop` (the top of the theme's bpm band, handed in by the
- * caller) and its composition seed. Absent settings read as DEFAULT_JOURNEY_MAX_INTENSITY, DEFAULT_JOURNEY_MAX_TIME and
- * DEFAULT_JOURNEY. Pure.
+ * travels as Own), its max intensity, the journey's max time (JOURNEY_TIME_MAX for every robot, so robots on one
+ * journey turn together, §7.4), its attack's floor at `bpmTop` (the top of the theme's bpm band, handed in by the
+ * caller) and its composition seed. Absent settings read as DEFAULT_JOURNEY_MAX_INTENSITY and DEFAULT_JOURNEY. Pure.
  */
 export function robotJourney(robot: RobotJourneyInputs, worldKey: string, bpmTop: number): RobotJourney {
   const setting = robot.journey ?? DEFAULT_JOURNEY;
@@ -268,7 +267,7 @@ export function robotJourney(robot: RobotJourneyInputs, worldKey: string, bpmTop
   return {
     key: journeyKey(worldKey, scope),
     maxIntensity: robot.journeyMaxIntensity ?? DEFAULT_JOURNEY_MAX_INTENSITY,
-    maxTime: robot.journeyMaxTime ?? DEFAULT_JOURNEY_MAX_TIME,
+    maxTime: JOURNEY_TIME_MAX,
     floor: developmentFloor(robot.audioAttributes?.adsr?.attack ?? 0, bpmTop),
     seed: robot.compositionSeed,
   };

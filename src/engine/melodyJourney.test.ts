@@ -15,12 +15,12 @@ import type { JourneyBounds, JourneyPair, JourneyShare } from './melodyJourney';
 import { developmentFloor } from './melodyDevelopment';
 import {
   DEFAULT_JOURNEY_MAX_INTENSITY,
-  DEFAULT_JOURNEY_MAX_TIME,
   JOURNEY_DROP_MIN_MOVE,
   JOURNEY_DROP_ODDS,
   JOURNEY_HOME_ODDS,
   JOURNEY_MIN_MOVE,
   JOURNEY_TIME_LEAN,
+  JOURNEY_TIME_MAX,
 } from '../constants';
 
 // ========================================
@@ -554,26 +554,33 @@ describe('robotJourney (spec §1.7, §1.9)', () => {
     expect(keyOf({ journey: 'company' })).toBe(journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 }));
   });
 
-  it('a robot with none of the fields reads as the default bounds (0 and 8) on its Own key', () => {
+  it('a robot with none of the fields reads as max intensity 0, at the journey max time of 16, on its Own key', () => {
     const j = robotJourney(robot() as never, WORLD, BPM_TOP);
     expect(j.maxIntensity).toBe(DEFAULT_JOURNEY_MAX_INTENSITY);
-    expect(j.maxTime).toBe(DEFAULT_JOURNEY_MAX_TIME);
-    expect([j.maxIntensity, j.maxTime]).toEqual([0, 8]);
+    expect(j.maxTime).toBe(JOURNEY_TIME_MAX);
+    expect([j.maxIntensity, j.maxTime]).toEqual([0, 16]);
     expect(j.key).toBe(journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 }));
   });
 
-  it('the bounds are the stored ones, each read alone', () => {
-    const both = robotJourney(robot({ journeyMaxIntensity: 11, journeyMaxTime: 4 }) as never, WORLD, BPM_TOP);
-    expect([both.maxIntensity, both.maxTime]).toEqual([11, 4]);
-    const intensityOnly = robotJourney(robot({ journeyMaxIntensity: 3 }) as never, WORLD, BPM_TOP);
-    expect([intensityOnly.maxIntensity, intensityOnly.maxTime]).toEqual([3, DEFAULT_JOURNEY_MAX_TIME]);
-    const timeOnly = robotJourney(robot({ journeyMaxTime: 14 }) as never, WORLD, BPM_TOP);
-    expect([timeOnly.maxIntensity, timeOnly.maxTime]).toEqual([DEFAULT_JOURNEY_MAX_INTENSITY, 14]);
+  it('max intensity is the stored one', () => {
+    expect(robotJourney(robot({ journeyMaxIntensity: 11 }) as never, WORLD, BPM_TOP).maxIntensity).toBe(11);
+    expect(robotJourney(robot({ journeyMaxIntensity: 3 }) as never, WORLD, BPM_TOP).maxIntensity).toBe(3);
+  });
+
+  it('max time is the journey max time for every robot, whatever the robot carries (spec 7.4)', () => {
+    // A leftover journeyMaxTime (a save made while the field existed) is not read.
+    for (const stray of [2, 4, 14, 16]) {
+      const j = robotJourney(robot({ journeyMaxIntensity: 9, journeyMaxTime: stray }) as never, WORLD, BPM_TOP);
+      expect(j.maxTime).toBe(JOURNEY_TIME_MAX);
+    }
+    for (const journey of ['own', 'company', 'fleet']) {
+      expect(robotJourney(robot({ journey, companyId: 'co-1' }) as never, WORLD, BPM_TOP).maxTime).toBe(16);
+    }
   });
 
   it('a stored development moves neither bound', () => {
     const j = robotJourney(robot({ development: 2 }) as never, WORLD, BPM_TOP);
-    expect([j.maxIntensity, j.maxTime]).toEqual([0, 8]);
+    expect([j.maxIntensity, j.maxTime]).toEqual([0, 16]);
   });
 
   it('the seed is the composition seed', () => {

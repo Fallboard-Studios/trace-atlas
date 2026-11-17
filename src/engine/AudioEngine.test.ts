@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MAX_POLYPHONY, MIN_LEAD, MIN_SOUNDING_SECONDS, STATION_FADE_RECOVER_SECONDS } from '../constants';
+import { JOURNEY_TIME_MAX, MAX_POLYPHONY, MIN_LEAD, MIN_SOUNDING_SECONDS, STATION_FADE_RECOVER_SECONDS } from '../constants';
 
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testLocale') }));
 
@@ -7901,7 +7901,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     const RANGE: [number, number] = [2, 6];
     type Journeyed = ReturnType<typeof robotFixture> & Record<string, unknown>;
     const developing = (id: string, extra: Record<string, unknown> = {}) =>
-      robotFixture(id, { journeyMaxIntensity: 4, journeyMaxTime: 4, octaveRange: RANGE, compositionSeed: 0.4375, ...extra }) as Journeyed;
+      robotFixture(id, { journeyMaxIntensity: 4, octaveRange: RANGE, compositionSeed: 0.4375, ...extra }) as Journeyed;
 
     async function setupJourney(robots: Journeyed[]) {
       vi.doMock('./melodyDevelopment', async () => {
@@ -7951,7 +7951,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         }
         return out.sort();
       };
-      return { ...ctx, development, positionOf, oracle, played, expected };
+      return { ...ctx, development, positionOf, oracle, played, expected, journey, real, bpmTop };
     }
 
     afterEach(() => {
@@ -7979,7 +7979,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     });
 
     it('a robot at a max intensity of 0, or with no bounds at all, plays its home melody at every measure', async () => {
-      const zero = developing('zero', { journeyMaxIntensity: 0, journeyMaxTime: 2, journey: 'fleet' });
+      const zero = developing('zero', { journeyMaxIntensity: 0, journey: 'fleet' });
       const none = robotFixture('none', { octaveRange: RANGE }) as Journeyed;
       const { AudioEngine, played, expected } = await setupJourney([zero, none]);
       AudioEngine.registerRobotMelody('zero', HOME as never);
@@ -8010,10 +8010,6 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
 
       it('max intensity', async () => {
         await across({ journeyMaxIntensity: 0 }, (r) => { r.journeyMaxIntensity = 4; });
-      });
-
-      it('max time', async () => {
-        await across({ journeyMaxTime: 4 }, (r) => { r.journeyMaxTime = 16; });
       });
 
       it('journey', async () => {
@@ -8048,6 +8044,60 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       expect(apart).toBeGreaterThan(0); // the comparison can fail: another key does part company
     });
 
+    // Max time is the journey's, not the robot's (spec §7.4; roadmap 92 Task 38): the oracle below builds the bounds
+    // from JOURNEY_TIME_MAX itself, not from robotJourney.
+    it('a robot plays the position at its max intensity and the journey max time of 16, whatever max time it carries', async () => {
+      const plain = developing('plain', { journeyMaxIntensity: 8 });
+      const stray = developing('stray', { journeyMaxIntensity: 8, journeyMaxTime: 2, compositionSeed: 0.8125 });
+      const { AudioEngine, played, expected, journey, real, bpmTop } = await setupJourney([plain, stray]);
+      AudioEngine.registerRobotMelody('plain', HOME as never);
+      AudioEngine.registerRobotMelody('stray', HOME as never);
+      for (const [id, robot] of [['plain', plain], ['stray', stray]] as const) {
+        const j = journey.robotJourney(robot as never, WORLD_KEY, bpmTop);
+        const bounds = { maxIntensity: 8, maxTime: JOURNEY_TIME_MAX, calmLimit: real.calmLimit(HOME as never) };
+        let moved = 0;
+        for (let m = 0; m <= 96; m++) {
+          const position = journey.journeyPosition(j.key, bounds, m);
+          if (position !== 0) moved++;
+          expect(played(id, m), `${id} m${m}`).toEqual(expected(real.developMelody(HOME as never, position, j) as never));
+        }
+        expect(moved, id).toBeGreaterThan(0);
+      }
+    });
+
+    it('members of one Company journey at different max intensities arrive on the same turning measures, each at its own depth', async () => {
+      const deep = developing('deep', { journey: 'company', companyId: 'co-1', journeyMaxIntensity: 16, compositionSeed: 0.1 });
+      const shallow = developing('shallow', {
+        journey: 'company',
+        companyId: 'co-1',
+        journeyMaxIntensity: 3,
+        journeyMaxTime: 2, // a leftover from an old save: never read
+        compositionSeed: 0.9,
+      });
+      const { AudioEngine, played, expected, journey, real, bpmTop } = await setupJourney([deep, shallow]);
+      AudioEngine.registerRobotMelody('deep', HOME as never);
+      AudioEngine.registerRobotMelody('shallow', HOME as never);
+      const key = journey.robotJourney(deep as never, WORLD_KEY, bpmTop).key;
+      expect(journey.robotJourney(shallow as never, WORLD_KEY, bpmTop).key).toBe(key);
+      const shares = journey.journeyShares(key, 302);
+      const pairsAt = (maxIntensity: number) =>
+        journey.robotPairs(shares, { maxIntensity, maxTime: JOURNEY_TIME_MAX, calmLimit: real.calmLimit(HOME as never) });
+      const robots = [['deep', deep, pairsAt(16)], ['shallow', shallow, pairsAt(3)]] as const;
+      let turn = 0;
+      let turns = 0;
+      for (let i = 0; turn + robots[0][2][i].time <= 300; i++) {
+        turn += robots[0][2][i].time;
+        turns++;
+        for (const [id, robot, pairs] of robots) {
+          const j = journey.robotJourney(robot as never, WORLD_KEY, bpmTop);
+          expect(played(id, turn), `${id} pair ${i} at ${turn}`).toEqual(
+            expected(real.developMelody(HOME as never, pairs[i].intensity, j) as never),
+          );
+        }
+      }
+      expect(turns).toBeGreaterThan(10);
+    });
+
     it('reading m, then m+1, then m again gives m its events both times and rebuilds nothing the second time', async () => {
       const r = developing('r');
       const { AudioEngine, played, positionOf, development } = await setupJourney([r]);
@@ -8067,8 +8117,8 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       // HOME has three notes (calm limit 2); ONE has one (calm limit 0). At a max intensity of 16 the journey asks for
       // up to 16 calm changes, so only the calm limit holds a robot in.
       const ONE = [eventFixture({ id: 'solo', startStep: 1, length: '2n', noteIndex: 0 })];
-      const three = developing('three', { journeyMaxIntensity: 16, journeyMaxTime: 2 });
-      const one = developing('one', { journeyMaxIntensity: 16, journeyMaxTime: 2, compositionSeed: 0.8125 });
+      const three = developing('three', { journeyMaxIntensity: 16 });
+      const one = developing('one', { journeyMaxIntensity: 16, compositionSeed: 0.8125 });
       const { AudioEngine, played, development, positionOf } = await setupJourney([three, one]);
       AudioEngine.registerRobotMelody('three', HOME as never);
       AudioEngine.registerRobotMelody('one', ONE as never);

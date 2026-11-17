@@ -344,11 +344,6 @@ export interface Robot {
    */
   journeyMaxIntensity?: number;
   /**
-   * The melody journey (§1.9): the longest a pair of the journey takes, in even measures, 2 to 16
-   * (JOURNEY_TIME_MIN to JOURNEY_TIME_MAX, step JOURNEY_TIME_STEP). Absent = 8 (DEFAULT_JOURNEY_MAX_TIME).
-   */
-  journeyMaxTime?: number;
-  /**
    * The melody journey (§1.9): whose journey the robot travels: its own, its company's, or the fleet's. On Company
    * with no company it travels as Own. Absent = 'own' (DEFAULT_JOURNEY).
    */
