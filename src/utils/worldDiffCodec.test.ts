@@ -75,7 +75,7 @@ describe('CompactWorldDiff codec (toCompactWorldDiff / fromCompactWorldDiff)', (
     rhythmicMotifLength: { active: true, value: 4 },
     noteVariance: { active: false, value: 0 },
     pitchRepeat: 50,
-    development: 1.375,
+    journeyMaxIntensity: 9,
     journey: 'fleet',
     pan: -0.6,
     reverbSend: 0,
@@ -107,7 +107,7 @@ describe('CompactWorldDiff codec (toCompactWorldDiff / fromCompactWorldDiff)', (
   it('writes every robot field under its abbreviated code', () => {
     const wire = wireOf(DIFF) as { r: Record<string, Record<string, unknown>>; d: Record<string, Record<string, unknown>> };
     expect(Object.keys(wire.r['robot-1']).sort()).toEqual(
-      ['a', 'l', 'f', 'po', 'fq', 'ft', 'rd', 'rm', 'nv', 'pr', 'dv', 'jy', 'p', 'rs', 'ds', 'gr', 'sm', 'db', 'dy', 'rt', 'ax', 'or', 'nm', 'll'].sort(),
+      ['a', 'l', 'f', 'po', 'fq', 'ft', 'rd', 'rm', 'nv', 'pr', 'ji', 'jy', 'p', 'rs', 'ds', 'gr', 'sm', 'db', 'dy', 'rt', 'ax', 'or', 'nm', 'll'].sort(),
     );
     expect(Object.keys(wire.d['company-1']).sort()).toEqual(['n', 'r']);
   });
@@ -568,26 +568,28 @@ describe('CompactWorldDiff: the per-robot fields', () => {
     });
   });
 
-  // docs/tasks/MELODY_JOURNEY.md Task 20 (spec §1.9): Development and Journey ride as dv / jy.
-  describe('the melody journey on the wire (dv / jy, roadmap 92 Task 20)', () => {
+  // docs/tasks/MELODY_JOURNEY.md Tasks 20 and 35 (spec §1.9): max intensity and Journey ride as ji / jy.
+  describe('the melody journey on the wire (ji / jy, roadmap 92 Tasks 20 and 35)', () => {
     /** A real encoded payload whose single robot entry has been replaced with `entry`. */
     function decodeWithRobotWire(entry: Record<string, unknown>) {
       const wire = wireOf(makeDiff({ robotOverrides: { 'robot-1': { rhythmicDensity: 42 } } })) as Record<string, unknown>;
       return fromCompactWorldDiff(asWire({ ...wire, r: { 'robot-1': entry } }));
     }
 
-    it('both round-trip, abbreviated as dv and jy on the wire', () => {
-      const payload = makeDiff({ robotOverrides: { 'robot-1': { development: 0.625, journey: 'company' } } });
+    it('both round-trip, abbreviated as ji and jy on the wire', () => {
+      const payload = makeDiff({ robotOverrides: { 'robot-1': { journeyMaxIntensity: 11, journey: 'company' } } });
       const wire = wireOf(payload) as { r: Record<string, Record<string, unknown>> };
 
-      expect(wire.r['robot-1']).toEqual({ dv: 0.625, jy: 'company' });
+      expect(wire.r['robot-1']).toEqual({ ji: 11, jy: 'company' });
       expect(roundTrip(payload)).toEqual(payload);
     });
 
-    it('round-trips a development of 0 (a robot set to its home melody must not be dropped as falsy) and every journey', () => {
-      for (const journey of ['own', 'company', 'fleet'] as const) {
-        const payload = makeDiff({ robotOverrides: { 'robot-1': { development: 0, journey } } });
-        expect(roundTrip(payload)).toEqual(payload);
+    it('round-trips a max intensity of 0 (a robot set to its home melody must not be dropped as falsy) and of 16, with every journey', () => {
+      for (const journeyMaxIntensity of [0, 16]) {
+        for (const journey of ['own', 'company', 'fleet'] as const) {
+          const payload = makeDiff({ robotOverrides: { 'robot-1': { journeyMaxIntensity, journey } } });
+          expect(roundTrip(payload)).toEqual(payload);
+        }
       }
     });
 
@@ -596,12 +598,12 @@ describe('CompactWorldDiff: the per-robot fields', () => {
       expect((wireOf(journeyOnly) as { r: Record<string, unknown> }).r['robot-1']).toEqual({ jy: 'fleet' });
       const decoded = roundTrip(journeyOnly);
       expect(decoded).toEqual(journeyOnly);
-      expect(decoded?.robotOverrides?.['robot-1']).not.toHaveProperty('development');
+      expect(decoded?.robotOverrides?.['robot-1']).not.toHaveProperty('journeyMaxIntensity');
     });
 
-    it('drops a dv that is not a finite number, keeping the rest of the entry', () => {
+    it('drops a ji that is not a finite number, keeping the rest of the entry', () => {
       for (const bad of ['x', '1', null, true, {}, []]) {
-        expect(decodeWithRobotWire({ rd: 42, dv: bad })?.robotOverrides?.['robot-1']).toEqual({ rhythmicDensity: 42 });
+        expect(decodeWithRobotWire({ rd: 42, ji: bad })?.robotOverrides?.['robot-1']).toEqual({ rhythmicDensity: 42 });
       }
     });
 
@@ -611,9 +613,13 @@ describe('CompactWorldDiff: the per-robot fields', () => {
       }
     });
 
-    it('drops each on its own: a good dv survives a bad jy, and the reverse', () => {
-      expect(decodeWithRobotWire({ dv: 1, jy: 'x' })?.robotOverrides?.['robot-1']).toEqual({ development: 1 });
-      expect(decodeWithRobotWire({ dv: 'x', jy: 'own' })?.robotOverrides?.['robot-1']).toEqual({ journey: 'own' });
+    it('drops each on its own: a good ji survives a bad jy, and the reverse', () => {
+      expect(decodeWithRobotWire({ ji: 5, jy: 'x' })?.robotOverrides?.['robot-1']).toEqual({ journeyMaxIntensity: 5 });
+      expect(decodeWithRobotWire({ ji: 'x', jy: 'own' })?.robotOverrides?.['robot-1']).toEqual({ journey: 'own' });
+    });
+
+    it('a dv in an old link is ignored, and the rest of the entry decodes', () => {
+      expect(decodeWithRobotWire({ rd: 42, dv: 0.625 })?.robotOverrides?.['robot-1']).toEqual({ rhythmicDensity: 42 });
     });
   });
 

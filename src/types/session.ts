@@ -32,9 +32,9 @@ export interface RobotAudioOverrideDiff {
   rhythmicMotifLength?: { active: boolean; value: number };
   noteVariance?: { active: boolean; value: number };
   pitchRepeat?: number;
-  /** As Robot.development and Robot.journey (docs/specs/MELODY_JOURNEY.md §1.9): diffed against the seeded baseline
-   *  like pitchRepeat. A 0 is a real value (the robot set to its home melody). */
-  development?: number;
+  /** As Robot.journeyMaxIntensity and Robot.journey (docs/specs/MELODY_JOURNEY.md §1.9): diffed against the seeded
+   *  baseline like pitchRepeat. A 0 is a real value (the robot set to its home melody). */
+  journeyMaxIntensity?: number;
   journey?: JourneySetting;
   /** As Robot.dynamics / rests / accents (docs/specs/ROBOT_PERFORMANCE.md §1.7), 0-100 integers. */
   dynamics?: number;
