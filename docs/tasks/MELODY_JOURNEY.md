@@ -353,7 +353,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** S
 
-- [ ] **Task 11: `AudioEngine.ts` — `stepNotes` honours `sixteenths` and `pitchStep`**
+- [x] **Task 11: `AudioEngine.ts` — `stepNotes` honours `sixteenths` and `pitchStep`**
 
   **Description:** In `stepNotes`, an event with a `pitchStep` resolves through `stepInPalette` with the stored
   robot's `octaveRange` (no range when the robot is not found), and an event with `sixteenths` sounds for that many

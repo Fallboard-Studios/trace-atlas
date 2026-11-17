@@ -12,7 +12,7 @@ import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, Robo
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
-import { paletteForMeasure } from './harmonySystem';
+import { paletteForMeasure, stepInPalette } from './harmonySystem';
 import { resetBeatClock, initBeatClock, positionAt, getTickSeconds, type MusicPosition } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
 import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS, STATION_FADE_RECOVER_SECONDS } from '../constants';
@@ -849,9 +849,11 @@ function humanizeOffsetFor(position: number): (robotId: string) => number {
  * The one place that turns a step into notes, so the trigger (processMelodyStep) and an early announcement read the
  * same thing and cannot drift. Pure as far as the audio goes: it schedules nothing and counts no voice.
  *
- * - pitch: `paletteForMeasure(at.measure)` at the event's note index, with its octave (4 if none);
- * - length: the written NoteDuration, or, for a rested or clipped note, its sounding length in seconds at the live
- *   tempo (floored at MIN_SOUNDING_SECONDS, never longer than written) with a short release (docs/specs/
+ * - pitch: `paletteForMeasure(at.measure)` at the event's note index, with its octave (4 if none), moved `pitchStep`
+ *   palette steps when the event has one (stepInPalette, inside the stored robot's octave range; melody journey §1.7);
+ * - length: the written NoteDuration, or `sixteenths` sixteenths in seconds at the live tempo when the event has one
+ *   (melody journey §1.4), or, for a rested or clipped note, its sounding length in seconds at the live tempo
+ *   (floored at MIN_SOUNDING_SECONDS, never longer than written) with a short release (docs/specs/
  *   ROBOT_PERFORMANCE.md §1.3; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b);
  * - accent: the motif-group accent times the mark's velocity, absent when 1;
  * - start: `time + MIN_LEAD` plus the Humanize roll at `at.sixteenth` (none for a Click Track entry);
@@ -875,13 +877,23 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
         devWarn(`[AudioEngine] Invalid note index ${event.noteIndex} for robot ${robotId}`);
         return;
       }
-      const octave = event.octave ?? 4;
+      let octave = event.octave ?? 4;
+      let pitchName = noteName;
+      // A neighbour (melody journey §1.4, §1.7): palette steps from the event's own note, in this measure's palette,
+      // turned back at the stored robot's octave range (no range for a robot the store does not hold).
+      if (event.pitchStep) {
+        const stepped = stepInPalette(notes, event.noteIndex, octave, event.pitchStep, findActiveRobot(robotId)?.octaveRange);
+        pitchName = stepped.note;
+        octave = stepped.octave;
+      }
 
       const art = resolveArticulation(event);
-      let duration: NoteDuration | number = event.length;
+      // A length in sixteenths (melody journey §1.4) sounds for that many sixteenths at the live tempo, in seconds.
+      let duration: NoteDuration | number =
+        event.sixteenths !== undefined ? Tone.Time('16n').toSeconds() * event.sixteenths : event.length;
       let release: number | undefined;
       if (art.length < 1) {
-        const writtenSeconds = Tone.Time(event.length).toSeconds();
+        const writtenSeconds = typeof duration === 'number' ? duration : Tone.Time(event.length).toSeconds();
         duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
         const ownRelease = findActiveRobot(robotId)?.audioAttributes?.adsr?.release;
         release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
@@ -890,7 +902,7 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
 
       out.push({
         robotId,
-        note: `${noteName}${octave}`,
+        note: `${pitchName}${octave}`,
         duration,
         time: time + MIN_LEAD + (clickTrack ? 0 : humanizeOffset(robotId)),
         accentMultiplier: accentMultiplier === 1 ? undefined : accentMultiplier,

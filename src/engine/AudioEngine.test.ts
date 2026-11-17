@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MAX_POLYPHONY, MIN_LEAD, STATION_FADE_RECOVER_SECONDS } from '../constants';
+import { MAX_POLYPHONY, MIN_LEAD, MIN_SOUNDING_SECONDS, STATION_FADE_RECOVER_SECONDS } from '../constants';
 
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testLocale') }));
 
@@ -247,11 +247,16 @@ vi.mock('tone', () => ({
 }));
 
 // Mock harmony system
-vi.mock('./harmonySystem', () => ({
-  // processMelodyStep reads the palette of its measure (one music clock). Every measure plays the same names here
-  // (they carry an octave digit, so a note reads e.g. 'C43'); the palette cases swap in the real function.
-  paletteForMeasure: vi.fn((_measure: number) => ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']),
-}));
+vi.mock('./harmonySystem', async () => {
+  const actual = await vi.importActual<typeof import('./harmonySystem')>('./harmonySystem');
+  return {
+    // processMelodyStep reads the palette of its measure (one music clock). Every measure plays the same names here
+    // (they carry an octave digit, so a note reads e.g. 'C43'); the palette cases swap in the real function.
+    paletteForMeasure: vi.fn((_measure: number) => ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']),
+    // The melody journey's neighbour (roadmap 92 Task 11): the real step, read over whichever palette is in place.
+    stepInPalette: vi.fn(actual.stepInPalette),
+  };
+});
 
 // Mock beat clock
 // One tick's length (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2): undefined, as with no transport, except in the
@@ -7727,6 +7732,94 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const resolved = stepNotes(AT, 2);
       AudioEngine.processMelodyStep(AT, 2);
       expect(params()).toEqual(resolved);
+    });
+  });
+
+  // The melody journey's two event fields (docs/specs/MELODY_JOURNEY.md §1.4, §1.7; roadmap 92 Task 11): a changed
+  // event may carry a neighbour (`pitchStep`, palette steps resolved when it plays) and a length in sixteenths.
+  describe('stepNotes honours pitchStep and sixteenths (melody journey Task 11)', () => {
+    async function setupWithRealPalette(robots: Array<ReturnType<typeof robotFixture>>) {
+      const ctx = await setup(robots);
+      const real = await vi.importActual<typeof import('./harmonySystem')>('./harmonySystem');
+      const harmony = await import('./harmonySystem');
+      vi.mocked(harmony.paletteForMeasure).mockImplementation(real.paletteForMeasure);
+      return ctx;
+    }
+
+    describe('pitchStep', () => {
+      it('a pitchStep event plays the palette step of the measure it sounds in, so it moves with the chord', async () => {
+        const { AudioEngine, stepNotes } = await setupWithRealPalette([robotFixture('r', { octaveRange: [2, 6] })]);
+        // Slot 2 at octave 4, up two. Measure 0 (classes C D E G B): E4 then G4, B4. Measure 2 (classes C D F G A): F4
+        // then G4, A4. Down one at measure 4 (classes C D F A): from F4 to D4.
+        AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 1, noteIndex: 2, octave: 4, pitchStep: 2 })] as never);
+        expect(stepNotes(atStep(1, 0), 0).map((n) => n.note)).toEqual(['B4']);
+        expect(stepNotes(atStep(1, 2), 0).map((n) => n.note)).toEqual(['A4']);
+        AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 1, noteIndex: 2, octave: 4, pitchStep: -1 })] as never);
+        expect(stepNotes(atStep(1, 4), 0).map((n) => n.note)).toEqual(['D4']);
+      });
+
+      it('carries the octave: up one from B4 (measure 0, slot 4) is C5', async () => {
+        const { AudioEngine, stepNotes } = await setupWithRealPalette([robotFixture('r', { octaveRange: [2, 6] })]);
+        AudioEngine.registerRobotMelody('r', [eventFixture({ noteIndex: 4, octave: 4, pitchStep: 1 })] as never);
+        expect(stepNotes(atStep(1, 0), 0)[0].note).toBe('C5');
+      });
+
+      it('turns back at the top of the stored robot octaveRange: up one from B4 in [3, 4] is G4', async () => {
+        const { AudioEngine, stepNotes } = await setupWithRealPalette([robotFixture('r', { octaveRange: [3, 4] })]);
+        AudioEngine.registerRobotMelody('r', [eventFixture({ noteIndex: 4, octave: 4, pitchStep: 1 })] as never);
+        expect(stepNotes(atStep(1, 0), 0)[0].note).toBe('G4');
+      });
+
+      it('a robot the store does not hold steps with no range: up one from B4 is C5', async () => {
+        const { AudioEngine, stepNotes } = await setupWithRealPalette([]);
+        AudioEngine.registerRobotMelody('ghost', [eventFixture({ noteIndex: 4, octave: 4, pitchStep: 1 })] as never);
+        expect(stepNotes(atStep(1, 0), 0)[0].note).toBe('C5');
+      });
+
+      it('an event with no pitchStep, or a pitchStep of 0, plays its own slot as before', async () => {
+        const { AudioEngine, stepNotes } = await setupWithRealPalette([robotFixture('r')]);
+        AudioEngine.registerRobotMelody('r', [
+          eventFixture({ id: 'a', startStep: 1, noteIndex: 2, octave: 4 }),
+          eventFixture({ id: 'b', startStep: 2, noteIndex: 2, octave: 4, pitchStep: 0 }),
+        ] as never);
+        expect(stepNotes(atStep(1, 0), 0)[0].note).toBe('E4');
+        expect(stepNotes(atStep(2, 0), 0)[0].note).toBe('E4');
+      });
+    });
+
+    describe('sixteenths', () => {
+      // The pretend tempo: a 16n is 0.075 s (200 BPM).
+      it('a sixteenths: 3 event sounds for three sixteenths at the live tempo, in seconds', async () => {
+        const { AudioEngine, stepNotes } = await setup([robotFixture('r')]);
+        AudioEngine.registerRobotMelody('r', [eventFixture({ length: '8n', sixteenths: 3 })] as never);
+        const [note] = stepNotes(atStep(1), 0);
+        expect(note.duration).toBeCloseTo(0.225, 10);
+        expect(typeof note.duration).toBe('number');
+        expect('release' in note).toBe(false);
+      });
+
+      it('follows the tempo: at a 16n of 0.1 s, five sixteenths are 0.5 s', async () => {
+        const { AudioEngine, Tone, stepNotes } = await setup([robotFixture('r')]);
+        (Tone.Time as unknown as ReturnType<typeof vi.fn>).mockImplementation((d: string | number) => ({
+          toSeconds: () => (typeof d === 'number' ? d : d === '16n' ? 0.1 : 1),
+        }));
+        AudioEngine.registerRobotMelody('r', [eventFixture({ length: '4n', sixteenths: 5 })] as never);
+        expect(stepNotes(atStep(1), 0)[0].duration).toBeCloseTo(0.5, 10);
+      });
+
+      it('with a rest it shortens from that length (half of 0.225 s) and releases short', async () => {
+        const { AudioEngine, stepNotes } = await setup([robotFixture('r')]);
+        AudioEngine.registerRobotMelody('r', [eventFixture({ length: '8n', sixteenths: 3, rest: 0.5 })] as never);
+        const [note] = stepNotes(atStep(1), 0);
+        expect(note.duration).toBeCloseTo(0.1125, 10);
+        expect(note.release).toBe(0.03);
+      });
+
+      it('a rested one-sixteenth event is never under MIN_SOUNDING_SECONDS', async () => {
+        const { AudioEngine, stepNotes } = await setup([robotFixture('r')]);
+        AudioEngine.registerRobotMelody('r', [eventFixture({ length: '16n', sixteenths: 1, rest: 0.9 })] as never);
+        expect(stepNotes(atStep(1), 0)[0].duration).toBe(MIN_SOUNDING_SECONDS);
+      });
     });
   });
 });
