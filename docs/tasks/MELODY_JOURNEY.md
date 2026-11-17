@@ -20,8 +20,7 @@ that day): a list of intensity and time pairs bounded by two settings, in place 
 slider. Phases 6 to 9 below (Tasks 24 to 37) rebuild the journey, the engine's read of it, the settings and the
 seeding on top of what Phases 1 to 5 built; the docs move to Phase 10 and keep their task numbers (21 to 23). Phase 6
 built the same day on Crawford's word (Tasks 24–26, 659f5f56, 840f9b01, 54cb4a74; a test tightened at the checkpoint,
-2f7796b0); Checkpoint F's suite, mutation checks and shape probe done (Results); its review with Crawford is next,
-then **Task 27**.
+2f7796b0); Checkpoint F done (Results) and passed on Crawford's word; **Task 27 is next** (Phase 7).
 
 ## Overview
 
@@ -837,7 +836,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 - [x] The journey's shape, measured once over long runs with a throwaway probe (not committed) and written under
       Results: at bounds of 16 and 16, the share of pairs that are drops, the share that head home, the mean time of
       a pair, and the mean measures between two visits home. Gate A's numbers are read against these.
-- [ ] Reviewed with Crawford before Phase 7.
+- [x] Reviewed with Crawford before Phase 7 (2026-11-17: he moved on to Phase 7).
 
 ---
 
