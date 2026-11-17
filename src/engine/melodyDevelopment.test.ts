@@ -293,3 +293,73 @@ describe('developMelody: busier, two thresholds (spec §1.5, phase 2)', () => {
     }
   });
 });
+
+describe('developMelody: busier, the silence fills (spec §1.5, phase 3)', () => {
+  const dirs = (seed: number, n: number) => {
+    const rand = alea(`${seed}:development`);
+    return Array.from({ length: n }, () => (rand() < 0.5 ? 1 : -1));
+  };
+
+  it('fills the one gap at the end of a bar with nothing left to split, as a neighbour of the bar first note', () => {
+    // Twelve sixteenths, then silence at 13-16. T = 1: nothing splits; the fill length is 1.
+    const twelve = Array.from({ length: 12 }, (_, i) => ev(i + 1, '16n', { noteIndex: i % 8 }));
+    const want = dirs(OPTS.seed, 4);
+    const one = developMelody(twelve, 1, OPTS);
+    const fill = one.find((e) => e.startStep === 16)!;
+    expect(fill).toMatchObject({ id: 'e1:d1', noteIndex: 0, octave: 4, sixteenths: 1, pitchStep: want[0] });
+    expect(fill.rest).toBeUndefined();
+    expect(fill.mark).toBeUndefined();
+    // Each next fill sits flush against the one before, which leads into the bar first note.
+    const four = developMelody(twelve, 4, OPTS);
+    expect(four.filter((e) => e.startStep > 12).map((e) => e.startStep)).toEqual([13, 14, 15, 16]);
+    expect(four.find((e) => e.startStep === 15)!.pitchStep).toBe(want[0] + want[1]);
+    expect(four.find((e) => e.startStep === 13)!.noteIndex).toBe(0);
+  });
+
+  it('fills the longest gap first, the earliest on a tie, flush against the note it leads into', () => {
+    // Gaps: 1-2 (2 long), 5-8 (4), 11-14 (4). T = 1.
+    const melody = [ev(3, '16n'), ev(4, '16n'), ev(9, '16n'), ev(10, '16n'), ev(15, '16n'), ev(16, '16n')];
+    expect(developMelody(melody, 1, OPTS).map((e) => e.startStep)).toEqual([3, 4, 8, 9, 10, 15, 16]);
+    expect(developMelody(melody, 2, OPTS).map((e) => e.startStep)).toEqual([3, 4, 8, 9, 10, 14, 15, 16]);
+    // Then three gaps of 3, 3 and 2: the earliest 3.
+    expect(developMelody(melody, 3, OPTS).map((e) => e.startStep)).toEqual([3, 4, 7, 8, 9, 10, 14, 15, 16]);
+    // The fill at 8 leads into the note at 9: its slot and octave.
+    const leadsInto = developMelody(melody, 1, OPTS).find((e) => e.startStep === 8)!;
+    expect(leadsInto.id).toBe('e9:d1');
+  });
+
+  it('fills a gap before the bar first note, leading into it', () => {
+    // Floor 4: T = 4, one threshold, nothing at least 8 to split. The fill length is 4.
+    const melody = [ev(5, '4n', { noteIndex: 3 }), ev(9, '4n'), ev(13, '4n')];
+    const out = developMelody(melody, 1, { ...OPTS, floor: 4 });
+    expect(bar(out)).toBe('1: 4, 5: 4, 9: 4, 13: 4');
+    expect(out[0]).toMatchObject({ id: 'e5:d1', noteIndex: 3, sixteenths: 4 });
+  });
+
+  it('does not count a rest stamped on a note as a gap', () => {
+    const rested = [ev(1, '4n', { rest: 0.75 }), ev(5, '4n', { rest: 0.5 }), ev(9, '4n'), ev(13, '4n', { rest: 0.25 })];
+    for (const p of [1, 5, 20]) expect(bar(developMelody(rested, p, { ...OPTS, floor: 4 }))).toBe(bar(rested));
+  });
+
+  it('ends when no gap is a fill length long', () => {
+    // A 1-sixteenth gap at 16 under a fill length of 2 is never filled.
+    const melody = [ev(1, '4n'), ev(5, '4n'), ev(9, '4n'), ev(13, '4n', { sixteenths: 3 })];
+    for (const p of [10, 30, 60]) {
+      const out = developMelody(melody, p, { ...OPTS, floor: 2 });
+      expect(out.some((e) => e.startStep === 16)).toBe(false);
+      const last = out[out.length - 1];
+      expect(last.startStep + eventSixteenths(last)).toBe(16);
+    }
+  });
+
+  it('leaves no gap a fill length long once the fills are done', () => {
+    const sparse = [ev(1, '8n'), ev(6, '4n'), ev(13, '16n')];
+    const out = developMelody(sparse, 80, OPTS);
+    let at = 1;
+    for (const e of out) {
+      expect(e.startStep).toBe(at);
+      at = e.startStep + eventSixteenths(e);
+    }
+    expect(at).toBe(17);
+  });
+});

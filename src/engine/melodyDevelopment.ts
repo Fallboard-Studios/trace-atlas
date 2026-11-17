@@ -5,6 +5,7 @@
 // argument, as composeRobotMelody's is.
 import alea from 'alea';
 import { ATTACK_REACH_SHARE } from '../constants';
+import { DEFAULT_SUBDIVISIONS } from './melodyGenerator';
 import type { MelodyEvent, NoteDuration } from '../types/Robot';
 
 // ========================================
@@ -191,6 +192,26 @@ function twoThresholds(T: number, sub: number): Phase {
   };
 }
 
+/** Phase 3, the fills: while some gap of silence inside the bar (on written lengths: before the first note, between
+ *  two notes, after the last) is at least `fill` long, a change adds one `fill`-long note at the end of the longest gap
+ *  (the earliest on a tie), on the slot and octave of the note it leads into and one palette step from it. The gap
+ *  after the last note leads into the bar's first note. */
+function fills(fill: number): Phase {
+  return (bar, k, dir) => {
+    let best: { start: number; end: number; into: Note; at: number } | null = null;
+    for (let i = 0; i <= bar.length; i++) {
+      const start = i === 0 ? 1 : bar[i - 1].start + bar[i - 1].len;
+      const end = i === bar.length ? DEFAULT_SUBDIVISIONS + 1 : bar[i].start;
+      if (end - start < fill || (best && end - start <= best.end - best.start)) continue;
+      best = { start, end, into: bar[i === bar.length ? 0 : i], at: i };
+    }
+    if (!best) return false;
+    const { into } = best;
+    bar.splice(best.at, 0, { src: into.src, id: `${into.id}:d${k}`, start: best.end - fill, len: fill, pitchStep: into.pitchStep + dir, added: true });
+    return true;
+  };
+}
+
 /** `steps` busy changes on the home melody, phase after phase, each phase running until it has nothing left. Change k
  *  reads draw k of the seed's development stream, one draw per change (§1.8). A position past the last change any
  *  phase can make plays that last change. */
@@ -202,7 +223,8 @@ function busier(home: MelodyEvent[], steps: number, options: DevelopmentOptions)
   // hand-made length gives one) subdivides at its whole half.
   const T = Math.max(Math.min(...notes.map((n) => n.len)), floor);
   const sub = Math.max(floor, Math.floor(T / 2));
-  const phases: Phase[] = [firstPass(notes, T), twoThresholds(T, sub)];
+  // The fill length is the smaller threshold in use: the subdivision, which is T itself when there is one threshold.
+  const phases: Phase[] = [firstPass(notes, T), twoThresholds(T, sub), fills(sub)];
   const rand = alea(`${options.seed}:development`);
   let phase = 0;
   let made = 0;
