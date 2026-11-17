@@ -330,7 +330,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
 ### Phase 3: The engine plays the measure's melody
 
-- [ ] **Task 10: `harmonySystem.ts` — a step through the palette**
+- [x] **Task 10: `harmonySystem.ts` — a step through the palette**
 
   **Description:** A pure `stepInPalette(palette, noteIndex, octave, pitchStep, octaveRange)` returning the note name
   and octave (spec §1.4, §1.7): the palette's distinct pitch classes in rising order, moved through `pitchStep`
