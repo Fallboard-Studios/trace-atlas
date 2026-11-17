@@ -7642,14 +7642,16 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo((alea('0:humanize:0')() * 2 - 1) * 0.02, 10);
     });
 
-    it('reads the roster once per step with three robots sounding, and not at all at 0 ms', async () => {
+    // Since the melody journey (roadmap 92 Task 14) every step reads the stored robots for their journeys, Humanize or
+    // not; Humanize shares that one read rather than adding its own.
+    it('reads the roster once per step with three robots sounding, at 0 ms and at 20 ms alike', async () => {
       const { AudioEngine, stateSpy } = await setup([robotFixture('a'), robotFixture('b'), robotFixture('c')]);
       for (const id of ['a', 'b', 'c']) AudioEngine.registerRobotMelody(id, [eventFixture()] as never);
 
       AudioEngine.setHumanize(0);
       stateSpy.mockClear();
       AudioEngine.processMelodyStep(atStep(1), 0);
-      expect(stateSpy).toHaveBeenCalledTimes(0);
+      expect(stateSpy).toHaveBeenCalledTimes(1);
 
       AudioEngine.setHumanize(20);
       stateSpy.mockClear();
@@ -7877,6 +7879,245 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         const { AudioEngine, stepNotes } = await setup([robotFixture('r')]);
         AudioEngine.registerRobotMelody('r', [eventFixture({ length: '16n', sixteenths: 1, rest: 0.9 })] as never);
         expect(stepNotes(atStep(1), 0)[0].duration).toBe(MIN_SOUNDING_SECONDS);
+      });
+    });
+  });
+
+  // The melody journey's contract (docs/specs/MELODY_JOURNEY.md §1.7; roadmap 92 Task 14): a robot's events on a step
+  // are the events of its melody for that step's measure, developMelody(home, journeyPosition(key, rate, measure)),
+  // read from the stored robot when it plays. The oracle below is the real walk and the real changes.
+  describe('a note reads its own measure melody (melody journey Task 14)', () => {
+    const WORLD = { x: 21, y: -188 };
+    const WORLD_KEY = '21:-188';
+    /** The spec's worked example (§1.5): a half note at 1, a quarter at 9, an eighth at 13. */
+    const HOME = [
+      eventFixture({ id: 'A', startStep: 1, length: '2n', noteIndex: 0 }),
+      eventFixture({ id: 'B', startStep: 9, length: '4n', noteIndex: 2 }),
+      eventFixture({ id: 'C', startStep: 13, length: '8n', noteIndex: 4 }),
+    ];
+    /** This file's fixed palette (the harmony mock): every measure plays it. */
+    const PALETTE = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+    const RANGE: [number, number] = [2, 6];
+    type Journeyed = ReturnType<typeof robotFixture> & Record<string, unknown>;
+    const developing = (id: string, extra: Record<string, unknown> = {}) =>
+      robotFixture(id, { development: 1, octaveRange: RANGE, compositionSeed: 0.4375, ...extra }) as Journeyed;
+
+    async function setupJourney(robots: Journeyed[]) {
+      vi.doMock('./melodyDevelopment', async () => {
+        const actual = await vi.importActual<typeof import('./melodyDevelopment')>('./melodyDevelopment');
+        return { ...actual, developMelody: vi.fn(actual.developMelody) };
+      });
+      const ctx = await setup(robots);
+      ctx.stateSpy.mockReturnValue({ locales: { testLocale: { robots, coordinates: WORLD } } } as never);
+      const development = await import('./melodyDevelopment');
+      const real = await vi.importActual<typeof import('./melodyDevelopment')>('./melodyDevelopment');
+      const journey = await vi.importActual<typeof import('./melodyJourney')>('./melodyJourney');
+      const harmony = await vi.importActual<typeof import('./harmonySystem')>('./harmonySystem');
+      const { getBand } = await import('../data/bands/loadingContext');
+      const bpmTop = getBand('bpm').max;
+
+      const fmt = (step: number, note: string, duration: unknown) =>
+        `${step}|${note}|${typeof duration === 'number' ? duration.toFixed(4) : String(duration)}`;
+      /** What the engine plays for plain events (no rest, mark or accent): pitch through the palette step, length
+       *  from sixteenths at the pretend tempo. */
+      const expected = (events: Array<Record<string, any>>) =>
+        events
+          .map((e) => {
+            const n = e.pitchStep
+              ? harmony.stepInPalette(PALETTE, e.noteIndex, e.octave, e.pitchStep, RANGE)
+              : { note: PALETTE[e.noteIndex], octave: e.octave };
+            return fmt(e.startStep, `${n.note}${n.octave}`, e.sixteenths !== undefined ? e.sixteenths * SECONDS['16n'] : e.length);
+          })
+          .sort();
+      const positionOf = (robot: Journeyed, measure: number) => {
+        const j = journey.robotJourney(robot as never, WORLD_KEY, bpmTop);
+        return journey.journeyPosition(j.key, j.rate, measure);
+      };
+      /** The robot's melody at `measure`, by the real walk and the real changes. */
+      const oracle = (robot: Journeyed, measure: number, home = HOME) => {
+        const j = journey.robotJourney(robot as never, WORLD_KEY, bpmTop);
+        return expected(real.developMelody(home as never, journey.journeyPosition(j.key, j.rate, measure), j) as never);
+      };
+      /** Every note the engine reads for `robotId` over the 16 steps of `measure`. */
+      const played = (robotId: string, measure: number, strip = false) => {
+        const out: string[] = [];
+        for (let step = 1; step <= 16; step++) {
+          for (const n of ctx.stepNotes(atStep(step, measure), 0)) {
+            if (n.robotId === robotId) out.push(fmt(step, strip ? '' : n.note, n.duration));
+          }
+        }
+        return out.sort();
+      };
+      return { ...ctx, development, positionOf, oracle, played, expected };
+    }
+
+    afterEach(() => {
+      vi.doUnmock('./melodyDevelopment');
+    });
+
+    /** The first measure from 1 that `test` accepts, within 400. */
+    const firstMeasure = (test: (m: number) => boolean) => {
+      for (let m = 1; m <= 400; m++) if (test(m)) return m;
+      throw new Error('no such measure within 400');
+    };
+
+    it('from one registration, every measure plays its own position: busier, calmer and home all heard', async () => {
+      const r = developing('r');
+      const { AudioEngine, played, oracle, positionOf, expected } = await setupJourney([r]);
+      AudioEngine.registerRobotMelody('r', HOME as never);
+      const busy = firstMeasure((m) => positionOf(r, m) > 0);
+      const calm = firstMeasure((m) => positionOf(r, m) < 0);
+      expect(played('r', busy)).toEqual(oracle(r, busy));
+      expect(played('r', calm)).toEqual(oracle(r, calm));
+      expect(played('r', busy)).not.toEqual(expected(HOME));
+      expect(played('r', calm)).not.toEqual(expected(HOME));
+      expect(played('r', busy)).not.toEqual(played('r', calm));
+      for (let m = 0; m <= 64; m++) expect(played('r', m)).toEqual(oracle(r, m));
+    });
+
+    it('a robot at Development 0, or with no development at all, plays its home melody at every measure', async () => {
+      const zero = developing('zero', { development: 0, journey: 'fleet' });
+      const none = robotFixture('none', { octaveRange: RANGE }) as Journeyed;
+      const { AudioEngine, played, expected } = await setupJourney([zero, none]);
+      AudioEngine.registerRobotMelody('zero', HOME as never);
+      AudioEngine.registerRobotMelody('none', HOME as never);
+      for (let m = 0; m <= 64; m++) {
+        expect(played('zero', m)).toEqual(expected(HOME));
+        expect(played('none', m)).toEqual(expected(HOME));
+      }
+    });
+
+    describe('a store write changes the next read, with no engine call', () => {
+      /** Registers r once, finds a measure where the edit moves the melody, and reads it either side of the edit. */
+      async function across(before: Record<string, unknown>, edit: (r: Journeyed) => void) {
+        const r = developing('r', before);
+        const ctx = await setupJourney([r]);
+        ctx.AudioEngine.registerRobotMelody('r', HOME as never);
+        const register = vi.spyOn(ctx.AudioEngine, 'registerRobotMelody');
+        const after = developing('r', before);
+        edit(after);
+        const m = firstMeasure((k) => JSON.stringify(ctx.oracle(r, k)) !== JSON.stringify(ctx.oracle(after, k)));
+        const was = ctx.played('r', m);
+        expect(was).toEqual(ctx.oracle(r, m));
+        edit(r);
+        expect(ctx.played('r', m)).toEqual(ctx.oracle(after, m));
+        expect(ctx.played('r', m)).not.toEqual(was);
+        expect(register).not.toHaveBeenCalled();
+      }
+
+      it('development', async () => {
+        await across({ development: 0 }, (r) => { r.development = 1; });
+      });
+
+      it('journey', async () => {
+        await across({ journey: 'own' }, (r) => { r.journey = 'fleet'; });
+      });
+
+      it('companyId', async () => {
+        await across({ journey: 'company', companyId: 'co-1' }, (r) => { r.companyId = 'co-2'; });
+      });
+
+      it('attack (the floor)', async () => {
+        await across({}, (r) => { r.audioAttributes = { ...r.audioAttributes, adsr: { ...TEST_ADSR, attack: 1.14 } }; });
+      });
+    });
+
+    it('two robots with one key and one rate are at one position at every measure of a 200-measure run', async () => {
+      const a = developing('a', { journey: 'company', companyId: 'co-1', development: 0.5, compositionSeed: 0.1 });
+      const b = developing('b', { journey: 'company', companyId: 'co-1', development: 0.5, compositionSeed: 0.9 });
+      const own = developing('own', { journey: 'own', development: 0.5, compositionSeed: 0.1 });
+      const { AudioEngine, played } = await setupJourney([a, b, own]);
+      for (const id of ['a', 'b', 'own']) AudioEngine.registerRobotMelody(id, HOME as never);
+      // The rhythm (onsets and lengths) is the position's alone; the seeds move only the neighbours' pitches.
+      const homeRhythm = played('a', 0, true);
+      let moved = 0;
+      let apart = 0;
+      for (let m = 0; m < 200; m++) {
+        expect(played('a', m, true)).toEqual(played('b', m, true));
+        if (JSON.stringify(played('a', m, true)) !== JSON.stringify(homeRhythm)) moved++;
+        if (JSON.stringify(played('a', m, true)) !== JSON.stringify(played('own', m, true))) apart++;
+      }
+      expect(moved).toBeGreaterThan(0);
+      expect(apart).toBeGreaterThan(0); // the comparison can fail: another key does part company
+    });
+
+    it('reading m, then m+1, then m again gives m its events both times and rebuilds nothing the second time', async () => {
+      const r = developing('r');
+      const { AudioEngine, played, positionOf, development } = await setupJourney([r]);
+      AudioEngine.registerRobotMelody('r', HOME as never);
+      const m = firstMeasure((k) => positionOf(r, k) !== 0 && positionOf(r, k + 1) !== 0 && positionOf(r, k) !== positionOf(r, k + 1));
+      const build = vi.mocked(development.developMelody);
+      build.mockClear();
+      const first = played('r', m);
+      expect(build).toHaveBeenCalledTimes(1); // sixteen steps, one build
+      played('r', m + 1);
+      expect(build).toHaveBeenCalledTimes(2);
+      expect(played('r', m)).toEqual(first);
+      expect(build).toHaveBeenCalledTimes(2);
+    });
+
+    it('a Click Track robot plays the click track at every measure, whatever its development', async () => {
+      const r = developing('r', { clickTrackActive: true });
+      const { AudioEngine, played } = await setupJourney([r]);
+      AudioEngine.registerRobotMelody('r', HOME as never);
+      const click = played('r', 0);
+      expect(click.length).toBeGreaterThan(0);
+      for (let m = 0; m <= 64; m++) expect(played('r', m)).toEqual(click);
+    });
+
+    describe('accents, rests and marks', () => {
+      const at = <T extends { robotId: string }>(notes: T[], id: string) => notes.filter((n) => n.robotId === id);
+
+      it('busier: a home note keeps its accent, rest and mark; a note a change adds has none', async () => {
+        // The spec worked example at position 3: 1: 6 (A, accented, rested), 7: 2 (added), 9: 1 (B, tenuto),
+        // 10: 1 (added), 11: 2 (added), 13: 2 (C).
+        const marked = [
+          eventFixture({ id: 'A', startStep: 1, length: '2n', noteIndex: 0, rest: 0.5 }),
+          eventFixture({ id: 'B', startStep: 9, length: '4n', noteIndex: 2, mark: 'tenuto' }),
+          eventFixture({ id: 'C', startStep: 13, length: '8n', noteIndex: 4 }),
+        ];
+        const seeds = Array.from({ length: 16 }, (_, k) => k / 16);
+        const motif = { active: true, value: 16 };
+        const probe = await setupJourney([]);
+        const seed = seeds.find((s) => {
+          try { firstMeasure((m) => probe.positionOf(developing('x', { compositionSeed: s }), m) === 3); return true; } catch { return false; }
+        });
+        expect(seed).toBeDefined();
+        const r = developing('r', { compositionSeed: seed, rhythmicMotifLength: motif });
+        const { AudioEngine, stepNotes, positionOf } = await setupJourney([r]);
+        AudioEngine.registerRobotMelody('r', marked as never);
+        const m = firstMeasure((k) => positionOf(r, k) === 3);
+        const read = (step: number) => at(stepNotes(atStep(step, m), 0), 'r');
+
+        const [a] = read(1);
+        expect(a.accentMultiplier).toBe(1.25);
+        expect(a.duration).toBeCloseTo(6 * 0.075 * 0.5, 10);
+        expect(a.release).toBe(0.03);
+        const [b] = read(9);
+        expect(b.accentMultiplier).toBe(1.2);
+        expect(b.duration).toBeCloseTo(0.075, 10);
+        for (const [step, sixteenths] of [[7, 2], [10, 1], [11, 2]]) {
+          const [added] = read(step);
+          expect(added.accentMultiplier).toBeUndefined();
+          expect(added.duration).toBeCloseTo(sixteenths * 0.075, 10);
+          expect('release' in added).toBe(false);
+        }
+        const [c] = read(13);
+        expect(c.accentMultiplier).toBeUndefined();
+        expect(c.duration).toBe('8n');
+      });
+
+      it('calmer: a tied-away accented note takes its accent with it; the note before keeps its own', async () => {
+        // Motif windows of 4 accent A (window 0), B (window 2) and C (window 3). Position -1 ties C into B.
+        const r = developing('r', { rhythmicMotifLength: { active: true, value: 4 } });
+        const { AudioEngine, stepNotes, positionOf } = await setupJourney([r]);
+        AudioEngine.registerRobotMelody('r', HOME as never);
+        const m = firstMeasure((k) => positionOf(r, k) === -1);
+        expect(at(stepNotes(atStep(13, m), 0), 'r')).toEqual([]);
+        const [b] = at(stepNotes(atStep(9, m), 0), 'r');
+        expect(b.accentMultiplier).toBe(1.25);
+        expect(b.duration).toBeCloseTo(6 * 0.075, 10);
+        expect(at(stepNotes(atStep(1, m), 0), 'r')[0].accentMultiplier).toBe(1.25);
       });
     });
   });

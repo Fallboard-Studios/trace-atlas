@@ -20,6 +20,9 @@ import { emitRobotNote, getNotePreviewSeconds, hasRobotNoteListener } from './no
 import { readContextSeconds } from './nativeContext';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
 import { resolveArticulation } from './articulation';
+import { journeyPosition, robotJourney, worldKeyOf } from './melodyJourney';
+import { developMelody } from './melodyDevelopment';
+import { getBand } from '../data/bands/loadingContext';
 
 import { getRef } from '../utils/refs';
 import { precomputeDataX } from '../utils/getSeededVal';
@@ -202,14 +205,20 @@ let humanizeMs = 0;
 // Global FX chain (compressor, reverb/delay/limiter/EQ/filters, master
 // gain) lives in src/engine/audioEngine/globalFx.ts as its own module state.
 
-/** One robot's registration (melody journey Task 13): the melody it registered (the click track's while that is on),
- *  the events carrying the motif accent, the click-track flag, and its entries by step, built once here. */
+/** One robot's registration (melody journey Tasks 13, 14): the melody it registered (the click track's while that is
+ *  on), the ids of the events carrying the motif accent, the click-track flag, its entries by step, built once here,
+ *  and its developed entries by step for the last few positions it was read at (entriesOnStep). */
 interface RegisteredRobot {
   melody: MelodyEvent[];
-  accented: ReadonlySet<MelodyEvent>;
+  accented: ReadonlySet<string>;
   clickTrack: boolean;
   byStep: Map<number, MelodyEventEntry[]>;
+  developed: Map<string, Map<number, MelodyEventEntry[]>>;
 }
+
+/** How many developed positions a robot keeps (melody journey §1.7): the trigger and the early announcement read
+ *  measures either side of a bar line, and a position moves at most twice a measure. */
+const DEVELOPED_KEPT = 4;
 
 // The melody registry, per robot, in registration order: a step's notes are gathered robot by robot in this order, and
 // a re-registered robot moves to the end, so the order notes reach the polyphony cap in is the order robots registered.
@@ -835,18 +844,17 @@ export function computeNoteVelocitySeeded(robotId?: string, position?: number, r
 
 /**
  * Humanize (docs/specs/ROBOT_PERFORMANCE.md assumption 9): a function from a robot id to how many seconds early or
- * late its note lands this tick, within ± humanizeMs. The roster is fetched ONCE here, per processMelodyStep call,
- * not once per note; the per-robot work is a find over the roster and one `performanceRoll(seed, 'humanize',
- * position)` draw (T20), uniform and independent across robots and ticks, so a unison smears rather than shifting
- * together, and a replay repeats. The locale noise map is only checked for presence (no active locale, no offset).
- * Returns a constant 0 (and fetches nothing) when Humanize is off or there is no noise map. MIN_LEAD less the
- * largest offset still leaves 80 ms of lead, inside CLAUDE.md's 50-100 ms rule.
+ * late its note lands this tick, within ± humanizeMs. The roster is the one stepNotes read for the step, not one read
+ * per note; the per-robot work is a find over the roster and one `performanceRoll(seed, 'humanize', position)` draw
+ * (T20), uniform and independent across robots and ticks, so a unison smears rather than shifting together, and a
+ * replay repeats. The locale noise map is only checked for presence (no active locale, no offset). Returns a constant 0
+ * when Humanize is off or there is no noise map. MIN_LEAD less the largest offset still leaves 80 ms of lead, inside
+ * CLAUDE.md's 50-100 ms rule.
  */
-function humanizeOffsetFor(position: number): (robotId: string) => number {
+function humanizeOffsetFor(position: number, roster: readonly Robot[]): (robotId: string) => number {
   if (humanizeMs <= 0) return () => 0;
   const noiseMap = tryGetLocaleNoiseMap(getActiveLocaleId());
   if (!noiseMap) return () => 0;
-  const roster = getActiveLocaleRobots();
   const range = humanizeMs / 1000;
   return (robotId) => {
     const seed = roster.find((r) => r.id === robotId)?.compositionSeed ?? 0;
@@ -855,7 +863,43 @@ function humanizeOffsetFor(position: number): (robotId: string) => number {
 }
 
 /**
- * A step's notes (note cloud spec §1.9; plan Task 32): every registered event on `at.step`, read as it will sound.
+ * One robot's entries on `at.step`, from its melody for `at.measure` (melody journey §1.7): the stored robot's journey
+ * (robotJourney) gives the position, and developMelody the events there. The developed events by step are kept per
+ * robot for the last DEVELOPED_KEPT positions and rebuilt only when the position or an input (the floor, the seed)
+ * changes. A robot the store does not hold, a Click Track robot, and a robot at position 0 play what is registered.
+ * The accent stays on the home event that had it (by id); a note a change adds is never accented.
+ */
+function entriesOnStep(
+  robotId: string,
+  registered: RegisteredRobot,
+  robot: Robot | undefined,
+  worldKey: string,
+  bpmTop: number,
+  at: MusicPosition,
+): MelodyEventEntry[] | undefined {
+  if (registered.clickTrack || !robot) return registered.byStep.get(at.step);
+  const journey = robotJourney(robot, worldKey, bpmTop);
+  const position = journeyPosition(journey.key, journey.rate, at.measure);
+  if (position === 0) return registered.byStep.get(at.step);
+  const kept = `${position}:${journey.floor}:${journey.seed}`;
+  let byStep = registered.developed.get(kept);
+  if (!byStep) {
+    byStep = new Map();
+    for (const event of developMelody(registered.melody, position, journey)) {
+      const entries = byStep.get(event.startStep) ?? [];
+      entries.push({ robotId, event, isGroupAccent: registered.accented.has(event.id) });
+      byStep.set(event.startStep, entries);
+    }
+    registered.developed.set(kept, byStep);
+    // Oldest first out: the reads either side of a bar line keep the two or three newest.
+    if (registered.developed.size > DEVELOPED_KEPT) registered.developed.delete(registered.developed.keys().next().value!);
+  }
+  return byStep.get(at.step);
+}
+
+/**
+ * A step's notes (note cloud spec §1.9; plan Task 32): every registered robot's events on `at.step`, from its melody
+ * for `at.measure` (entriesOnStep, melody journey §1.7), read as it will sound.
  * The one place that turns a step into notes, so the trigger (processMelodyStep) and an early announcement read the
  * same thing and cannot drift. Pure as far as the audio goes: it schedules nothing and counts no voice.
  *
@@ -872,15 +916,23 @@ function humanizeOffsetFor(position: number): (robotId: string) => number {
  * A bad note index is skipped with a dev warning; an event that throws while it is read is skipped alone.
  */
 export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
+  if (melodyRegistry.size === 0) return [];
+  // One store read per step (melody journey §1.7): the robots' settings, the world key and the Humanize seeds.
+  const localeId = getActiveLocaleId();
+  const locale = useLocaleStore.getState().locales?.[localeId];
+  const roster = locale?.robots ?? [];
+  const robotOf = (robotId: string) => roster.find((r) => r.id === robotId);
+  const worldKey = locale?.coordinates ? worldKeyOf(locale.coordinates) : localeId;
+  const bpmTop = getBand('bpm').max;
   const events: MelodyEventEntry[] = [];
-  melodyRegistry.forEach((registered) => {
-    const onStep = registered.byStep.get(at.step);
+  melodyRegistry.forEach((registered, robotId) => {
+    const onStep = entriesOnStep(robotId, registered, robotOf(robotId), worldKey, bpmTop, at);
     if (onStep) events.push(...onStep);
   });
   if (events.length === 0) return [];
   const notes = paletteForMeasure(at.measure);
   const position = at.sixteenth;
-  const humanizeOffset = humanizeOffsetFor(position);
+  const humanizeOffset = humanizeOffsetFor(position, roster);
   const out: NoteParams[] = [];
 
   events.forEach(({ robotId, event, isGroupAccent, clickTrack }) => {
@@ -896,7 +948,7 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
       // A neighbour (melody journey §1.4, §1.7): palette steps from the event's own note, in this measure's palette,
       // turned back at the stored robot's octave range (no range for a robot the store does not hold).
       if (event.pitchStep) {
-        const stepped = stepInPalette(notes, event.noteIndex, octave, event.pitchStep, findActiveRobot(robotId)?.octaveRange);
+        const stepped = stepInPalette(notes, event.noteIndex, octave, event.pitchStep, robotOf(robotId)?.octaveRange);
         pitchName = stepped.note;
         octave = stepped.octave;
       }
@@ -909,7 +961,7 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
       if (art.length < 1) {
         const writtenSeconds = typeof duration === 'number' ? duration : Tone.Time(event.length).toSeconds();
         duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
-        const ownRelease = findActiveRobot(robotId)?.audioAttributes?.adsr?.release;
+        const ownRelease = robotOf(robotId)?.audioAttributes?.adsr?.release;
         release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
       }
       const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
@@ -1601,16 +1653,16 @@ export const AudioEngine = {
     }
 
     const clickTrack = robot?.clickTrackActive === true;
-    const accented = new Set<MelodyEvent>();
+    const accented = new Set<string>();
     const byStep = new Map<number, MelodyEventEntry[]>();
     effectiveMelody.forEach((event) => {
       const isGroupAccent = accentedStartSteps.has(event.startStep);
-      if (isGroupAccent) accented.add(event);
+      if (isGroupAccent) accented.add(event.id);
       const entries = byStep.get(event.startStep) || [];
       entries.push({ robotId, event, isGroupAccent, ...(clickTrack ? { clickTrack: true } : {}) });
       byStep.set(event.startStep, entries);
     });
-    melodyRegistry.set(robotId, { melody: effectiveMelody, accented, clickTrack, byStep });
+    melodyRegistry.set(robotId, { melody: effectiveMelody, accented, clickTrack, byStep, developed: new Map() });
   },
 
   unregisterRobotMelody(robotId: string): void {

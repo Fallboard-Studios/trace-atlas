@@ -434,7 +434,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** M
 
-- [ ] **Task 14: `AudioEngine.ts` — a note reads its own measure's melody**
+- [x] **Task 14: `AudioEngine.ts` — a note reads its own measure's melody**
 
   **Description:** For each registered robot, `stepNotes(at, time)` reads the stored robot, builds its journey
   (`robotJourney`, with the active locale's world key and `getBand('bpm').max`), takes
