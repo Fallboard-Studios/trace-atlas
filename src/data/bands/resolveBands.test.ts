@@ -11,6 +11,7 @@ import {
   ENVELOPE_TIME_MAX_SECONDS,
   HUMANIZE_MAX_MS,
   HUMANIZE_MIN_MS,
+  JOURNEY_INTENSITY_MAX,
   PERFORMANCE_MAX,
   PERFORMANCE_MIN,
   PORTAMENTO_MAX,
@@ -186,6 +187,8 @@ const EXPECTED: BandTable = {
   'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.135 },
   // The melody journey's rate (docs/specs/MELODY_JOURNEY.md §1.9, A14): seven robots in ten develop, 0.125 to 1.
   'robot.development': { min: 0.125, max: 1, lit: 0.7 },
+  // The journey's max intensity (docs/specs/MELODY_JOURNEY.md §1.9, §7.3): seven robots in ten on a journey, 1 to 16.
+  'robot.journeyMaxIntensity': { min: 1, max: 16, lit: 0.7 },
   // The plain 0-100 draws.
   'robot.rhythmicDensity': { min: 0, max: 100 },
   'robot.pitchRepeat': { min: 0, max: 100 },
@@ -222,9 +225,9 @@ describe('resolveBands - Classic parity (docs/specs/OFF_SCREEN.md §5.2, plan Ta
     expect(CLASSIC).toStrictEqual(EXPECTED);
   });
 
-  it('holds 84 bands: one tempo, fifty global rows, two world keys, twenty-six robot bands and five sends', () => {
-    expect(Object.keys(CLASSIC)).toHaveLength(84);
-    expect(ROBOT_RANGE_KEYS.length + ROBOT_LIT_KEYS.length + ROBOT_TOGGLE_KEYS.length + ROBOT_PICK_KEYS.length).toBe(26);
+  it('holds 85 bands: one tempo, fifty global rows, two world keys, twenty-seven robot bands and five sends', () => {
+    expect(Object.keys(CLASSIC)).toHaveLength(85);
+    expect(ROBOT_RANGE_KEYS.length + ROBOT_LIT_KEYS.length + ROBOT_TOGGLE_KEYS.length + ROBOT_PICK_KEYS.length).toBe(27);
     expect(WORLD_RANGE_KEYS.length + WORLD_LIT_KEYS.length).toBe(2);
   });
 
@@ -412,6 +415,7 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
       'robot.rhythmicMotifLength',
       'robot.pitchRepeat',
       'robot.development',
+      'robot.journeyMaxIntensity',
     ]);
     expect(ASPECT_FAMILIES.envelope.keys).toEqual([
       'robot.attack',
@@ -953,9 +957,11 @@ describe('the shipped columns (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md)', () 
     expect(movedKeys(overlayBands(CLASSIC, column)).length).toBeGreaterThan(0);
   });
 
-  // A family key no option names yet: the melody journey's rate joins Melody so the deal re-derives it, but stays the
-  // theme's for now (docs/specs/MELODY_JOURNEY.md §1.9, §7.2 question 2).
-  const UNNAMED_FAMILY_KEYS: Partial<Record<AspectFamilyId, readonly BandKey[]>> = { melody: ['robot.development'] };
+  // Family keys no option names yet: the melody journey's rate and max intensity join Melody so the deal re-derives
+  // them, but stay the theme's for now (docs/specs/MELODY_JOURNEY.md §1.9, §7.2 question 2).
+  const UNNAMED_FAMILY_KEYS: Partial<Record<AspectFamilyId, readonly BandKey[]>> = {
+    melody: ['robot.development', 'robot.journeyMaxIntensity'],
+  };
 
   it.each(ASPECT_FAMILY_IDS)('%s: no two options are equal column for column, and the key set is the union its sheets own', (family) => {
     const options = Object.values(realAspects.ASPECT_FAMILIES[family].options).map((column) => JSON.stringify(column));
@@ -970,6 +976,12 @@ describe('the shipped columns (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md)', () 
   it('no option names the development band: it stays the theme\'s', () => {
     for (const option of realAspects.ASPECT_IDS_BY_FAMILY.melody) {
       expect(Object.keys(optionColumn('melody', option)), option).not.toContain('robot.development');
+    }
+  });
+
+  it('no option names the max intensity band: it stays the theme\'s', () => {
+    for (const option of realAspects.ASPECT_IDS_BY_FAMILY.melody) {
+      expect(Object.keys(optionColumn('melody', option)), option).not.toContain('robot.journeyMaxIntensity');
     }
   });
 
@@ -1124,6 +1136,7 @@ const ROBOT_BOUNDS: Record<Exclude<BandKey, LoadingRangeKey | RobotPickKey>, rea
   'robot.rhythmicDensity': [0, 100],
   'robot.pitchRepeat': [0, 100],
   'robot.development': [DEVELOPMENT_MIN, DEVELOPMENT_MAX], // the store's clamp on Robot.development
+  'robot.journeyMaxIntensity': [0, JOURNEY_INTENSITY_MAX], // the Max Intensity slider (JOURNEY_MAX_INTENSITY_SCHEMA)
   'robot.noteVariance': [1, 8],
   'robot.rhythmicMotifLength': [1, 8],
   'robot.dynamics': [PERFORMANCE_MIN, PERFORMANCE_MAX],

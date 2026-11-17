@@ -387,6 +387,9 @@ export interface RobotAudioBaseline {
   pitchRepeat: number;
   /** The melody journey's rate (docs/specs/MELODY_JOURNEY.md §1.9): seeded, a member's from its founder like pitchRepeat. */
   development: number;
+  /** The journey's max intensity (docs/specs/MELODY_JOURNEY.md §1.9): seeded, a member's from its founder like
+   *  pitchRepeat. */
+  journeyMaxIntensity: number;
   /** Whose journey it travels (§1.9): 'company' for every index of a seeded company's membership, founder included,
    *  'own' for a freelancer - what spawnRobot and spawnInitialCompanies write between them. */
   journey: JourneySetting;
@@ -430,14 +433,14 @@ export function generateRobotAudioBaseline(
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
-  const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, development } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands(), audioAttributes.adsr.attack);
+  const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, development, journeyMaxIntensity } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands(), audioAttributes.adsr.attack);
   const { dynamics, rests, accents } = derivePerformanceFields(noiseMap, spawnCount, currentPerformanceBands());
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
   const masterVolume = seedMasterVolume(noiseMap, spawnCount, octaveRange);
 
-  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, development, journey: 'own', dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, development, journeyMaxIntensity, journey: 'own', dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
 }
 
 /** A company member's baseline at `spawnCount` (Company Families §1.11): its founder's, every field inherited — the

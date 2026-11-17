@@ -187,6 +187,8 @@ const ROBOT_READERS: Record<RobotKey, Reader<RobotAudioBaseline>> = {
   'robot.lfoBusDepth': (r) => linksOf(r, (target) => target === 'bus.frequency'),
   // A lit robot never seeds 0 (seedDevelopment), so a value above 0 is the lit share.
   'robot.development': (r) => [lit(r.development > 0, r.development)],
+  // A lit robot never seeds 0 either (seedJourneyMaxIntensity).
+  'robot.journeyMaxIntensity': (r) => [lit(r.journeyMaxIntensity > 0, r.journeyMaxIntensity)],
   'robot.waveform': (r) => [r.audioAttributes.waveform, ...layersOf(r).map((layer) => layer.type)].map((pick) => ({ pick })),
   'robot.octaveRegister': (r) => [{ pick: registerOf(r.octaveRange) }],
   // A lit Delay draw can land on 0 (its band starts at 0), so the Delay share reads a hair under its `lit`.

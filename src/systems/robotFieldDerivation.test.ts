@@ -322,6 +322,97 @@ describe('deriveMelodyFields — development (docs/tasks/MELODY_JOURNEY.md Task 
   });
 });
 
+describe('deriveMelodyFields — max intensity (docs/tasks/MELODY_JOURNEY.md Task 33)', () => {
+  // 12,000 spawn indices (1,000 worlds of 12), so a share is held to one point at more than two standard deviations.
+  const INTENSITY_SLOTS = Array.from({ length: 1000 }, (_, i) => createNoise2D(alea(`journeyMaxIntensity:${i}`))).flatMap((noiseMap) =>
+    Array.from({ length: ROBOTS_PER_WORLD }, (_, offset) => ({ noiseMap, offset })),
+  );
+  const intensityUnder = (band: { min: number; max: number; lit: number }) =>
+    INTENSITY_SLOTS.map(({ noiseMap, offset }) =>
+      deriveMelodyFields(noiseMap, offset, { ...CLASSIC, 'robot.journeyMaxIntensity': band }, ENVELOPE_ATTACK_MIN_SECONDS).journeyMaxIntensity,
+    );
+  const CLASSIC_INTENSITY = INTENSITY_SLOTS.map(
+    ({ noiseMap, offset }) => deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS).journeyMaxIntensity,
+  );
+  const band = CLASSIC['robot.journeyMaxIntensity'];
+
+  it('Classic seeds seven robots in ten on a journey, a max intensity of 1 to 16', () => {
+    expect(band).toStrictEqual({ min: 1, max: 16, lit: 0.7 });
+  });
+
+  it('the share above 0 is the band lit share, within a point', () => {
+    const lit = CLASSIC_INTENSITY.filter((m) => m > 0).length / CLASSIC_INTENSITY.length;
+    expect(lit).toBeGreaterThanOrEqual(band.lit - 0.01);
+    expect(lit).toBeLessThanOrEqual(band.lit + 0.01);
+  });
+
+  it('every value above 0 is a whole number inside the band, and every whole number of the band is drawn', () => {
+    const journeying = CLASSIC_INTENSITY.filter((m) => m > 0);
+    for (const m of journeying) {
+      expect(Number.isInteger(m), `${m} whole`).toBe(true);
+      expect(m).toBeGreaterThanOrEqual(band.min);
+      expect(m).toBeLessThanOrEqual(band.max);
+    }
+    const stops = Array.from({ length: band.max - band.min + 1 }, (_, i) => band.min + i);
+    expect(new Set(journeying)).toEqual(new Set(stops));
+  });
+
+  it('each whole number takes its even share of the journeying robots within a point, the ends included', () => {
+    const journeying = CLASSIC_INTENSITY.filter((m) => m > 0);
+    const even = 1 / (band.max - band.min + 1);
+    for (let stop = band.min; stop <= band.max; stop++) {
+      const share = journeying.filter((m) => m === stop).length / journeying.length;
+      expect(share, `${stop}`).toBeGreaterThanOrEqual(even - 0.01);
+      expect(share, `${stop}`).toBeLessThanOrEqual(even + 0.01);
+    }
+  });
+
+  it('a lit share of 0 gives every robot 0; a lit share of 1 gives every robot a whole number of the band', () => {
+    expect(new Set(intensityUnder({ min: 1, max: 16, lit: 0 }))).toEqual(new Set([0]));
+    expect(new Set(intensityUnder({ min: 3, max: 5, lit: 1 }))).toEqual(new Set([3, 4, 5]));
+  });
+
+  it('a band whose edges are not whole draws only the whole numbers inside it; a band of one number draws it', () => {
+    expect(new Set(intensityUnder({ min: 2.5, max: 5.5, lit: 1 }))).toEqual(new Set([3, 4, 5]));
+    expect(new Set(intensityUnder({ min: 7, max: 7, lit: 1 }))).toEqual(new Set([7]));
+  });
+
+  it('a band reaching below 1 never seeds a lit robot at 0', () => {
+    const all = intensityUnder({ min: 0, max: 2, lit: 1 });
+    expect(new Set(all)).toEqual(new Set([1, 2]));
+  });
+
+  it('the lit roll and the value are the even draws at their own dataIds and the robot offset', () => {
+    for (const { noiseMap, offset } of INTENSITY_SLOTS.slice(0, 120)) {
+      const lit = getUniformSeededVal(noiseMap, 'robot.journeyMaxIntensity.lit', offset, 0, 1) < 0.7;
+      const stop = 1 + Math.min(15, Math.floor(getUniformSeededVal(noiseMap, 'robot.journeyMaxIntensity', offset, 0, 1) * 16));
+      const { journeyMaxIntensity } = deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS);
+      expect(journeyMaxIntensity).toBe(lit ? stop : 0);
+    }
+  });
+
+  it('the same index gives the same value, and the attack does not move it', () => {
+    for (const { noiseMap, offset } of INTENSITY_SLOTS.slice(0, 120)) {
+      const first = deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS).journeyMaxIntensity;
+      expect(deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS).journeyMaxIntensity).toBe(first);
+      expect(deriveMelodyFields(noiseMap, offset, CLASSIC, 1.14).journeyMaxIntensity).toBe(first);
+    }
+  });
+
+  it('the band moves only max intensity: the five older Melody fields draw what they drew under any band', () => {
+    for (const { noiseMap, offset } of INTENSITY_SLOTS.slice(0, 120)) {
+      const { journeyMaxIntensity: _a, ...classic } = deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS);
+      const { journeyMaxIntensity: _b, ...moved } = deriveMelodyFields(
+        noiseMap,
+        offset,
+        { ...CLASSIC, 'robot.journeyMaxIntensity': { min: 5, max: 9, lit: 1 } },
+        ENVELOPE_ATTACK_MIN_SECONDS,
+      );
+      expect(moved).toStrictEqual(classic);
+    }
+  });
+});
+
 describe('deriveVoiceFields — even draws, the layer detune centred (Even Seeded Draws T6)', () => {
   // About a fifth of robots carry the accent filter, so the accent cases need more robots than the shared sample: at
   // 12,000 (1,000 worlds) every tolerance below is at least 3 standard deviations of its share.

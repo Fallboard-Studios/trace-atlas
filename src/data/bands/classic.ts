@@ -205,6 +205,10 @@ export const CLASSIC: BandTable = {
   // 0.125 grid inside the band, from one change every eight measures to one a measure. Every other robot is exactly 0
   // and plays its home melody. A company member takes its founder's.
   'robot.development': { min: 0.125, max: 1, lit: 0.7 },
+  // The melody journey's max intensity (docs/specs/MELODY_JOURNEY.md §1.9, §7.3, a first cut for Gate C): `lit` is the
+  // share of robots on a journey, drawn even, so seven in ten; each lit robot takes a whole number inside the band, each
+  // a full share. Every other robot is exactly 0 and plays its home melody. A company member takes its founder's.
+  'robot.journeyMaxIntensity': { min: 1, max: 16, lit: 0.7 },
   // The two plain 0-100 draws, the sliders' own scale.
   'robot.rhythmicDensity': { min: 0, max: 100 },
   'robot.pitchRepeat': { min: 0, max: 100 },

@@ -88,6 +88,7 @@ export const ROBOT_LIT_KEYS = [
   'robot.lfoDetuneDepth',
   'robot.lfoBusDepth',
   'robot.development',
+  'robot.journeyMaxIntensity',
 ] as const;
 
 /** The two 1-8 toggle fields (ToggleBand). */

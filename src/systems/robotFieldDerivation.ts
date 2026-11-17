@@ -97,9 +97,26 @@ export function seedDevelopment(litRoll: number, t: number, band: SendBand): num
   return (low + Math.min(high - low, Math.floor(t * (high - low + 1)))) * DEVELOPMENT_STEP;
 }
 
-/** The five Melody fields a robot draws (docs/specs/MELODY_SYSTEM.md; the development, docs/specs/MELODY_JOURNEY.md
- *  §1.9) - the Melody family's share of the deal. */
-export type MelodyFields = Pick<RobotAudioBaseline, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat' | 'development'>;
+/**
+ * A robot's journey max intensity from its two even draws (docs/specs/MELODY_JOURNEY.md §1.9): a robot whose `litRoll`
+ * is under the band's `lit` takes a whole number inside the band, chosen by `t` (0 to 1), each a full share, the ends
+ * included (floored, as seedDevelopment is); every other robot is 0. A band edge that is not whole draws only the whole
+ * numbers inside it; a band with none inside takes the first whole number above its min. Never 0 for a lit robot.
+ * Shared by the noise-map draw and spawnRobot's alea fallback.
+ */
+export function seedJourneyMaxIntensity(litRoll: number, t: number, band: SendBand): number {
+  if (!(litRoll < band.lit)) return 0;
+  const low = Math.max(1, Math.ceil(band.min));
+  const high = Math.max(low, Math.floor(band.max));
+  return low + Math.min(high - low, Math.floor(t * (high - low + 1)));
+}
+
+/** The six Melody fields a robot draws (docs/specs/MELODY_SYSTEM.md; the development and the journey's max intensity,
+ *  docs/specs/MELODY_JOURNEY.md §1.9) - the Melody family's share of the deal. */
+export type MelodyFields = Pick<
+  RobotAudioBaseline,
+  'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat' | 'development' | 'journeyMaxIntensity'
+>;
 
 /** The bands the Melody draw reads: the family's four, and the tempo the attack rail measures note length at. */
 export type MelodyDrawBands = Pick<BandTable, MelodyBandKey | 'bpm'>;
@@ -112,6 +129,7 @@ export function currentMelodyBands(): MelodyDrawBands {
     'robot.rhythmicMotifLength': getBand('robot.rhythmicMotifLength'),
     'robot.pitchRepeat': getBand('robot.pitchRepeat'),
     'robot.development': getBand('robot.development'),
+    'robot.journeyMaxIntensity': getBand('robot.journeyMaxIntensity'),
     bpm: getBand('bpm'),
   };
 }
@@ -143,7 +161,8 @@ export function deriveRhythmicDensity(noiseMap: NoiseFunction2D, spawnIndex: num
  * are retired: value is derived from this same draw). Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so a
  * toggle's offShare is the share of robots with it off. The density draw reads the robot's attack (`attackSeconds`, its
  * Envelope drawn first): the attack rail, audibleDensityBand. The development is two draws of its own, a lit roll at
- * '.lit' and the stop (seedDevelopment), read after the other four so their draws stand as they were.
+ * '.lit' and the stop (seedDevelopment), read after the other four so their draws stand as they were. The journey's max
+ * intensity is two more, a lit roll at 'robot.journeyMaxIntensity.lit' and the whole number (seedJourneyMaxIntensity).
  */
 export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number, bands: MelodyDrawBands, attackSeconds: number): MelodyFields {
   const rhythmicDensity = deriveRhythmicDensity(noiseMap, spawnIndex, bands, attackSeconds);
@@ -158,7 +177,12 @@ export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number
     getUniformSeededVal(noiseMap, 'robot.development', spawnIndex, 0, 1),
     bands['robot.development'],
   );
-  return { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, development };
+  const journeyMaxIntensity = seedJourneyMaxIntensity(
+    getUniformSeededVal(noiseMap, 'robot.journeyMaxIntensity.lit', spawnIndex, 0, 1),
+    getUniformSeededVal(noiseMap, 'robot.journeyMaxIntensity', spawnIndex, 0, 1),
+    bands['robot.journeyMaxIntensity'],
+  );
+  return { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, development, journeyMaxIntensity };
 }
 
 // Waveform types, in the pick's order (robot.waveform's PickBand: Classic's equal weights give ~20 % each, pulse included)
