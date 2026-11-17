@@ -10,7 +10,10 @@ with Crawford is next. Phase 2 built the same day (Tasks 8–9, 5fb21a7b, 4d088f
 done (Results), its review with Crawford next, then Task 10. Phase 3 built the same day (Tasks 10–14, 842b28fb,
 7d00e5b8, bae04ac3, cce717bf, 92461adc); Checkpoint C's suite and mutation checks done (Results); its browser look and
 review with Crawford next, then Task 15. Phase 4 built the same day (Tasks 15–17, 76dae0fb, 90e82c07, e713df1c);
-Checkpoint D's suite done (Results); Gate A, Crawford's ear, next.
+Checkpoint D's suite done (Results); Gate A, Crawford's ear, next. Phase 5 built 2026-11-17 on Crawford's word (Tasks
+18–20, f0e17661, 2ea953e5, b0bc81e6, 65adbb2a), with Gate A's numbers not recorded, so the plan's defaults stand;
+Checkpoint E's suite, build and mutation checks done; Gate B run as a substitute (the step harness is broken, Results);
+Gate C, Crawford's ear, next.
 
 ## Overview
 
@@ -571,7 +574,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
 ### Phase 5: Seeding and saving
 
-- [ ] **Task 18: the band and the draw**
+- [x] **Task 18: the band and the draw**
 
   **Description:** `'robot.development'` joins the band keys (`bandKeys.ts`), Classic's column
   (`{ min: 0.125, max: 1, lit: 0.7 }`, or Gate A's numbers) and the Melody family's keys (`MELODY_BAND_KEYS`,
@@ -597,7 +600,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** M
 
-- [ ] **Task 19: spawn, the baseline and the deal**
+- [x] **Task 19: spawn, the baseline and the deal**
 
   **Description:** `spawnRobot` writes `development` (an original's own draw, with the alea fallback its neighbours
   have; a member's from its founder) and `journey: 'own'`. `spawnInitialCompanies` writes `journey: 'company'` beside
@@ -627,7 +630,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** M
 
-- [ ] **Task 20: saves and links**
+- [x] **Task 20: saves and links**
 
   **Description:** `RobotAudioOverrideDiff` gains `development` and `journey`. `sessionDiff.ts` diffs each against
   the baseline and applies it, as it does `pitchRepeat`. `worldDiffCodec.ts` gives each a short key, chosen from
@@ -652,12 +655,14 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Estimated scope:** M
 
 ### Checkpoint E: Gates B and C
-- [ ] `npm test`, `npm run build` clean.
-- [ ] Mutation checks, each killed: the lit share (18), the member's inherited rate (19), the Company write at
+- [x] `npm test`, `npm run build` clean.
+- [x] Mutation checks, each killed: the lit share (18), the member's inherited rate (19), the Company write at
       `spawnInitialCompanies` (19), each diff key (20).
 - [ ] **Gate B (profile).** `npm run perf` on `main` and on the branch, same session, one at a time: the branch adds
       no long task to the baseline table in [PERFORMANCE.md](../PERFORMANCE.md). A miss stops the build here, with
-      the numbers and options.
+      the numbers and options. **Not run as written:** against `main`'s build the harness stops before its first
+      measured step, at a nav button it can no longer find ("Settings"); a substitute A/B is in Results, for Crawford
+      to accept or not.
 - [ ] **Gate C (Crawford's ear).** A full seeded world, on desktop and on the phone. His to move: the band (A14).
 - [ ] Stop. The docs start on his word.
 
@@ -875,6 +880,80 @@ changed size across the five states at either width; Journey was disabled at bot
   tests went with it.
 
 **Gate A:** not yet run (Crawford's ear).
+
+### Checkpoint E (2026-11-17)
+
+**Tasks.** Task 18 f0e17661, Task 19 2ea953e5, Task 20 b0bc81e6 and 65adbb2a (the journey guard, below). Started on
+Crawford's word with Gate A's numbers not recorded, so the spec's §7.1 defaults stand: Classic's band
+`{ min: 0.125, max: 1, lit: 0.7 }`, the slider 0 to 2 by 0.125.
+
+**Suite.** `npm test`: 14,722 passed, 2 skipped, 0 failed (243 s). `npm run build` clean (the standing chunk-size
+warning). `build:types` clean; `lint` clean apart from the four standing fast-refresh warnings.
+
+**Mutation checks.** Fourteen mutants, all killed.
+
+| Mutant | Task | Failed |
+|---|---|---|
+| The lit share ignored (every robot lit) | 18 | 4 |
+| The stop rounds instead of floors (the ends at half a share) | 18 | 2 |
+| A member draws 0, not its founder's rate | 19 | 4 |
+| `spawnInitialCompanies` writes no Company | 19 | 4 |
+| The baseline leaves a company's robots on Own | 19 | 2 |
+| `development` left out of `TOP_LEVEL_FIELDS` (a theme change does not re-derive it) | 19 | 1 |
+| The save diffs no development | 20 | 4 |
+| The save diffs no journey | 20 | 3 |
+| The restore applies no development | 20 | 3 |
+| The restore takes any development (a string reaches the store) | 20 | 1 |
+| The restore applies no journey | 20 | 2 |
+| The link writes no `dv` | 20 | 4 |
+| The link reads any `jy` | 20 | 2 |
+| The link reads any `dv` | 20 | 2 |
+
+A fifteenth, "the restore takes any journey", survived (374 passed): `localeStore.updateRobot` already drops a journey
+that is not a setting, so Task 20's own check in `buildRobotUpdates` was redundant. It went in 65adbb2a; a restored
+journey now goes to the store as it is, as the other fields the store normalises do. The development keeps its check,
+since the store would store a string.
+
+**Gate B, as a substitute.** `npm run perf` could not run: against `main`'s production build (`2e316525`, served on
+4174) it stops before its first measured step, at a nav button it can no longer find ("Settings",
+`scripts/perf/profile.mjs`'s TILE constants). It was not tried against the branch. In its place, the audio-thread
+harness as a same-session A/B (`npm run perf:audio`, world `charlie:200:-30`, the two production builds served side by
+side, one run at a time, no orphaned Chrome before or after). It measures steady play, where this branch's work is
+(the per-note development read); the step table measured view switches, which the branch does not touch.
+
+| 180 s run, 30 s buckets | Mean capacity | Max capacity | Bucket max lag |
+|---|---|---|---|
+| `main` 1 | 0.287 | 0.797 | ≤ 21 ms |
+| branch 1 | 0.289 | 0.606 | ≤ 28 ms |
+| branch 2 | 0.296 | 0.795 | 16–19 ms |
+| `main` 2 | 0.296 | 0.799 | 17–20 ms |
+
+The overlay's max lag over the warm-up (power-on and the first seconds of play, where the first developed melodies are
+built; the overlay's max is since boot, so a long run's end-of-series max bounds it), seven runs each side: `main` ≤ 21,
+17, 59, 28, 193, 106, 330 ms; branch ≤ 28, 182, 28, 76, 106, 147, 128 ms. Both sides cross 100 ms in that window in
+three or four runs of seven, and the worst was `main`'s,
+so nothing here points at the branch; but the warm-up is noisy and the sample is small. Crawford's to accept as Gate B,
+or to have the step harness fixed first (its nav labels, backlog 31's tooling).
+
+**Readings the plan did not cover (Phase 5).**
+
+- A lit robot takes a stop of the 0.125 grid inside the band, each stop a full share, the ends included (floored, as
+  `detuneLinkDepth` is, not rounded); a band edge off the grid draws only the stops inside it; a lit robot is never 0
+  (`seedDevelopment`, Task 18).
+- Task 18 held `development` out of the deal's Melody case, because a dealt robot would have carried it while spawn did
+  not yet; Task 19 put it back with the spawn write.
+- The theme re-derive case lives in `aspectDeal.widened.test.ts`, which holds the injected theme column, not in
+  `aspectDeal.test.ts` as Task 19 named.
+- The baseline's Company write is one pass after the roster loop in `generateRobotRosterBaseline`, over the seeded
+  membership.
+- Task 20 changed nineteen existing tests' fixtures (eighteen in `sessionDiff.test.ts` over seven fixture sites, one in
+  `robotSendsParity.test.ts`; b0bc81e6's message says "nine tests", wrongly). Each saved a world built by
+  `spawnInitialRoster` alone, so its seeded companies' robots stayed on Own while the baseline, like every real world,
+  puts them on Company; each now runs `spawnInitialCompanies` too.
+- Success criterion 3 is met over the 121 worlds by `spawnSystem.families.test.ts` (every developing company's members
+  play the same starts and lengths at each of 100 measures).
+
+**Gate C:** not yet run (Crawford's ear, desktop and phone).
 
 ## Risks and Mitigations
 
