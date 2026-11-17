@@ -20,7 +20,9 @@ that day): a list of intensity and time pairs bounded by two settings, in place 
 slider. Phases 6 to 9 below (Tasks 24 to 37) rebuild the journey, the engine's read of it, the settings and the
 seeding on top of what Phases 1 to 5 built; the docs move to Phase 10 and keep their task numbers (21 to 23). Phase 6
 built the same day on Crawford's word (Tasks 24–26, 659f5f56, 840f9b01, 54cb4a74; a test tightened at the checkpoint,
-2f7796b0); Checkpoint F done (Results) and passed on Crawford's word; **Task 27 is next** (Phase 7).
+2f7796b0); Checkpoint F done (Results) and passed on Crawford's word. Phase 7 built the same day (Tasks 27–28,
+7627bb59, 157faf54; a tidy at the checkpoint, c0643e2c); Checkpoint G's suite and mutation checks done (Results); its
+browser look and review with Crawford are next, then Task 29 (Phase 8).
 
 ## Overview
 
@@ -842,7 +844,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
 ### Phase 7: The engine reads the pairs
 
-- [ ] **Task 27: `Robot.ts`, `localeStore.ts` — the two bounds**
+- [x] **Task 27: `Robot.ts`, `localeStore.ts` — the two bounds**
 
   **Description:** `Robot.journeyMaxIntensity?: number` and `Robot.journeyMaxTime?: number` (spec §1.9). Constants
   `JOURNEY_INTENSITY_MAX` 16, `JOURNEY_TIME_MIN` 2, `JOURNEY_TIME_MAX` 16, `JOURNEY_TIME_STEP` 2,
@@ -866,7 +868,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** S
 
-- [ ] **Task 28: `melodyJourney.ts`, `AudioEngine.ts` — the engine plays the pairs; the walk goes**
+- [x] **Task 28: `melodyJourney.ts`, `AudioEngine.ts` — the engine plays the pairs; the walk goes**
 
   **Description:** `journeyPosition(key, bounds, measure)` replaces the rate form: 0 at a max intensity of 0 and at
   measure 0, else `positionInPairs` over the robot's pairs. The shares are memoised per key and the turning measures
@@ -907,10 +909,10 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Estimated scope:** M
 
 ### Checkpoint G: the engine on pairs
-- [ ] `npm test` clean (full suite).
-- [ ] Mutation checks, each killed: the calm limit not handed to the journey; the turning measures memoised without
+- [x] `npm test` clean (full suite).
+- [x] Mutation checks, each killed: the calm limit not handed to the journey; the turning measures memoised without
       max time (two max times share them); `robotJourney` ignoring the stored max time; a max intensity of 0 still
-      walking the pairs.
+      walking the pairs. (The first three killed; the fourth is equivalent and survives, Results.)
 - [ ] Look: in the browser, a robot's two bounds set through the store and the robot soloed. Its notes change by the
       measure, a drop is heard on a bar line, and it comes home.
 - [ ] Reviewed with Crawford before Phase 8.
@@ -1544,6 +1546,50 @@ The calm limit moves only the depth on the calm side: no pair's time, drop or ho
 - A time share whose half lands on .5 rounds up (`Math.round`): at max time 6, a share of 0.5 is 4 measures (Task 26).
 - `robotPairs` sees a drop only in the shares it is handed, so the pair before a drop is shortened only when share
   i + 1 is in the list; Task 28 hands in one share more than the pairs it reads.
+
+### Checkpoint G (2026-11-17)
+
+**Tasks.** Task 27 7627bb59, Task 28 157faf54; a tidy at the checkpoint c0643e2c (`pairAt` hands back the turning
+measures it searched, so the memo key is built in one place; no change in what plays). From Task 28 the Development
+slider does nothing and every robot plays its home melody: nothing seeds the bounds until Task 34.
+
+**Suite.** `npm test` at 157faf54: 364 files, 14,763 passed, 2 skipped, 0 failed (272 s), with one vitest worker
+error, `Timeout calling "onTaskUpdate"` (backlog 66's main-process swamp; no test failed). `build:types` clean; `lint`
+clean apart from the four standing fast-refresh warnings. The tidy was run against the three files below (605 passed).
+
+**Mutation checks.** Eight mutants, run against `melodyJourney.test.ts`, `AudioEngine.test.ts` and
+`spawnSystem.families.test.ts` (605 tests): the checkpoint's four and four more on the new read.
+
+| Mutant | Failed |
+|---|---|
+| The calm limit not handed to the journey (the engine hands 16) | 2 |
+| The turning measures memoised without max time | 5 |
+| `robotJourney` ignoring the stored max time | 2 |
+| A max intensity of 0 still walking the pairs | survived: equivalent |
+| The pair before a drop not shortened (in the engine's read) | 4 |
+| The binary search taking the pair that ends on the measure (`<` for `<=`) | survived: equivalent |
+| Every pair read from home, not from the pair before | 9 |
+| Time rounded to whole measures, not even ones (in the engine's read) | 3 |
+
+Both survivors were traced. **A max intensity of 0:** every pair then scales to an intensity of 0, so the position is
+0 with or without the guard; the guard only saves drawing the shares and filling the memo, which no read can see. It
+stays as the cheap path for the three robots in ten that will load at 0 (Phase 9). **The binary search:** on a turning
+measure exactly, the mutant reads the pair that ends there at its last measure (`k = T`, its intensity) and the code
+reads the next pair at its first (`k = 0`, the same intensity). Neither is a gap in the tests.
+
+**Readings the plan did not cover (Phase 7).**
+
+- The engine reads the calm limit on every step (`calmLimit(registered.melody)`, the note count less one); it is not
+  cached on the registration (Task 28).
+- `robotJourney` does not normalise a bound the store did not write (a save or link is Task 35's): an odd max time
+  still gives even times, since each pair's time is rounded to an even number, and a fractional max intensity is
+  rounded per pair (Task 28).
+- The turning measures are drawn one pair at a time as a read needs them, each pair drawing one share past itself, so
+  a read at measure 10,000 at a max time of 16 draws about 1,400 shares (10,000 over Checkpoint F's mean of 7.37
+  measures a pair), not 10,000 (Task 28).
+- The family case reads a table of four hand-set bounds, (16, 16), (5, 8), (1, 2) and (9, 4), one per company in
+  turn; its "one rate" assertion went with the rate, and its precondition now counts companies whose rhythm moves
+  (Task 28).
 
 ## Risks and Mitigations
 
