@@ -9,7 +9,8 @@ Source spec: [docs/specs/MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md). Source 
 with Crawford is next. Phase 2 built the same day (Tasks 8–9, 5fb21a7b, 4d088fb0); Checkpoint B's suite and probe
 done (Results), its review with Crawford next, then Task 10. Phase 3 built the same day (Tasks 10–14, 842b28fb,
 7d00e5b8, bae04ac3, cce717bf, 92461adc); Checkpoint C's suite and mutation checks done (Results); its browser look and
-review with Crawford next, then Task 15.
+review with Crawford next, then Task 15. Phase 4 built the same day (Tasks 15–17, 76dae0fb, 90e82c07, e713df1c);
+Checkpoint D's suite done (Results); Gate A, Crawford's ear, next.
 
 ## Overview
 
@@ -559,7 +560,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Estimated scope:** M
 
 ### Checkpoint D: Gate A, Crawford's ear
-- [ ] `npm test` clean (full suite).
+- [x] `npm test` clean (full suite).
 - [ ] **Gate A.** Every robot still spawns at Development 0, so the world sounds as it did. Crawford sets one robot
       to 1 and solos it, then a company to one rate on Company, then the fleet on Fleet. His to move here, each
       recorded in the spec before Phase 5: the order rules of §1.5 and §1.6 (A1 to A6), the swing (A12, against the
@@ -849,6 +850,31 @@ warnings.
 - The motif accent on a developed melody is kept by home event id; at position 0 the registered entries play as before,
   accent by start step (Task 14).
 - **In the browser:** not yet run.
+
+### Checkpoint D (2026-11-17)
+
+**Tasks.** Task 15 76dae0fb, Task 16 90e82c07, Task 17 e713df1c.
+
+**Suite.** `npm test`: 14,684 passed, 2 skipped, 0 failed. `build:types` clean; `lint` clean apart from the four
+standing fast-refresh warnings.
+
+**Mutation checks.** All killed: Journey ignoring Development 0 (Task 16, 2 failed); the company Development
+broadcast reaching only the first member (Task 17, 3 failed).
+
+**The Look (Task 16).** A throwaway headless Chrome on its own Vite, one robot of the default world, five store writes
+(Development 0 / Own, 0.125 / Own, 1.375 / Company, 2 / Fleet, 0 / Fleet): at 390 px the row stacks (Development
+290×105, Journey 290×142.5, its three options on two lines); at 1440 px it sits side by side (360×121 each). Neither box
+changed size across the five states at either width; Journey was disabled at both Development-0 states only.
+
+**Readings the plan did not cover (Phase 4).**
+
+- The content copy is a stand-in, human and lore (lore: Payload Drift; Drift Formation with Solo, Convoy and Fleet
+  Drift), marked for backlog 62's content pass.
+- Task 16 made the row optional on its two handlers; Task 17 made the handlers and `PingControlsValue`'s two fields
+  required, so the row always renders and each caller resolves absent fields to 0 and Own. Task 16's two optionality
+  tests went with it.
+
+**Gate A:** not yet run (Crawford's ear).
 
 ## Risks and Mitigations
 
