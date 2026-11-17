@@ -407,7 +407,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** M
 
-- [ ] **Task 13: `AudioEngine.ts` — the registry files events per robot (no change in what plays)**
+- [x] **Task 13: `AudioEngine.ts` — the registry files events per robot (no change in what plays)**
 
   **Description:** `stepRegistry` (a map from step to every robot's entries) becomes a registry per robot: its
   registered melody, its accented events and its click-track flag, with the entries by step built once at

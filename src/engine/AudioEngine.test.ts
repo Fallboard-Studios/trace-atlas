@@ -1712,6 +1712,64 @@ describe('AudioEngine - Melody Lifecycle', () => {
       spy.mockRestore();
     });
   });
+
+  // The melody journey, Task 13 (a parity refactor: the registry files events per robot). Written before the refactor
+  // and passing on both sides of it: the order notes reach the polyphony cap in is the order robots registered, and a
+  // re-registered robot moves to the end, as its entries did.
+  describe('the order of robots on a step (melody journey Task 13 characterisation)', () => {
+    const ev = (id: string, startStep: number, noteIndex = 0) => ({ id, startStep, length: '8n' as const, noteIndex, octave: 4 });
+    const order = async (step: number) => {
+      const { stepNotes } = await import('./AudioEngine');
+      return stepNotes(atStep(step), 0).map((n) => `${n.robotId}:${n.note}`);
+    };
+
+    it('notes come in registration order; a re-registered robot moves to the end, on every step', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      AudioEngine.registerRobotMelody('a', [ev('a1', 1, 0), ev('a5', 5, 0)]);
+      AudioEngine.registerRobotMelody('b', [ev('b1', 1, 1), ev('b5', 5, 1)]);
+      AudioEngine.registerRobotMelody('c', [ev('c1', 1, 2)]);
+      expect(await order(1)).toEqual(['a:C44', 'b:D44', 'c:E44']);
+      expect(await order(5)).toEqual(['a:C44', 'b:D44']);
+
+      AudioEngine.registerRobotMelody('a', [ev('a1', 1, 3), ev('a5', 5, 3)]);
+      expect(await order(1)).toEqual(['b:D44', 'c:E44', 'a:F44']);
+      expect(await order(5)).toEqual(['b:D44', 'a:F44']);
+    });
+
+    it('a re-registration that leaves a step drops the robot from it alone', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      AudioEngine.registerRobotMelody('a', [ev('a1', 1), ev('a5', 5)]);
+      AudioEngine.registerRobotMelody('b', [ev('b1', 1, 1), ev('b5', 5, 1)]);
+      AudioEngine.registerRobotMelody('a', [ev('a9', 9)]);
+      expect(await order(1)).toEqual(['b:D44']);
+      expect(await order(9)).toEqual(['a:C44']);
+    });
+
+    it('two events of one robot on one step come in melody order', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      AudioEngine.registerRobotMelody('a', [ev('x', 3, 4), ev('y', 3, 1)]);
+      expect(await order(3)).toEqual(['a:G44', 'a:D44']);
+    });
+
+    it('unregistering removes every trace; registering again puts the robot last', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      AudioEngine.registerRobotMelody('a', [ev('a1', 1)]);
+      AudioEngine.registerRobotMelody('b', [ev('b1', 1, 1)]);
+      AudioEngine.unregisterRobotMelody('a');
+      expect(await order(1)).toEqual(['b:D44']);
+      expect(AudioEngine.getRegisteredMelody('a')).toEqual([]);
+      AudioEngine.registerRobotMelody('a', [ev('a1', 1)]);
+      expect(await order(1)).toEqual(['b:D44', 'a:C44']);
+    });
+
+    it('registering twice is idempotent: one note per event', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      AudioEngine.registerRobotMelody('a', [ev('a1', 1)]);
+      AudioEngine.registerRobotMelody('a', [ev('a1', 1)]);
+      expect(await order(1)).toEqual(['a:C44']);
+      expect(AudioEngine.getRegisteredMelody('a')).toEqual([ev('a1', 1)]);
+    });
+  });
 });
 
 describe('AudioEngine - Motif Group Accent', () => {

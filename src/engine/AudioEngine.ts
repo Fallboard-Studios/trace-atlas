@@ -202,8 +202,18 @@ let humanizeMs = 0;
 // Global FX chain (compressor, reverb/delay/limiter/EQ/filters, master
 // gain) lives in src/engine/audioEngine/globalFx.ts as its own module state.
 
-// Step registry: Map<stepNumber (1-16), events at that step>
-const stepRegistry = new Map<number, MelodyEventEntry[]>();
+/** One robot's registration (melody journey Task 13): the melody it registered (the click track's while that is on),
+ *  the events carrying the motif accent, the click-track flag, and its entries by step, built once here. */
+interface RegisteredRobot {
+  melody: MelodyEvent[];
+  accented: ReadonlySet<MelodyEvent>;
+  clickTrack: boolean;
+  byStep: Map<number, MelodyEventEntry[]>;
+}
+
+// The melody registry, per robot, in registration order: a step's notes are gathered robot by robot in this order, and
+// a re-registered robot moves to the end, so the order notes reach the polyphony cap in is the order robots registered.
+const melodyRegistry = new Map<string, RegisteredRobot>();
 
 let scheduledTickId: number | null = null;
 
@@ -862,7 +872,11 @@ function humanizeOffsetFor(position: number): (robotId: string) => number {
  * A bad note index is skipped with a dev warning; an event that throws while it is read is skipped alone.
  */
 export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
-  const events = stepRegistry.get(at.step) || [];
+  const events: MelodyEventEntry[] = [];
+  melodyRegistry.forEach((registered) => {
+    const onStep = registered.byStep.get(at.step);
+    if (onStep) events.push(...onStep);
+  });
   if (events.length === 0) return [];
   const notes = paletteForMeasure(at.measure);
   const position = at.sixteenth;
@@ -1534,11 +1548,12 @@ export const AudioEngine = {
    * Register or replace a robot's melody used by the engine's playback scheduler.
    *
    * Behavior:
-   * - Replaces any previously-registered events for `robotId` in the internal
-   *   `stepRegistry` so subsequent scheduler ticks will use the new melody.
+   * - Replaces any previous registration for `robotId` in the internal
+   *   `melodyRegistry` so subsequent scheduler ticks will use the new melody; the robot
+   *   moves to the end of the registry's order.
    * - This method is safe to call from the main thread; it mutates module-scoped
    *   registry data but does not touch the Tone.Transport scheduling directly.
-   * - The scheduler reads `stepRegistry` on the transport tick; callers should
+   * - The scheduler reads `melodyRegistry` on the transport tick; callers should
    *   expect the new melody to take effect on the next scheduled tick after
    *   registration.
    * - When the robot's own `clickTrackActive` flag (Robot.ts) is true, `melody` is ignored
@@ -1557,18 +1572,9 @@ export const AudioEngine = {
    *   (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5).
    */
   registerRobotMelody(robotId: string, melody: MelodyEvent[], given?: Robot): void {
-    // Purge any existing entries for this robot before adding new ones so this
-    // method is idempotent regardless of call site — prevents duplicate triggers.
-    stepRegistry.forEach((entries, step) => {
-      const filtered = entries.filter((e) => e.robotId !== robotId);
-      if (filtered.length !== entries.length) {
-        if (filtered.length > 0) {
-          stepRegistry.set(step, filtered);
-        } else {
-          stepRegistry.delete(step);
-        }
-      }
-    });
+    // Purge any existing registration for this robot before adding the new one, so this method is idempotent
+    // regardless of call site (no duplicate triggers) and the robot moves to the end of the order.
+    melodyRegistry.delete(robotId);
 
     const robot = given ?? findActiveRobot(robotId);
     const effectiveMelody = robot?.clickTrackActive
@@ -1595,37 +1601,31 @@ export const AudioEngine = {
     }
 
     const clickTrack = robot?.clickTrackActive === true;
+    const accented = new Set<MelodyEvent>();
+    const byStep = new Map<number, MelodyEventEntry[]>();
     effectiveMelody.forEach((event) => {
-      const entries = stepRegistry.get(event.startStep) || [];
-      entries.push({ robotId, event, isGroupAccent: accentedStartSteps.has(event.startStep), ...(clickTrack ? { clickTrack: true } : {}) });
-      stepRegistry.set(event.startStep, entries);
+      const isGroupAccent = accentedStartSteps.has(event.startStep);
+      if (isGroupAccent) accented.add(event);
+      const entries = byStep.get(event.startStep) || [];
+      entries.push({ robotId, event, isGroupAccent, ...(clickTrack ? { clickTrack: true } : {}) });
+      byStep.set(event.startStep, entries);
     });
+    melodyRegistry.set(robotId, { melody: effectiveMelody, accented, clickTrack, byStep });
   },
 
   unregisterRobotMelody(robotId: string): void {
     robotNoteIndex.delete(robotId);
-
-    stepRegistry.forEach((entries, step) => {
-      const filtered = entries.filter((e) => e.robotId !== robotId);
-
-      if (filtered.length > 0) {
-        stepRegistry.set(step, filtered);
-      } else {
-        stepRegistry.delete(step);
-      }
-    });
+    melodyRegistry.delete(robotId);
   },
 
   /**
-   * Test helper: return the currently registered melody events for a robot.
-   * This exposes a read-only snapshot of the internal `stepRegistry` for tests.
+   * Test helper: return the currently registered melody events for a robot, grouped by step in the order the steps
+   * first appear in its melody. A read-only snapshot of the internal registry for tests.
    */
   getRegisteredMelody(robotId: string): MelodyEvent[] {
     const out: MelodyEvent[] = [];
-    stepRegistry.forEach((entries) => {
-      entries.forEach((e) => {
-        if (e.robotId === robotId) out.push(e.event);
-      });
+    melodyRegistry.get(robotId)?.byStep.forEach((entries) => {
+      entries.forEach((e) => out.push(e.event));
     });
     return out;
   },
