@@ -212,6 +212,18 @@ function fills(fill: number): Phase {
   };
 }
 
+/** Phase 4, the shifts: a change moves one note one palette step, the notes visited in start order, round and round.
+ *  It never runs out, so the busy side has no limit; the journey's swing bounds it. Nothing adds a note after the
+ *  fills, so the bar it walks is fixed. */
+function shifts(): Phase {
+  let j = 0;
+  return (bar, _k, dir) => {
+    if (bar.length === 0) return false;
+    bar[j++ % bar.length].pitchStep += dir;
+    return true;
+  };
+}
+
 /** `steps` busy changes on the home melody, phase after phase, each phase running until it has nothing left. Change k
  *  reads draw k of the seed's development stream, one draw per change (§1.8). A position past the last change any
  *  phase can make plays that last change. */
@@ -224,7 +236,7 @@ function busier(home: MelodyEvent[], steps: number, options: DevelopmentOptions)
   const T = Math.max(Math.min(...notes.map((n) => n.len)), floor);
   const sub = Math.max(floor, Math.floor(T / 2));
   // The fill length is the smaller threshold in use: the subdivision, which is T itself when there is one threshold.
-  const phases: Phase[] = [firstPass(notes, T), twoThresholds(T, sub), fills(sub)];
+  const phases: Phase[] = [firstPass(notes, T), twoThresholds(T, sub), fills(sub), shifts()];
   const rand = alea(`${options.seed}:development`);
   let phase = 0;
   let made = 0;

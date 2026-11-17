@@ -363,3 +363,49 @@ describe('developMelody: busier, the silence fills (spec §1.5, phase 3)', () =>
     expect(at).toBe(17);
   });
 });
+
+describe('developMelody: busier, the shifts (spec §1.5, phase 4)', () => {
+  const dirs = (seed: number, n: number) => {
+    const rand = alea(`${seed}:development`);
+    return Array.from({ length: n }, () => (rand() < 0.5 ? 1 : -1));
+  };
+  // A full bar of four quarters at floor 4: nothing to split, no gap, so every change is a shift.
+  const full = [ev(1, '4n', { rest: 0.5 }), ev(5, '4n', { mark: 'staccato' }), ev(9, '4n'), ev(13, '4n')];
+  const FLOOR4 = { ...OPTS, floor: 4 };
+
+  it('changes one note pitchStep by one and nothing else', () => {
+    const want = dirs(OPTS.seed, 1);
+    const out = developMelody(full, 1, FLOOR4);
+    expect(out[0]).toEqual({ ...full[0], pitchStep: want[0] });
+    for (let i = 1; i < 4; i++) expect(out[i]).toBe(full[i]);
+  });
+
+  it('visits the notes in start order, and wraps round', () => {
+    const want = dirs(OPTS.seed, 9);
+    const shuffled = [full[2], full[0], full[3], full[1]];
+    const out = developMelody(shuffled, 9, FLOOR4);
+    expect(out.map((e) => e.startStep)).toEqual([1, 5, 9, 13]);
+    // Note i is moved by changes i+1, i+5 and (the first only) i+9.
+    const sum = (ks: number[]) => ks.reduce((a, k) => a + want[k - 1], 0);
+    expect(out.map((e) => e.pitchStep ?? 0)).toEqual([sum([1, 5, 9]), sum([2, 6]), sum([3, 7]), sum([4, 8])]);
+  });
+
+  it('never runs out: each next position is one shift on top of the last', () => {
+    for (let p = 1; p < 40; p++) {
+      const a = developMelody(full, p, FLOOR4);
+      const b = developMelody(full, p + 1, FLOOR4);
+      const moved = b.filter((e, i) => (e.pitchStep ?? 0) !== (a[i].pitchStep ?? 0));
+      expect(moved).toHaveLength(1);
+      expect(bar(b)).toBe(bar(full));
+    }
+  });
+
+  it('starts once the fills are done', () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => ev(i + 1, '16n'));
+    // Four fills (13 to 16), then change 5 shifts the bar first note.
+    const four = developMelody(twelve, 4, OPTS);
+    const five = developMelody(twelve, 5, OPTS);
+    expect(bar(five)).toBe(bar(four));
+    expect(five[0].pitchStep).toBe(dirs(OPTS.seed, 5)[4]);
+  });
+});
