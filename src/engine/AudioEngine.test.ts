@@ -2037,15 +2037,14 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
     spy.mockRestore();
   });
 
-  it('keeps enforcing the click track even when a later registerRobotMelody call carries a freshly regenerated real melody (e.g. the docking pitch-drift reroll)', async () => {
+  it('keeps enforcing the click track even when a later registerRobotMelody call carries a freshly regenerated real melody', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await setActiveRobot(makeRobot('r3', { clickTrackActive: true }));
 
     const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
     // First registration, as if from turning the toggle on.
     AudioEngine.registerRobotMelody('r3', []);
-    // A second, unrelated registration carrying a real (drifted) melody — simulates
-    // robotSystems.ts's landOnDocked re-registering after a pitch-drift reroll while the
+    // A second, unrelated registration carrying a real melody — a regeneration while the
     // click track is still toggled on.
     AudioEngine.registerRobotMelody('r3', [{ id: 'drifted-1', startStep: 2, length: '8n' as const, noteIndex: 3, octave: 5 }]);
 
