@@ -169,6 +169,39 @@ export function journeyShares(key: string, count: number): JourneyShare[] {
 }
 
 // ========================================
+// THE POSITION IN A LIST OF PAIRS (§1.3)
+// ========================================
+
+/** One pair of a robot's own journey: the intensity it heads for, in whole changes from home, and the measures it
+ *  takes to get there. */
+export interface JourneyPair {
+  intensity: number;
+  time: number;
+}
+
+/**
+ * How many changes from home a robot is at `measure`, on its own pairs (§1.3, "Where a robot is"). The first pair
+ * starts at home on measure 0. In a pair from `a` on measure `s` to `b` on `s + T`, measure `s + k` plays
+ * `a + sign(b − a) × floor(|b − a| × k ÷ T)`: the floor leaves a turning measure late and arrives on the next one
+ * exactly, never early. Past the last pair, the last intensity. 0 at measure 0, at a negative or non-finite measure,
+ * and on an empty list. Pure.
+ */
+export function positionInPairs(pairs: readonly JourneyPair[], measure: number): number {
+  if (!Number.isFinite(measure) || measure <= 0) return 0;
+  let start = 0;
+  let from = 0;
+  for (const { intensity, time } of pairs) {
+    if (measure < start + time) {
+      const k = measure - start;
+      return from + Math.sign(intensity - from) * Math.floor((Math.abs(intensity - from) * k) / time);
+    }
+    start += time;
+    from = intensity;
+  }
+  return from;
+}
+
+// ========================================
 // THE ROBOT'S JOURNEY (§1.7, §1.9)
 // ========================================
 

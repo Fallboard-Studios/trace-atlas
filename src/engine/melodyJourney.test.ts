@@ -2,8 +2,8 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect, vi } from 'vitest';
-import { journeyKey, journeyPosition, journeyShares, robotJourney, worldKeyOf } from './melodyJourney';
-import type { JourneyShare } from './melodyJourney';
+import { journeyKey, journeyPosition, journeyShares, positionInPairs, robotJourney, worldKeyOf } from './melodyJourney';
+import type { JourneyPair, JourneyShare } from './melodyJourney';
 import { developmentFloor } from './melodyDevelopment';
 import {
   JOURNEY_DROP_MIN_MOVE,
@@ -279,6 +279,102 @@ describe('journeyShares (spec §1.3)', () => {
     expect(could.length).toBeGreaterThan(1000);
     const drops = could.filter(({ share }) => share.drop).length / could.length;
     expect(Math.abs(drops - JOURNEY_DROP_ODDS)).toBeLessThan(0.05);
+  });
+});
+
+// Where a robot is inside its own pairs (spec §1.3, "Where a robot is"; roadmap 92 Task 25), on pairs written by hand.
+describe('positionInPairs (spec §1.3)', () => {
+  const pairs = (list: [number, number][]): JourneyPair[] => list.map(([intensity, time]) => ({ intensity, time }));
+  const positions = (list: JourneyPair[], last: number) =>
+    Array.from({ length: last + 1 }, (_, m) => positionInPairs(list, m));
+
+  /** Each pair's start measure, the intensity it starts from and its turning measure. */
+  const spans = (list: JourneyPair[]) => {
+    let start = 0;
+    let from = 0;
+    return list.map((pair) => {
+      const span = { start, from, to: pair.intensity, turn: start + pair.time };
+      start = span.turn;
+      from = pair.intensity;
+      return span;
+    });
+  };
+
+  const HAND_WRITTEN = [
+    pairs([[3, 4], [-2, 2], [-2, 6], [5, 1], [0, 8]]),
+    pairs([[16, 2], [0, 16]]),
+    pairs([[-1, 10], [1, 1], [1, 4]]),
+    pairs([[16, 15], [-8, 1], [0, 16]]),
+  ];
+
+  it('plays the worked example, Crawford pairs, for a calm limit of 8 or more, at every measure from 0 to 32', () => {
+    expect(positions(pairs([[16, 15], [-8, 1], [0, 16]]), 32)).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16,
+      -8, -8, -7, -7, -6, -6, -5, -5, -4, -4, -3, -3, -2, -2, -1, -1, 0,
+    ]);
+  });
+
+  it('plays the worked example for a calm limit of 4, its drop brought in to -4, at every measure from 0 to 32', () => {
+    expect(positions(pairs([[16, 15], [-4, 1], [0, 16]]), 32)).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16,
+      -4, -4, -4, -4, -3, -3, -3, -3, -2, -2, -2, -2, -1, -1, -1, -1, 0,
+    ]);
+  });
+
+  it('is 0 at measure 0, at a negative or non-finite measure, and everywhere on an empty list', () => {
+    const list = pairs([[16, 15], [-8, 1], [0, 16]]);
+    for (const m of [0, -1, -16, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(positionInPairs(list, m)).toBe(0);
+    }
+    for (const m of [0, 1, 5, 100]) expect(positionInPairs([], m)).toBe(0);
+  });
+
+  it('is a plain 0, not -0, while a calm pair has not yet left home', () => {
+    expect(positionInPairs(pairs([[-8, 16]]), 1)).toBe(0);
+  });
+
+  it('plays the last intensity past the last pair', () => {
+    expect(positionInPairs(pairs([[16, 15], [-8, 1], [0, 16]]), 500)).toBe(0);
+    expect(positionInPairs(pairs([[3, 4], [-2, 2]]), 7)).toBe(-2);
+    expect(positionInPairs(pairs([[3, 4], [-2, 2]]), 7000)).toBe(-2);
+  });
+
+  it('plays a pair intensity on its turning measure and on no earlier measure of that pair', () => {
+    for (const list of HAND_WRITTEN) {
+      for (const { start, from, to, turn } of spans(list)) {
+        expect(positionInPairs(list, turn)).toBe(to);
+        if (from === to) continue;
+        for (let m = start + 1; m < turn; m++) expect(positionInPairs(list, m)).not.toBe(to);
+      }
+    }
+  });
+
+  it('never moves away from a pair intensity inside the pair, nor outside the stretch from where it started', () => {
+    for (const list of HAND_WRITTEN) {
+      for (const { start, from, to, turn } of spans(list)) {
+        let distance = Math.abs(to - from);
+        for (let m = start + 1; m <= turn; m++) {
+          const position = positionInPairs(list, m);
+          expect(Math.abs(to - position)).toBeLessThanOrEqual(distance);
+          expect(position).toBeGreaterThanOrEqual(Math.min(from, to));
+          expect(position).toBeLessThanOrEqual(Math.max(from, to));
+          distance = Math.abs(to - position);
+        }
+      }
+    }
+  });
+
+  it('plays a pair with a time of 1 on the very next measure', () => {
+    const list = pairs([[6, 4], [-5, 1], [2, 2]]);
+    expect(positionInPairs(list, 4)).toBe(6);
+    expect(positionInPairs(list, 5)).toBe(-5);
+    expect(positionInPairs(pairs([[9, 1]]), 1)).toBe(9);
+  });
+
+  it('holds through a pair that does not move', () => {
+    const list = pairs([[3, 4], [3, 6], [0, 2]]);
+    for (let m = 4; m <= 10; m++) expect(positionInPairs(list, m)).toBe(3);
+    expect(positionInPairs(list, 11)).toBe(2);
   });
 });
 
