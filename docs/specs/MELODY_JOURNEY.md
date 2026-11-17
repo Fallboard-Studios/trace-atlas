@@ -10,8 +10,10 @@
 > - Dev server: `npm run dev`
 
 **Status:** spec written 2026-11-17 from the confirmed intent
-[docs/intent/melody-journey.md](../intent/melody-journey.md). **Not yet approved**: Crawford reads §7.1 (what this spec
-filled in) and answers §7.2 before a plan is written. Roadmap
+[docs/intent/melody-journey.md](../intent/melody-journey.md). Crawford answered §7.2 the same day and asked for the
+plan: [docs/tasks/MELODY_JOURNEY.md](../tasks/MELODY_JOURNEY.md) (2026-11-17, 23 tasks in six phases). The assumptions
+of §7.1 stand at their defaults; Gate A is where he moves them by ear. The plan changed one thing here: the engine
+reads a robot's settings when it plays, in place of carrying them at registration (§1.7, §1.9). Roadmap
 [92](../todo/roadmap.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer), next in
 [plan.md](../todo/plan.md).
 
@@ -178,12 +180,16 @@ A negative position applies that many calm changes to the home melody.
   `developMelody(home, journeyPosition(key, rate, at.measure), options)`. `stepNotes(at, time)` reads it for
   `at.measure`, so the trigger and the early announcement agree by construction, as they do for the chord (code,
   §1.1).
-- **Registration carries the journey.** `registerRobotMelody` takes, with the home melody, a small plain descriptor:
-  the journey's key, the rate, the floor and the robot's composition seed. A pure `robotJourney(robot, worldKey)`
-  builds it. The engine never reads the store on a tick.
-- **Nothing is recomputed per sixteenth.** A robot's developed melody is rebuilt only when its position changes (at
-  most twice a measure) or its registration does, and is kept for the measures that share the position. A robot at
-  rate 0 costs what it costs today.
+- **Registration carries the home melody only, as now.** The engine reads the robot's settings when it plays: a pure
+  `robotJourney(robot, worldKey, bpmTop)` turns the stored robot into the journey's key, the rate, the floor and the
+  seed. `stepNotes` already reads the stored robot on the tick (its release, its Humanize seed; code), so this is no
+  new kind of read. A settings edit, a company move, a loaded save and the deal therefore need no engine call: the
+  next note reads what the store holds. (The spec first had registration carry a descriptor; the plan dropped it,
+  because every site that moves a robot between companies would have had to re-register it.)
+- **Nothing is rebuilt per sixteenth.** A robot's developed melody is rebuilt only when its position or its inputs
+  change (a position moves at most twice a measure), and the last few positions are kept, since the trigger and the
+  early announcement read two measures either side of a bar line. A robot at rate 0 plays its home melody's own
+  events.
 - **The pitch step.** After `paletteForMeasure(at.measure)` gives the eight names, an event with a `pitchStep` is
   resolved as §1.4 describes. A neighbour that would leave the robot's `octaveRange` goes the other way instead.
 - **The motif accent** is decided on the home melody, as now (the earliest home event of each repeat window, code),
@@ -223,9 +229,9 @@ A negative position applies that many calm changes to the home melody.
   (`MELODY_BAND_KEYS`), so the deal re-derives it with the other four; no aspect column names it in this piece.
 - **On Company with no company, a robot travels as Own.** The setting is kept, and takes effect if the robot is put in
   a company.
-- **Edits.** `applyDevelopment` and `applyJourney` (`src/systems/robotOptionsActions.ts`) write the field and
-  re-register the robot. They do not regenerate the home melody. Moving a robot between companies, and an Attack
-  edit, re-register it too.
+- **Edits.** `applyDevelopment` and `applyJourney` (`src/systems/robotOptionsActions.ts`) write the field and nothing
+  else, as `applyDynamics` does (code): no regeneration and no engine call. The home melody is untouched, and the
+  engine reads the new value on the next note (§1.7). The same holds for a move between companies and an Attack edit.
 - **Broadcast.** Both join `CompanyOptionsSnapshot`, so the company and All Probes screens set them for every member
   (broadcast, not link, as every other setting).
 - **Saved.** Both join `RobotAudioOverrideDiff` and the world link's codec, diffed against the seeded baseline like
@@ -268,7 +274,8 @@ src/
 │   ├── melodyJourney.ts          (new)  the walk: journeyKey, journeyPosition, robotJourney
 │   ├── melodyDevelopment.ts      (new)  the changes: developMelody, the floor
 │   ├── melodyGenerator.ts               reRollMelodyPitches and its helpers go
-│   ├── regenerateMelody.ts              registers the journey with the home melody
+│   ├── harmonySystem.ts                 the palette step resolver
+│   ├── regenerateMelody.ts              melodyWorldKey shares the world key with the journey
 │   └── AudioEngine.ts                   the per-measure read, sixteenths, pitchStep
 ├── systems/
 │   ├── robotSystems.ts                  the drift goes
@@ -279,7 +286,7 @@ src/
 │   ├── aspectDeal.ts                    development in the Melody family's re-derive
 │   ├── robotOptionsActions.ts           applyDevelopment, applyJourney
 │   └── companyOptions.ts                the two fields in the snapshot
-├── stores/localeStore.ts                normalise the two fields; re-register on a company move
+├── stores/localeStore.ts                normalise the two fields
 ├── types/                               Robot.ts, Company.ts, session.ts
 ├── data/
 │   ├── bands/                           bandKeys.ts, classic.ts, aspects.ts
@@ -455,13 +462,16 @@ Crawford decided the shape (the intent). These are the corners he did not descri
 | A14 | The band: 70 % of robots develop, from 0.125 to 1. | §1.9 |
 | A15 | A robot on Company with no company travels as Own. | §1.9 |
 | A16 | Journey is dimmed while Development is 0. | §1.10 |
-| A17 | The Company key is `Company.id`. A seeded company's id is seeded (`generateCompanyId`); a hand-made one's is a `generateUUID` (`CompanyCrudControls.tsx`), so its journey lasts only as long as a save keeps that id. The plan checks what a save and a link keep. | §1.3 |
+| A17 | The Company key is `Company.id`. A seeded company's id is seeded (`generateCompanyId`); a hand-made one's is a `generateUUID` (`CompanyCrudControls.tsx`). **Checked by the plan (code):** a save and a world link both carry a hand-made company whole, id included (`SessionPayload.userCreatedCompanies`, the codec's `u`), so its journey comes back with it. | §1.3 |
 
-### 7.2 Open questions
+### 7.2 Questions, answered by Crawford on 2026-11-17
 
-1. **The calm floor.** One note a bar, the first (A6)? Or may a melody go to silence?
-2. **Aspects.** Should a Melody aspect move the development band (Hypnotic low, Wandering high, say), or does it stay
-   the theme's for now?
-3. **`pitchLocked`.** With the drift gone nothing reads it. Remove it, or leave it for the editor?
-4. **The phone.** Busier melodies trigger more notes. Is Gate C's phone listen enough, or do you want the Pixel
-   underrun A/B the audio palette series used?
+1. **The calm floor.** At least one note in a bar. A6 stands.
+2. **Aspects.** The development band stays the theme's for now. No aspect column names it.
+3. **`pitchLocked`.** Not sure; "might be useful for when the new slider is 0/off?" So it stays in place. To be clear
+   about what is and is not lost: Pitch Repeat itself is untouched, at any Development value. Its locked copies are
+   still made at generation and still play the base cell's notes. Only the stamp on the event is unread, because the
+   drift it told to keep off is gone; at Development 0 nothing changes a melody at all, so there is nothing for it to
+   resist. It is the natural hook if a later piece wants development to keep locked copies in step with their base
+   note (A10 treats them like any other note for now).
+4. **The phone.** A listen is enough (Gate C).

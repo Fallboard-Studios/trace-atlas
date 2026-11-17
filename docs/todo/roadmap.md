@@ -632,7 +632,7 @@ at three widths passed on 2026-11-15 (Fleet Params, then the robot, company and 
 
 Raised by Crawford on 2026-11-16 as an overhaul of how robot melodies are created and develop over time, and settled
 in conversation that day and the next. Intent [melody-journey.md](../intent/melody-journey.md), spec
-[MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md) (written 2026-11-17, not yet approved). Next in
+[MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md) (written 2026-11-17). Next in
 [plan.md](plan.md#stage-3--audio-refinement), before launch.
 
 ### About
@@ -655,8 +655,11 @@ edit; the editor is out of this piece (Crawford, 2026-11-17) and needs its own i
 
 ### Open
 
-- The spec's assumptions (its §7.1) wait on Crawford's read, and its four questions (§7.2) on his answers: the calm
-  floor, whether a Melody aspect moves the development band, whether `pitchLocked` goes, and the phone check.
+- Plan [MELODY_JOURNEY.md](../tasks/MELODY_JOURNEY.md) (2026-11-17, 23 tasks in six phases), waiting on Crawford's
+  approval. Nothing built.
+- The spec's four questions are answered (its §7.2, 2026-11-17): at least one note in a bar, the development band
+  stays the theme's, `pitchLocked` stays in place, a phone listen is enough. Its assumptions (§7.1) stand until he
+  moves them by ear at the plan's Gates A and C.
 - It changes every world's sound, so it lands before backlog
   [45](backlog.md#45-off-screen-crawfords-three-preset-links).
 
