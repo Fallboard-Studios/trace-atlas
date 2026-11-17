@@ -54,8 +54,8 @@ before this piece, goes.
   reach the intensity on time, smoothly. The Development slider (changes per measure) goes.
 - **The shortest time is a drop on the bar line.** His words: "the very developed measure ends and on the down beat of
   the next measure we should be fully at the next intensity." The measure that reached an intensity plays it in full,
-  and the next measure plays the new one from its first beat. Whether that is written as a time of 1 or of 0 is the
-  spec's; this is what plays.
+  and the next measure plays the new one from its first beat. It is written as a time of 1: the measure that plays
+  the new intensity.
 - **Two settings bound the journey: max intensity and max time.** The user sets both, and the seeded journey stays
   within them. At a max intensity of 0 the robot plays its home melody.
   - **Max intensity** goes from 0 to 16: the sixteen notes a measure can hold, for now.
@@ -72,15 +72,20 @@ before this piece, goes.
   the journey turns, not early.
 - **The journey's turning points sit on the clock, not on undocking**, so robots that undock at different times can
   still be in step.
-- **Times are counted in chord holds for now** (a chord holds 2 measures), so a turning point lands on a chord change.
+- **Every journey moves in even measure intervals for now**, to match the chord changes (a chord holds 2 measures).
   This will change when the journey is tied to the progressions.
+- **A drop takes its one measure from the pair before it**, so the drop itself lands on a chord change. His example
+  then reads `[[16, 15], [-8, 1], [0, 16]]`: the melody peaks on measure 15, drops on measure 16 with the new chord,
+  and is home on measure 32.
 - **Companies and the whole fleet can share a journey.** A three-way setting on the robot, Own, Company or Fleet,
   broadcast from the company and All Probes screens. Seeded: a family member starts on Company, a freelancer on Own.
 - **A shared journey is drawn once, as shares of the two bounds.** Each robot scales it by its own max intensity and
   max time. Robots with the same max time turn on the same measures, each to its own depth.
-- **The two bounds are seeded per robot when the world loads**, as density is. Max intensity is drawn across its whole
-  range, 0 to the top, and is "inherited on load" (read as: a family member takes its founder's, as it takes its
-  founder's other melody settings; to confirm).
+- **The two bounds are seeded per robot when the world loads**, as density is.
+  - Max intensity is drawn across its whole range, up to the top.
+  - **About 30 % of robots load at a max intensity of 0**, so some always play their home melody. "More at home on
+    load is better."
+  - A family member inherits its founder's on load.
 - **Docking pitch drift is removed.** The journey replaces it.
 
 ## Style / constraint
@@ -120,7 +125,5 @@ before this piece, goes.
   with its slider, band, save and link entries. The spec's §1.3, §1.9, §1.10 and §5.1 and its assumptions A12 to A14
   describe the walk and the old slider.
 - **Left for the spec, as first cuts for Crawford's ear:**
-  - The range max time is seeded across, and whether a set share of robots sits at a max intensity of 0 (he agreed to
-    a share on 2026-11-17, then said max intensity ranges from 0 to the top).
-  - How strongly the seeded journey leans, and how often "occasionally" is.
-  - How the drop on the bar line sits with times counted in chord holds, so a drop can land on a chord change.
+  - The range max time is seeded across.
+  - How strongly the seeded journey leans, how often "occasionally" is, and how often a pair is a drop.
