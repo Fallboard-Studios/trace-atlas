@@ -384,6 +384,8 @@ export interface RobotAudioBaseline {
   rhythmicMotifLength: ToggleValue;
   noteVariance: ToggleValue;
   pitchRepeat: number;
+  /** The melody journey's rate (docs/specs/MELODY_JOURNEY.md §1.9): seeded, a member's from its founder like pitchRepeat. */
+  development: number;
   /** Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): seeded, 0-100 integers, a member's from its founder like pitchRepeat. */
   dynamics: number;
   rests: number;
@@ -424,14 +426,14 @@ export function generateRobotAudioBaseline(
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
-  const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands(), audioAttributes.adsr.attack);
+  const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, development } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands(), audioAttributes.adsr.attack);
   const { dynamics, rests, accents } = derivePerformanceFields(noiseMap, spawnCount, currentPerformanceBands());
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
   const masterVolume = seedMasterVolume(noiseMap, spawnCount, octaveRange);
 
-  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, development, dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
 }
 
 /** A company member's baseline at `spawnCount` (Company Families §1.11): its founder's, every field inherited — the

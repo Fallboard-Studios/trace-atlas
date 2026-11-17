@@ -87,6 +87,7 @@ export const ROBOT_LIT_KEYS = [
   'robot.lfoGainDepth',
   'robot.lfoDetuneDepth',
   'robot.lfoBusDepth',
+  'robot.development',
 ] as const;
 
 /** The two 1-8 toggle fields (ToggleBand). */

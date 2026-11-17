@@ -89,8 +89,11 @@ function deriveFamilyFields(
   priorLanes: PriorLanes,
 ): DealtFields {
   switch (family) {
-    case 'melody':
-      return deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
+    case 'melody': {
+      // Held out until spawn writes it (docs/tasks/MELODY_JOURNEY.md Task 19).
+      const { development: _development, ...fields } = deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
+      return fields;
+    }
     case 'envelope': {
       const adsr = deriveEnvelopeFields(noiseMap, spawnIndex, bands);
       return {

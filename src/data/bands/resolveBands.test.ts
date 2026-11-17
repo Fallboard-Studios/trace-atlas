@@ -4,6 +4,8 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import {
+  DEVELOPMENT_MAX,
+  DEVELOPMENT_MIN,
   ENVELOPE_ATTACK_MIN_SECONDS,
   ENVELOPE_RELEASE_MIN_SECONDS,
   ENVELOPE_TIME_MAX_SECONDS,
@@ -182,6 +184,8 @@ const EXPECTED: BandTable = {
   'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.25 },
   'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.25 },
   'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.135 },
+  // The melody journey's rate (docs/specs/MELODY_JOURNEY.md §1.9, A14): seven robots in ten develop, 0.125 to 1.
+  'robot.development': { min: 0.125, max: 1, lit: 0.7 },
   // The plain 0-100 draws.
   'robot.rhythmicDensity': { min: 0, max: 100 },
   'robot.pitchRepeat': { min: 0, max: 100 },
@@ -218,9 +222,9 @@ describe('resolveBands - Classic parity (docs/specs/OFF_SCREEN.md §5.2, plan Ta
     expect(CLASSIC).toStrictEqual(EXPECTED);
   });
 
-  it('holds 83 bands: one tempo, fifty global rows, two world keys, twenty-five robot bands and five sends', () => {
-    expect(Object.keys(CLASSIC)).toHaveLength(83);
-    expect(ROBOT_RANGE_KEYS.length + ROBOT_LIT_KEYS.length + ROBOT_TOGGLE_KEYS.length + ROBOT_PICK_KEYS.length).toBe(25);
+  it('holds 84 bands: one tempo, fifty global rows, two world keys, twenty-six robot bands and five sends', () => {
+    expect(Object.keys(CLASSIC)).toHaveLength(84);
+    expect(ROBOT_RANGE_KEYS.length + ROBOT_LIT_KEYS.length + ROBOT_TOGGLE_KEYS.length + ROBOT_PICK_KEYS.length).toBe(26);
     expect(WORLD_RANGE_KEYS.length + WORLD_LIT_KEYS.length).toBe(2);
   });
 
@@ -407,6 +411,7 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
       'robot.noteVariance',
       'robot.rhythmicMotifLength',
       'robot.pitchRepeat',
+      'robot.development',
     ]);
     expect(ASPECT_FAMILIES.envelope.keys).toEqual([
       'robot.attack',
@@ -948,11 +953,24 @@ describe('the shipped columns (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md)', () 
     expect(movedKeys(overlayBands(CLASSIC, column)).length).toBeGreaterThan(0);
   });
 
+  // A family key no option names yet: the melody journey's rate joins Melody so the deal re-derives it, but stays the
+  // theme's for now (docs/specs/MELODY_JOURNEY.md §1.9, §7.2 question 2).
+  const UNNAMED_FAMILY_KEYS: Partial<Record<AspectFamilyId, readonly BandKey[]>> = { melody: ['robot.development'] };
+
   it.each(ASPECT_FAMILY_IDS)('%s: no two options are equal column for column, and the key set is the union its sheets own', (family) => {
     const options = Object.values(realAspects.ASPECT_FAMILIES[family].options).map((column) => JSON.stringify(column));
     expect(new Set(options).size).toBe(options.length);
-    const union = new Set(Object.values(OPTION_SHEET_KEYS[family] as Record<string, readonly string[]>).flat());
+    const union = new Set([
+      ...Object.values(OPTION_SHEET_KEYS[family] as Record<string, readonly string[]>).flat(),
+      ...(UNNAMED_FAMILY_KEYS[family] ?? []),
+    ]);
     expect([...realAspects.ASPECT_FAMILIES[family].keys].sort()).toEqual([...union].sort());
+  });
+
+  it('no option names the development band: it stays the theme\'s', () => {
+    for (const option of realAspects.ASPECT_IDS_BY_FAMILY.melody) {
+      expect(Object.keys(optionColumn('melody', option)), option).not.toContain('robot.development');
+    }
   });
 
   it('Hypnotic is low variance: its noteVariance toggle is always on, with a value band inside 1-2', () => {
@@ -1105,6 +1123,7 @@ const ROBOT_BOUNDS: Record<Exclude<BandKey, LoadingRangeKey | RobotPickKey>, rea
   'robot.lfoBusDepth': [LFO_DEPTH_MIN, LFO_DEPTH_MAX],
   'robot.rhythmicDensity': [0, 100],
   'robot.pitchRepeat': [0, 100],
+  'robot.development': [DEVELOPMENT_MIN, DEVELOPMENT_MAX], // the Development slider (DEVELOPMENT_SCHEMA)
   'robot.noteVariance': [1, 8],
   'robot.rhythmicMotifLength': [1, 8],
   'robot.dynamics': [PERFORMANCE_MIN, PERFORMANCE_MAX],
