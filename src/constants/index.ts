@@ -238,6 +238,12 @@ export const JOURNEY_SWING_MAX = 8;
 export const DEVELOPMENT_MIN = 0;
 export const DEVELOPMENT_MAX = 2;
 export const DEVELOPMENT_STEP = 0.125;
+/** What an absent `Robot.development` and `Robot.journey` read as (§1.9): no development, travelling alone, so a robot
+ *  built by hand plays its home melody. */
+export const DEFAULT_DEVELOPMENT = 0;
+export const DEFAULT_JOURNEY = 'own';
+/** The journey settings `Robot.journey` takes (§1.9): who a robot travels with. */
+export const JOURNEY_SETTINGS = ['own', 'company', 'fleet'] as const;
 
 /**
  * Whether background-depth buildings host work sites (jobHosts.ts's isWorkSiteEligible). True

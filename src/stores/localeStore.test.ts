@@ -288,6 +288,72 @@ describe('localeStore', () => {
       });
     });
 
+    // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Task 12).
+    describe('development and journey normalisation', () => {
+      const stored = () => useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0];
+      const update = (updates: Record<string, unknown>) =>
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', updates as never);
+
+      it('snaps development to the nearest 0.125: 0.3 is stored as 0.25, 0.44 as 0.5', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ development: 0.3 });
+        expect(stored().development).toBe(0.25);
+        update({ development: 0.44 });
+        expect(stored().development).toBe(0.5);
+      });
+
+      it('clamps development to 0-2: 5 is stored as 2, -1 as 0, Infinity as 2', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ development: 5 });
+        expect(stored().development).toBe(2);
+        update({ development: -1 });
+        expect(stored().development).toBe(0);
+        update({ development: Infinity });
+        expect(stored().development).toBe(2);
+      });
+
+      it('passes the bounds and an in-range stop through', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (const v of [0, 0.125, 1.375, 2]) {
+          update({ development: v });
+          expect(stored().development).toBe(v);
+        }
+      });
+
+      it('drops a NaN development, keeping the stored value and the rest of the update', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ development: 0.75 });
+        update({ development: NaN, masterVolume: 0.4 });
+        expect(stored().development).toBe(0.75);
+        expect(stored().masterVolume).toBe(0.4);
+      });
+
+      it('stores each known journey', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (const journey of ['own', 'company', 'fleet']) {
+          update({ journey });
+          expect(stored().journey).toBe(journey);
+        }
+      });
+
+      it('drops an unknown journey, keeping the stored value and the rest of the update', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ journey: 'fleet' });
+        update({ journey: 'galaxy', masterVolume: 0.4 });
+        expect(stored().journey).toBe('fleet');
+        expect(stored().masterVolume).toBe(0.4);
+        update({ journey: 7 });
+        expect(stored().journey).toBe('fleet');
+      });
+
+      it('keeps both fields absent on a robot updated without them', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ masterVolume: 0.4 });
+        expect('development' in stored()).toBe(false);
+        expect('journey' in stored()).toBe(false);
+      });
+    });
+
     describe('performance clamping (dynamics, rests, accents: 0-100 integers, docs/specs/ROBOT_PERFORMANCE.md §1.1)', () => {
       const PERFORMANCE_KEYS = ['dynamics', 'rests', 'accents'] as const;
       const stored = (key: (typeof PERFORMANCE_KEYS)[number]) =>

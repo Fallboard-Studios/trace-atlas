@@ -5,7 +5,9 @@
 // changes from home, the walk moving one change per count towards the current one, then the next. Pure: the walk is a
 // function of its key, and the memo below only saves redrawing it.
 import alea from 'alea';
-import { JOURNEY_SWING_MAX, JOURNEY_SWING_MIN } from '../constants';
+import { DEFAULT_DEVELOPMENT, DEFAULT_JOURNEY, JOURNEY_SWING_MAX, JOURNEY_SWING_MIN } from '../constants';
+import { developmentFloor, type DevelopmentOptions } from './melodyDevelopment';
+import type { Robot } from '../types/Robot';
 
 // ========================================
 // TYPES
@@ -95,4 +97,47 @@ function walkAt(key: string, count: number): number {
  *  `floor(rate × measure)`. 0 at measure 0 and at rate 0, so every world starts at home. Pure. */
 export function journeyPosition(key: string, rate: number, measure: number): number {
   return walkAt(key, Math.floor(rate * measure));
+}
+
+// ========================================
+// THE ROBOT'S JOURNEY (§1.7, §1.9)
+// ========================================
+
+/** A world's key: its coordinates, `${x}:${y}`, the same input its noise map hashes, so a world reloaded from a save
+ *  or a link keys its rhythms and journeys as it did (melodyWorldKey). */
+export function worldKeyOf(coordinates: { x: number; y: number }): string {
+  return `${coordinates.x}:${coordinates.y}`;
+}
+
+/** What robotJourney reads from a stored robot; the two settings absent read as their defaults. */
+export type RobotJourneyInputs = Pick<Robot, 'compositionSeed' | 'companyId' | 'development' | 'journey'> & {
+  audioAttributes?: { adsr?: { attack?: number } };
+};
+
+/** A robot's journey as the engine plays it: the walk's key, the rate in changes a measure, and the two things the
+ *  changes read (developMelody's options): the floor and the seed. */
+export interface RobotJourney extends DevelopmentOptions {
+  key: string;
+  rate: number;
+}
+
+/**
+ * The stored robot's journey (§1.7, §1.9): the key its Journey setting names (a robot on Company with no company
+ * travels as Own), its Development as the rate, its attack's floor at `bpmTop` (the top of the theme's bpm band, handed
+ * in by the caller) and its composition seed. Absent settings read as DEFAULT_DEVELOPMENT and DEFAULT_JOURNEY. Pure.
+ */
+export function robotJourney(robot: RobotJourneyInputs, worldKey: string, bpmTop: number): RobotJourney {
+  const setting = robot.journey ?? DEFAULT_JOURNEY;
+  const scope: JourneyScope =
+    setting === 'fleet'
+      ? { kind: 'fleet' }
+      : setting === 'company' && robot.companyId
+        ? { kind: 'company', companyId: robot.companyId }
+        : { kind: 'own', compositionSeed: robot.compositionSeed };
+  return {
+    key: journeyKey(worldKey, scope),
+    rate: robot.development ?? DEFAULT_DEVELOPMENT,
+    floor: developmentFloor(robot.audioAttributes?.adsr?.attack ?? 0, bpmTop),
+    seed: robot.compositionSeed,
+  };
 }

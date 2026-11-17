@@ -376,7 +376,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** S
 
-- [ ] **Task 12: `Robot.ts`, `localeStore.ts`, `melodyJourney.ts` — the two fields and `robotJourney`**
+- [x] **Task 12: `Robot.ts`, `localeStore.ts`, `melodyJourney.ts` — the two fields and `robotJourney`**
 
   **Description:** `Robot.development?: number` and `Robot.journey?: 'own' | 'company' | 'fleet'` (spec §1.9), absent
   reading as 0 and `'own'` (`DEFAULT_DEVELOPMENT`, `DEFAULT_JOURNEY`). `localeStore.updateRobot` normalises them as it

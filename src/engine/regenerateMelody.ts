@@ -15,6 +15,7 @@ import {
   DEFAULT_ACCENTS,
 } from './melodyGenerator';
 import { AudioEngine } from './AudioEngine';
+import { worldKeyOf } from './melodyJourney';
 import { useLocaleStore } from '../stores/localeStore';
 import type { MelodyEvent, Robot } from '../types/Robot';
 
@@ -37,7 +38,7 @@ export type RobotMelodyInputs = Pick<Robot, 'compositionSeed' | 'octaveRange'> &
  */
 export function melodyWorldKey(localeId: string): string {
   const coordinates = useLocaleStore.getState().getLocaleById(localeId)?.coordinates;
-  return coordinates ? `${coordinates.x}:${coordinates.y}` : localeId;
+  return coordinates ? worldKeyOf(coordinates) : localeId;
 }
 
 /**

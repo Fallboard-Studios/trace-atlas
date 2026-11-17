@@ -2,7 +2,8 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect, vi } from 'vitest';
-import { journeyKey, journeyPosition } from './melodyJourney';
+import { journeyKey, journeyPosition, robotJourney, worldKeyOf } from './melodyJourney';
+import { developmentFloor } from './melodyDevelopment';
 import { JOURNEY_SWING_MAX, JOURNEY_SWING_MIN } from '../constants';
 
 // ========================================
@@ -147,5 +148,77 @@ describe('journeyPosition (spec §1.3)', () => {
     for (let m = 0; m < 2000; m++) {
       expect(journeyPosition(fleet, 0.375, m)).toBe(journeyPosition(journeyKey(WORLD, { kind: 'fleet' }), 0.375, m));
     }
+  });
+});
+
+describe('worldKeyOf (spec §1.3)', () => {
+  it('is the coordinates as x:y', () => {
+    expect(worldKeyOf({ x: 21, y: -188 })).toBe('21:-188');
+    expect(worldKeyOf({ x: 0, y: 0 })).toBe('0:0');
+  });
+});
+
+// The stored robot as the engine reads it when it plays (spec §1.7, §1.9; roadmap 92 Task 12).
+describe('robotJourney (spec §1.7, §1.9)', () => {
+  const BPM_TOP = 100;
+  const robot = (extra: Record<string, unknown> = {}) => ({
+    compositionSeed: 0.4375,
+    audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.5 } },
+    ...extra,
+  });
+  const keyOf = (extra: Record<string, unknown>) => robotJourney(robot(extra) as never, WORLD, BPM_TOP).key;
+
+  it('two members of one company on Company share one key, the company key', () => {
+    const a = keyOf({ compositionSeed: 0.1, companyId: 'co-1', journey: 'company' });
+    const b = keyOf({ compositionSeed: 0.9, companyId: 'co-1', journey: 'company' });
+    expect(a).toBe(b);
+    expect(a).toBe(journeyKey(WORLD, { kind: 'company', companyId: 'co-1' }));
+  });
+
+  it('the same two on Own get two keys, each its own', () => {
+    const a = keyOf({ compositionSeed: 0.1, companyId: 'co-1', journey: 'own' });
+    const b = keyOf({ compositionSeed: 0.9, companyId: 'co-1', journey: 'own' });
+    expect(a).not.toBe(b);
+    expect(a).toBe(journeyKey(WORLD, { kind: 'own', compositionSeed: 0.1 }));
+  });
+
+  it('members of two companies on Company get two keys', () => {
+    expect(keyOf({ companyId: 'co-1', journey: 'company' })).not.toBe(keyOf({ companyId: 'co-2', journey: 'company' }));
+  });
+
+  it('any two robots on Fleet get one key, in a company or not', () => {
+    const a = keyOf({ compositionSeed: 0.1, companyId: 'co-1', journey: 'fleet' });
+    const b = keyOf({ compositionSeed: 0.9, journey: 'fleet' });
+    expect(a).toBe(b);
+    expect(a).toBe(journeyKey(WORLD, { kind: 'fleet' }));
+  });
+
+  it('a freelancer on Company gets the key it would have on Own', () => {
+    expect(keyOf({ journey: 'company' })).toBe(keyOf({ journey: 'own' }));
+    expect(keyOf({ journey: 'company' })).toBe(journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 }));
+  });
+
+  it('a robot with neither field reads as rate 0 on its Own key', () => {
+    const j = robotJourney(robot() as never, WORLD, BPM_TOP);
+    expect(j.rate).toBe(0);
+    expect(j.key).toBe(journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 }));
+  });
+
+  it('the rate is the stored development', () => {
+    expect(robotJourney(robot({ development: 0.625 }) as never, WORLD, BPM_TOP).rate).toBe(0.625);
+    expect(robotJourney(robot({ development: 2 }) as never, WORLD, BPM_TOP).rate).toBe(2);
+  });
+
+  it('the seed is the composition seed', () => {
+    expect(robotJourney(robot({ compositionSeed: 0.8125 }) as never, WORLD, BPM_TOP).seed).toBe(0.8125);
+  });
+
+  it('the floor follows the attack and the bpm top: 1.14 s at 100 is 4, 0.01 s is 1, 1.14 s at 50 is 2', () => {
+    const floorAt = (attack: number, bpmTop: number) =>
+      robotJourney(robot({ audioAttributes: { adsr: { attack, decay: 0.1, sustain: 0.8, release: 0.5 } } }) as never, WORLD, bpmTop).floor;
+    expect(floorAt(1.14, 100)).toBe(4);
+    expect(floorAt(0.01, 100)).toBe(1);
+    expect(floorAt(1.14, 50)).toBe(2);
+    expect(floorAt(0.6, 100)).toBe(developmentFloor(0.6, 100));
   });
 });

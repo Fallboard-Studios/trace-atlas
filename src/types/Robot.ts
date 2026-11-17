@@ -8,6 +8,9 @@ import type { RobotLfoTargetId, LfoLink } from './lfo';
  */
 export type NoteDuration = '32n' | '16n' | '8n' | '4n' | '2n' | '1n' | '2m' | '4m';
 
+/** Whose melody journey a robot travels (docs/specs/MELODY_JOURNEY.md §1.3, §1.9). */
+export type JourneySetting = 'own' | 'company' | 'fleet';
+
 /**
  * Docking state machine — orthogonal to `activity` (the work loop's). Purely battery-driven
  * (see src/systems/robotSystems.ts): Docked/Active are the two "settled"
@@ -328,6 +331,17 @@ export interface Robot {
    * melody as `MelodyEvent.mark`. Absent = 0 (DEFAULT_ACCENTS, no marks).
    */
   accents?: number;
+  /**
+   * The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): how fast the melody develops, in changes per measure, 0 to
+   * 2 in steps of 0.125. Read by the engine when it plays (robotJourney), so an edit never regenerates the home melody.
+   * Absent = 0 (DEFAULT_DEVELOPMENT, the home melody always).
+   */
+  development?: number;
+  /**
+   * The melody journey (§1.9): whose journey the robot travels: its own, its company's, or the fleet's. On Company
+   * with no company it travels as Own. Absent = 'own' (DEFAULT_JOURNEY).
+   */
+  journey?: JourneySetting;
   /**
    * Seeded lane links for all 6 RobotLfoTargetId modulation targets (docs/specs/LFO_BANK.md),
    * generated once at spawn time (src/systems/spawnSystem.ts's generateRobotLfoLinks). `lane: null`

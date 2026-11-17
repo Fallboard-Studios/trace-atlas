@@ -24,6 +24,10 @@ import {
   PERFORMANCE_MAX,
   PAN_MIN,
   PAN_MAX,
+  DEVELOPMENT_MIN,
+  DEVELOPMENT_MAX,
+  DEVELOPMENT_STEP,
+  JOURNEY_SETTINGS,
 } from '../constants';
 import { clampSend } from '../utils/clampSend';
 import { ROBOT_SEND_FIELDS } from '../data/robotSends';
@@ -188,6 +192,19 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
       }
       if (typeof normalized.pitchRepeat === 'number') {
         normalized.pitchRepeat = Math.max(PITCH_REPEAT_MIN, Math.min(PITCH_REPEAT_MAX, Math.trunc(normalized.pitchRepeat)));
+      }
+      if (typeof normalized.development === 'number') {
+        // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): snapped to the slider's stop, then clamped; NaN is
+        // dropped and the stored value kept.
+        if (Number.isNaN(normalized.development)) {
+          delete normalized.development;
+        } else {
+          const snapped = Math.round(normalized.development / DEVELOPMENT_STEP) * DEVELOPMENT_STEP;
+          normalized.development = Math.max(DEVELOPMENT_MIN, Math.min(DEVELOPMENT_MAX, snapped));
+        }
+      }
+      if ('journey' in normalized && !(JOURNEY_SETTINGS as readonly unknown[]).includes(normalized.journey)) {
+        delete normalized.journey;
       }
       for (const performanceKey of ['dynamics', 'rests', 'accents'] as const) {
         const value = normalized[performanceKey];
