@@ -4,9 +4,12 @@ Source of truth: [`src/engine/melodyGenerator.ts`](../src/engine/melodyGenerator
 
 Melody generation creates procedurally generated musical patterns for each robot at spawn time, producing immutable `MelodyEvent[]` values whose note choices are index-based and later resolved by the harmony palette at playback time.
 
+That melody is the robot's **home melody**. What the robot plays in a given measure is the home melody as its journey
+develops it, busier or calmer, worked out when the note plays and never stored ([The melody journey](#the-melody-journey-roadmap-92)).
+
 ## Core Principles
 
-1. **Spawn-time only**: melodies are generated once per robot and then registered with AudioEngine.
+1. **Generated at spawn, developed per measure**: the home melody is generated once per robot (again on a composition edit, below) and registered with AudioEngine; the engine develops it for each measure from the robot's journey and writes nothing back.
 2. **Index-based**: each event stores a `noteIndex` (0–7), not a literal pitch string.
 3. **16-subdivision grid**: onset positions are chosen across a one-measure grid of 16 subdivisions.
 4. **Motif-based density**: rhythmic structure comes from a motif repetition algorithm rather than a simple random step picker.
@@ -25,8 +28,13 @@ interface MelodyEvent {
   pitchLocked?: boolean; // Pitch Repeat only — see below. undefined everywhere else, including the base cell.
   rest?: number; // Robot Performance — the fraction of this event's length that falls silent (0.25..0.75), stamped by the post-pass; absent = sounds its full length
   mark?: ArticulationMark; // Robot Performance — 'accent' | 'marcato' | 'staccato' | 'staccatissimo' | 'tenuto', stamped by the post-pass; absent = unmarked
+  sixteenths?: number; // the melody journey — a length in sixteenths (1..16), for a length with no note name; developed events only
+  pitchStep?: number; // the melody journey — signed steps through the measure's palette from this event's own note; developed events only
 }
 ```
+
+`sixteenths` and `pitchStep` are written only by the journey's changes, on the events of a developed melody, never on a
+home event (`Robot.melody`); see [The melody journey](#the-melody-journey-roadmap-92).
 
 `rest` and `mark` are **performance stamps**, not note data: they never move an event, and the trigger path turns them into a
 sounding length and a velocity multiplier (`resolveArticulation`, see [Performance Marks](#performance-marks-rests-and-accents) and
@@ -117,8 +125,8 @@ This makes lower indices more common than higher ones.
 
 ### Note variance controls
 
-The `noteVariance` option is a `{ active, value }` toggle. `generateMelodyForRobot`/
-`reRollMelodyPitches` still branch on `.active` exactly as described below — that logic is
+The `noteVariance` option is a `{ active, value }` toggle. `generateMelodyForRobot` still
+branches on `.active` exactly as described below — that logic is
 unchanged by docs/specs/STEPPER_TO_SLIDER.md. What changed is `active`'s derivation: it's no
 longer an independently-set field. Every write site (the UI slider, spawn-time seeding, the
 store's `updateRobot` clamp, manual-edit actions, company broadcast) derives it from `value > 0`
@@ -173,14 +181,12 @@ pitches within when tiling is off. `generateMelodyForRobot` never even calls
 - Locked events are stamped `pitchLocked: true`. Base-cell events and unlocked events leave the
   field `undefined` (never `false`).
 
-**Docking re-roll:** `reRollMelodyPitches` (called from `robotSystems.ts`'s `landOnDocked`, via
-`DOCKED_PITCH_DRIFT_RATIO`) excludes `pitchLocked` events from its candidate pool before picking
-which events to change. The "always changes at least 1" floor only applies once the eligible
-(unlocked) pool is non-empty — a fully-locked melody re-rolls zero notes on dock instead of
-force-changing one. Base-cell events are **not** excluded (they're never stamped `pitchLocked`
-themselves), so a re-roll can still touch a base-cell position whose locked copies then look
-briefly stale until the next full regeneration — a deliberate, low-cost tradeoff (see
-docs/specs/PITCH_REPEAT.md §7.1), not a bug.
+**`pitchLocked` has no reader.** Its one reader was the docking re-roll, which kept off locked
+events; the re-roll went with docking pitch drift in roadmap 92 (the melody journey). The stamp is
+still written, and left in place on Crawford's word: it is the hook if a later piece wants the
+journey's changes to keep locked copies in step with their base note
+([docs/specs/MELODY_JOURNEY.md](specs/MELODY_JOURNEY.md) §7.2). For now the changes treat a locked
+copy like any other note. Pitch Repeat itself is untouched.
 
 **Seeding & lifecycle:** rolled per-robot at spawn (`robotFieldDerivation.ts`'s `deriveMelodyFields`, `getSeededVal(noiseMap,
 'robot.pitchRepeat', spawnIndex, band.min, band.max)` with the band from `getBand('robot.pitchRepeat')` — Classic's is
@@ -216,9 +222,12 @@ space. This retired the previous mechanism entirely: spawn-time generation no lo
 to unseeded `Math.random()`. `generateMelodyForRobot`'s own signature and internals were unchanged by
 Phase 31 — only what its two callers pass as `rand` changed (Company Families later added `rhythmRand`).
 
-**Not covered by this determinism:** `robotSystems.ts`'s docking pitch-drift reroll
-(`reRollMelodyPitches`, via `DOCKED_PITCH_DRIFT_RATIO`) is a distinct, intentionally non-reproducible
-mechanism — gradual pitch drift over a robot's lifetime is the feature, not a gap. Session Storage's
+**The played melody is determined too.** What a robot plays in a measure is its home melody
+developed by its journey ([The melody journey](#the-melody-journey-roadmap-92)), a pure function of
+the home melody, the robot's two journey settings, its seed and attack, the world and the measure,
+so a reload, a link or a power cycle plays the same notes. (Until roadmap 92 the docking pitch
+drift re-rolled a quarter of a robot's notes at every Docked landing and was outside this
+determinism; it is gone.) Session Storage's
 `RobotAudioOverrideDiff`/`SessionPayload` (`docs/specs/SESSION_STORAGE.md`) needed no new field for
 `compositionSeed` — like `id`, it's never diffed, since it always re-derives identically from the
 seed on every roster regeneration. `applySessionPayload` (`sessionDiff.ts`) does call
@@ -319,6 +328,136 @@ at 60.
 `Robot.melody` always carries the stamps the robot's own `rests` / `accents` (0–100, `DEFAULT_RESTS` / `DEFAULT_ACCENTS` = 0)
 imply. A restored session regenerates and therefore re-stamps (SESSION_STORAGE.md).
 
+## The melody journey (roadmap 92)
+
+Spec [docs/specs/MELODY_JOURNEY.md](specs/MELODY_JOURNEY.md) (its §1.3 and §1.5 have worked examples); plan
+[docs/tasks/MELODY_JOURNEY.md](tasks/MELODY_JOURNEY.md). `Robot.melody` is the **home melody** and only that. In each
+measure a robot plays its home melody at a **position**: a number of changes from home, positive busier, negative
+calmer, 0 home. The robot's **journey** gives the position for the measure (`melodyJourney.ts`), and `developMelody`
+gives the melody at that position (`melodyDevelopment.ts`). Both modules are pure. Nothing is written to the store as
+the music moves, and the only new saved fields are the two settings. No melody changes at a docking: docking pitch
+drift went with this piece.
+
+### The journey (`src/engine/melodyJourney.ts`)
+
+- **A list of pairs.** A journey is a seeded list of pairs, each an **intensity** (the position it heads for) and a
+  **time** (the measures it takes to get there). Each pair starts where the one before ended; the first starts at home
+  on measure 0, so every world starts at home.
+- **Its key decides who shares it.** `journeyKey(worldKey, scope)` is the `alea` seed:
+
+  | `Robot.journey` | Key | Who travels together |
+  |---|---|---|
+  | `'own'` | `` `${worldKey}:${compositionSeed}:journey` `` | the robot alone |
+  | `'company'` | `` `${worldKey}:${companyId}:journey` `` | every member of one company on Company |
+  | `'fleet'` | `` `${worldKey}:fleet:journey` `` | every robot on Fleet |
+
+  `worldKey` is `worldKeyOf(coordinates)`, `` `${x}:${y}` ``, the key the rhythm stream uses (`melodyWorldKey`), so a
+  world reloaded from a save or a link travels the same journeys. A robot on Company with no company travels as Own.
+- **Drawn as shares.** `journeyShares(key, count)` draws each pair as a `JourneyShare`: an intensity share from −1 to
+  1, a time share from 0 to 1, and whether it is a drop. Four draws a pair, taken whether the pair uses them or not
+  (the home roll, the intensity, the time, the drop roll). With `p` the intensity share of the pair before (0 before
+  the first):
+
+  | Step | Rule |
+  |---|---|
+  | Home | The pair heads home (0) when `p` is at least `JOURNEY_MIN_MOVE` from home and the home roll is under `JOURNEY_HOME_ODDS × \|p\|`: half the time from max intensity. |
+  | Intensity | Otherwise an even draw over −1 to 1 less the stretch within `JOURNEY_MIN_MOVE` of `p` (clipped at −1 and 1). A pair always moves, and may stay on its side or cross home. |
+  | Time | `JOURNEY_TIME_LEAN × (1 − \|intensity\|) + (1 − JOURNEY_TIME_LEAN) × the time draw`: a pair heading near home takes longer. |
+  | Drop | A drop when the drop roll is under `JOURNEY_DROP_ODDS` and the move is at least `JOURNEY_DROP_MIN_MOVE`. The first pair is never a drop, and no drop follows a drop. |
+
+- **A robot's pairs.** `robotPairs(shares, bounds)` scales the shares by the robot's `JourneyBounds` (`maxIntensity`,
+  `maxTime`, `calmLimit`), so one journey is one shape however deep a robot travels it. Intensity: the share times max
+  intensity, rounded to the nearest whole change the same way on both sides of home, and never below minus the calm
+  limit. Time: the share times max time, rounded to the nearest even number of measures, never under 2. A drop's time
+  is 1, and the pair before a drop is one measure shorter.
+- **Turning measures.** A pair's turning measure, where it plays its intensity, is the sum of the times up to its own.
+  Each is even, so it is a chord change (`MEASURES_PER_PALETTE_ENTRY` is 2); the pair before a drop turns on the odd
+  measure, and the drop lands on the chord change after it.
+- **Max time is the journey's.** `robotJourney` hands every robot `JOURNEY_TIME_MAX` (16), so robots on one journey
+  turn on the same measures, each to its own depth: a company on Company and the fleet on Fleet move in lock step.
+- **Where a robot is.** `positionInPairs(pairs, measure)`: in a pair from `a` on measure `s` to `b` on `s + T`, measure
+  `s + k` plays `a + sign(b − a) × floor(|b − a| × k ÷ T)`. The floor leaves a turning measure late and arrives on the
+  next one exactly, never early. Measure 0, a negative or non-finite measure and an empty list give 0.
+- **The engine's read.** `journeyPosition(key, bounds, measure)` is `positionInPairs` over `robotPairs` without walking
+  there: each key's turning measures are memoised per max time, drawn one pair at a time as a read needs them, and
+  searched by halving. A max intensity of 0 gives 0 at every measure without drawing.
+- **The stored robot's journey.** `robotJourney(robot, worldKey, bpmTop)` turns a stored robot into a `RobotJourney`:
+  the key its Journey setting names, its max intensity (absent reads as `DEFAULT_JOURNEY_MAX_INTENSITY`, 0),
+  `JOURNEY_TIME_MAX`, and the two things the changes read, the floor and the seed. The calm limit comes from the
+  registered home melody (`calmLimit`).
+- **A low bound can hold a robot still.** Two pairs can scale to one intensity at a small max intensity, or when both
+  are brought in to the calm limit; the robot then plays one melody through the second pair.
+- **No history.** An edit to max intensity or to Journey re-reads the journey as if the setting had held from measure
+  0, as the chord settings do.
+
+### The changes (`src/engine/melodyDevelopment.ts`)
+
+`developMelody(home, position, options)` applies that many busy changes above 0 and calm changes below it; at 0 it
+returns the home melody itself. Change k+1 is always one change on top of change k. `options` is a
+`DevelopmentOptions`: the robot's floor and its composition seed.
+
+- **Lengths.** `eventSixteenths(event)` is an event's `sixteenths` when present, else its note name's (`16n` 1, `8n` 2,
+  `4n` 4, `2n` 8).
+- **The floor.** `developmentFloor(attackSeconds, bpmTop)`: `ceil(ATTACK_REACH_SHARE × attack ÷ one sixteenth at
+  bpmTop)`, never below 1, where `bpmTop` is the top of the theme's `bpm` band. The attack rail's arithmetic
+  ([Integration at Spawn](#integration-at-spawn)): no change makes a note too short for the robot's attack to climb.
+  Under Classic, attacks up to 0.3 s give a floor of 1.
+- **Directions.** One draw per change from `` alea(`${compositionSeed}:development`) ``, up when under 0.5. Keyed on
+  the seed alone, so a composition edit changes the home melody and not the directions.
+- **Busier**, in four phases, each running until it has nothing left. `T` is the shortest home note in sixteenths
+  (never under the floor), and the subdivision is the larger of the floor and `floor(T / 2)`. A **split** at `t`
+  takes a note at least `2t` long: it keeps `L − t`, and a new `t`-long note starts where it now ends, one palette step
+  from it, with the id `` `${id}:d${k}` ``.
+  1. **First pass:** the home notes that can split at `T`, sorted by length then start and visited from alternating
+     ends (shortest, longest, second shortest...), until half of them (rounded up) are split.
+  2. **Two thresholds:** changes alternate between the subdivision and `T`, the subdivision first, over every note now
+     in the bar; the pick alternates between the shortest and the longest candidate. A threshold with no candidate
+     hands its turn to the other. With no subdivision under `T` there is one threshold.
+  3. **Fills:** while a gap of silence in the bar (before the first note, between two, after the last) is at least
+     the subdivision long, a subdivision-long note goes at the end of the longest gap (the earliest on a tie), one
+     palette step from the note it leads into. The gap after the last note leads into the bar's first.
+  4. **Shifts:** one note moves one palette step, the notes in start order, round and round. It never runs out, so
+     max intensity is what bounds the busy side; a robot at the top of its journey plays pitch movement on a full
+     rhythm.
+- **Calmer.** A **tie** removes a note, and the note before it sounds on to the removed note's end. The candidates
+  are every home note but the bar's first, by length then start, from alternating ends. The floor is the bar's first
+  note alone, so `calmLimit(home)` is the note count less one, and the journey never asks for more.
+- **What a change never does:** move a home note's start, make two notes overlap, or put a note outside the bar. A
+  home note no change touched is the same object; a changed one is a new object keeping its id, slot, octave, rest and
+  mark; a note a change adds carries its source's slot and octave, and no rest, mark, motif accent or pitch lock.
+- **So a family develops as a section.** Members share their founder's rhythm and which note a change picks depends
+  only on lengths and starts, so members on one journey at one max intensity split the same notes on the same
+  measures, each with its own neighbour notes.
+
+The engine resolves the two event fields when the note plays: `pitchStep` through `stepInPalette` in the measure's
+palette, `sixteenths` as seconds at the live tempo ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-resolution-pipeline)).
+
+### The two settings
+
+| Field | Values | At spawn | A company member |
+|---|---|---|---|
+| `Robot.journeyMaxIntensity?: number` | whole changes, 0 to `JOURNEY_INTENSITY_MAX` (16); absent reads as 0, the home melody always | 0 for the share the band's `lit` leaves out, else an even whole number in the band | its founder's |
+| `Robot.journey?: 'own' \| 'company' \| 'fleet'` | whose journey it travels (`JOURNEY_SETTINGS`); absent reads as `DEFAULT_JOURNEY`, `'own'` | `'own'`; `spawnInitialCompanies` puts every robot of a seeded company, founder included, on `'company'` | `'company'` |
+
+- **Seeded** in `deriveMelodyFields` (below) with two draws of its own, a lit roll at `'robot.journeyMaxIntensity.lit'`
+  and the number at `'robot.journeyMaxIntensity'`, through `seedJourneyMaxIntensity(litRoll, t, band)`: a lit robot is
+  never 0. Classic's band is `'robot.journeyMaxIntensity': { min: 1, max: 16, lit: 0.7 }`, so three robots in ten load
+  at home; it is one of the Melody family's keys, and no theme or aspect column names it yet. The roster baseline a
+  save is diffed against does the same, the seeded companies' robots on `'company'` (`generateRobotRosterBaseline`).
+- **Normalised by the store.** `localeStore.updateRobot` rounds max intensity to a whole number from 0 to 16 and drops
+  a `NaN`, and drops a journey that is not one of the three.
+- **Edited by hand** through `applyJourneyMaxIntensity` and `applyJourney` (`robotOptionsActions.ts`), which write the
+  field and nothing else: no regeneration and no engine call, since the engine reads the stored robot on the next note
+  ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-resolution-pipeline)). A move between companies and an Attack edit need none
+  either.
+- **The controls.** Composition > Rhythm & Melody, row 3: Max Intensity (`JOURNEY_MAX_INTENSITY_SCHEMA`, a slider 0 to
+  16 by 1) beside Journey (`JOURNEY_SCHEMA`, a radio of Own, Company, Fleet), which is dimmed, its value kept, while
+  Max Intensity is 0. The copy is stand-in (`probe.composition.journeyMaxIntensity`, `probe.composition.journey`),
+  marked for backlog 62's content pass.
+- **Broadcast and saved.** The company and All Probes screens set both for every member
+  ([COMPANIES.md](COMPANIES.md#editing-semantics-broadcast-not-link)); a save and a world link carry both as overrides
+  ([SESSION_STORAGE.md](SESSION_STORAGE.md)). The home melody is still not saved.
+
 ## Constants of Interest
 
 - `PERFORMANCE_MIN = 0`, `PERFORMANCE_MAX = 100` (`src/constants/index.ts`) — the shared range of Dynamics, Rests and Accents.
@@ -335,6 +474,11 @@ imply. A restored session regenerates and therefore re-stamps (SESSION_STORAGE.m
 - `PITCH_REPEAT_MIN = 0`, `PITCH_REPEAT_MAX = 100` (`src/constants/index.ts`) — the shared 0-100% lock-strength range.
 - `DEFAULT_PITCH_REPEAT = 0` — the neutral/off state (unlike the other three defaults, `0` isn't a mid-range compromise; it's what makes generation at the default statistically indistinguishable from having no Pitch Repeat).
 - `DEFAULT_SUBDIVISIONS = 16`
+- The melody journey (`src/constants/index.ts`; every number a first cut, Crawford's to move by ear):
+  `JOURNEY_HOME_ODDS = 0.5`, `JOURNEY_MIN_MOVE = 0.125`, `JOURNEY_TIME_LEAN = 0.5`, `JOURNEY_DROP_ODDS = 0.3`,
+  `JOURNEY_DROP_MIN_MOVE = 0.5` (all in shares of a robot's bounds); `JOURNEY_INTENSITY_MAX = 16`, the sixteen notes a
+  measure can hold; `DEFAULT_JOURNEY_MAX_INTENSITY = 0`; `JOURNEY_TIME_MAX = 16`, every journey's max time;
+  `DEFAULT_JOURNEY = 'own'`; `JOURNEY_SETTINGS = ['own', 'company', 'fleet']`.
 - `OCTAVE_JUMP_CHANCE = 0.15` — before each note after the first, the chance the melody jumps to another octave: any octave
   inside Octave Min–Max other than the one it is in, near or far, picked evenly. Until 2026-11-13 a jump went only to an octave
   more than one away: in the three-octave registers a melody that started at an edge leapt straight to the other edge and never
@@ -366,13 +510,13 @@ const melody = composeRobotMelody(
 `spawnRobot` stores the melody on the robot and registers it with AudioEngine (`registerRobotMelody`), which consumes it
 via a step registry keyed by `startStep`.
 
-**Where the four Melody fields come from (roadmap 57, the band table; `docs/specs/OFF_SCREEN.md` assumptions 15, 21, 22).** `robotFieldDerivation.ts`'s `deriveMelodyFields(noiseMap, spawnIndex, bands, attackSeconds)` is the one derivation of `rhythmicDensity`, `rhythmicMotifLength`, `noteVariance` and `pitchRepeat` — at spawn, in the regenerated baseline a save is diffed against, and in the aspect deal. Each is an even draw (`getUniformSeededVal`) from the robot's own spawn index at its dataId (`robot.rhythmicDensity`, `robot.rhythmicMotifLength.active`, `robot.noteVariance.active`, `robot.pitchRepeat`), into a **band** read at the point of the draw: Density and Pitch Repeat from a range band, the two toggle fields through `seedToggleValue(raw, band)` from a `ToggleBand` (`{ offShare, min, max }`: a draw under `offShare` lands the field off, 0; the rest maps uniformly onto the whole numbers `min..max`). The bands are the world's theme's — `getBand(key)` from `src/data/bands/loadingContext.ts`, Classic's `{ 0–100 }`, `{ 0.15, 1–8 }`, `{ 0.15, 1–8 }` and `{ 0–100 }` (`classic.ts`) unless the theme's column moves Density — or, for a robot the deal gave a **Melody aspect** (Hypnotic, Mechanical, Wandering; `src/data/bands/aspects.ts`), that aspect's column over `resolveBands(theme, { melody: aspect })`: the same draws re-derived into the aspect's four bands, so a dealt robot is exactly what it would have been had it spawned under the aspect, and `Robot.loadedUnder.melody` records which. The deal itself — which robots, by company — is in [COMPANIES.md](COMPANIES.md)'s "The deal"; the bands per theme and aspect are tabled in [reference/ROBOT_DATA_GRID.md](reference/ROBOT_DATA_GRID.md). `applyAspectDeal` regenerates each dealt robot's melody from its new fields (`regenerateMelody`, re-registered with the engine) in `initializeLocale`, right after `spawnInitialCompanies`. A hand edit still goes through `applyDensity` and its siblings and is saved as an override, exactly as before; the aspect only moves where a fresh robot starts. A company member draws none of the four: it inherits its founder's at spawn, and the deal derives them at its founder's index ([COMPANIES.md](COMPANIES.md), "A seeded company is a family").
+**Where the five Melody fields come from (roadmap 57, the band table; `docs/specs/OFF_SCREEN.md` assumptions 15, 21, 22).** `robotFieldDerivation.ts`'s `deriveMelodyFields(noiseMap, spawnIndex, bands, attackSeconds)` is the one derivation of `rhythmicDensity`, `rhythmicMotifLength`, `noteVariance` and `pitchRepeat`, and since roadmap 92 the journey's `journeyMaxIntensity` (its own two draws, [The two settings](#the-two-settings); what follows here is the other four) — at spawn, in the regenerated baseline a save is diffed against, and in the aspect deal. Each is an even draw (`getUniformSeededVal`) from the robot's own spawn index at its dataId (`robot.rhythmicDensity`, `robot.rhythmicMotifLength.active`, `robot.noteVariance.active`, `robot.pitchRepeat`), into a **band** read at the point of the draw: Density and Pitch Repeat from a range band, the two toggle fields through `seedToggleValue(raw, band)` from a `ToggleBand` (`{ offShare, min, max }`: a draw under `offShare` lands the field off, 0; the rest maps uniformly onto the whole numbers `min..max`). The bands are the world's theme's — `getBand(key)` from `src/data/bands/loadingContext.ts`, Classic's `{ 0–100 }`, `{ 0.15, 1–8 }`, `{ 0.15, 1–8 }` and `{ 0–100 }` (`classic.ts`) unless the theme's column moves Density — or, for a robot the deal gave a **Melody aspect** (Hypnotic, Mechanical, Wandering; `src/data/bands/aspects.ts`), that aspect's column over `resolveBands(theme, { melody: aspect })`: the same draws re-derived into the aspect's four bands, so a dealt robot is exactly what it would have been had it spawned under the aspect, and `Robot.loadedUnder.melody` records which. The deal itself — which robots, by company — is in [COMPANIES.md](COMPANIES.md)'s "The deal"; the bands per theme and aspect are tabled in [reference/ROBOT_DATA_GRID.md](reference/ROBOT_DATA_GRID.md). `applyAspectDeal` regenerates each dealt robot's melody from its new fields (`regenerateMelody`, re-registered with the engine) in `initializeLocale`, right after `spawnInitialCompanies`. A hand edit still goes through `applyDensity` and its siblings and is saved as an override, exactly as before; the aspect only moves where a fresh robot starts. A company member draws none of the five: it inherits its founder's at spawn, and the deal derives them at its founder's index ([COMPANIES.md](COMPANIES.md), "A seeded company is a family").
 
 **The attack rail (2026-11-05).** A slow attack on dense notes never climbs: Tone restarts each note's attack from the envelope's current level, so a 1.14 s attack on back-to-back sixteenths reaches about a tenth of its peak per note and plays as a quiet, dull click (Solar Nomad, `?seed=bbng7yv2&x=21&y=-188`, density 88). So the density draw reads the robot's attack: `deriveMelodyFields(noiseMap, spawnIndex, bands, attackSeconds)` draws Density over `audibleDensityBand(band, attack, bpm)`, which caps the band where the mean gap between notes (100 ÷ density sixteenths, density being a fill rate) carries a linear attack to `ATTACK_REACH_SHARE` (0.5, `src/constants/index.ts`) of its peak. The gap is measured at the top of the theme's `bpm` band, the fastest tempo the world can seed, so the rule holds at any seeded tempo without tying a robot to the Attenuation Style that seeds the tempo (robots seed from coordinates alone). Under Classic's 40–100 BPM the cap is 30 ÷ attack: attacks to 0.3 s leave 0–100 whole, Solar Nomad's 1.14 s seeds 0–26. A cap under the band's bottom collapses the band onto the cap, so the rail wins over a dense theme or aspect. The draw stays even inside the narrowed band, at the same dataId. Envelope is drawn first at spawn, so nothing moves in the draw order; the deal derives Envelope before Melody for the same reason, and a robot dealt an Envelope option without a Melody one re-draws its density alone (`deriveRhythmicDensity`) under the theme's band against the dealt attack, its other Melody fields standing; `applyAspectDeal` regenerates its melody only when that moves the density. A company member takes its founder's attack and density together. It is a loading rule only: a hand edit of Density or Attack goes anywhere, and a tempo edit re-checks nothing. Measured over 12,000 Classic robots, it moves the share at density 25 or under from 26 % to 66 % and at 75 or over from 25 % to 7 % (Crawford: "it sounds fine now").
 
 ## Playback Integration
 
-The playback layer uses the melody events as index-based cues and applies the palette of the note's own measure (`paletteForMeasure`, [HARMONY_SYSTEM.md](HARMONY_SYSTEM.md)) at scheduling time. The generator itself only produces the event structure; the actual pitch is resolved by the engine when the note is scheduled. An event's `rest` and `mark` are resolved there too (`resolveArticulation` in `processMelodyStep`): a shortened note is scheduled as seconds at the live tempo, floored at `MIN_SOUNDING_SECONDS`, and a mark's velocity factor rides the `accentMultiplier` beside the motif-group accent — see [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-resolution-pipeline).
+The playback layer plays each measure's melody: the registered home melody, developed for that measure by the robot's journey ([The melody journey](#the-melody-journey-roadmap-92); the engine's read is in [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-resolution-pipeline)). It uses the melody events as index-based cues and applies the palette of the note's own measure (`paletteForMeasure`, [HARMONY_SYSTEM.md](HARMONY_SYSTEM.md)) at scheduling time. The generator itself only produces the event structure; the actual pitch is resolved by the engine when the note is scheduled. An event's `rest` and `mark` are resolved there too (`resolveArticulation` in `processMelodyStep`): a shortened note is scheduled as seconds at the live tempo, floored at `MIN_SOUNDING_SECONDS`, and a mark's velocity factor rides the `accentMultiplier` beside the motif-group accent — see [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-resolution-pipeline).
 
 `AudioEngine`'s playback scheduler ticks on `'16n'` — 16 ticks per measure — so the 16 `startStep` slots this generator produces map 1:1 onto a single measure, exactly matching the "one measure, 16 subdivisions" model above. (This alignment was previously broken — the scheduler ticked on `'8n'`, stretching every melody's loop to 2 measures at half the tuned density — and was fixed to match this generator's model rather than the other way around.)
 
@@ -380,7 +524,7 @@ The playback layer uses the melody events as index-based cues and applies the pa
 
 ### Click Track (testing aid)
 
-`AudioEngine.registerRobotMelody(robotId, melody)` — the one funnel every melody-registration call site shares (spawn, a Density/Motif Length/Note Variance/Pitch Repeat/Octave Range edit, and `robotSystems.ts`'s docking pitch-drift reroll) — ignores its `melody` argument entirely and substitutes a fixed pattern (`src/engine/clickTrack.ts`'s `buildClickTrackMelody`) whenever the robot's own `clickTrackActive` flag (`Robot.ts`) is true: a straight sixteenth on every step, `startStep` 1 to 16, each beat's four on its own noteIndex (`0000 1111 2222 3333` into the measure's palette), all at the robot's lowest octave except step 1, an octave up. So the step, the beat (a change of note) and the downbeat (the high note, where the palette changes every second measure) can each be heard. The override is enforced at that single funnel rather than at each call site, so nothing — including automatic melody changes a user never directly triggered, like the docking reroll — can silently fall back to the real melody while the toggle still reads as on. Toggled from the last row of Composition > Rhythm & Melody, per robot on the robot screen and broadcast to every member on the company and All Probes screens (`useCompanyOptions`); purely a timing-by-ear testing aid, not part of a robot's generated melody. The toggle itself only renders behind `DEV_TUNING` (`CompositionSections.tsx`'s `CompositionRhythmMelodySection`), so it's unreachable in a production build.
+`AudioEngine.registerRobotMelody(robotId, melody)` — the one funnel every melody-registration call site shares (spawn, a Density/Motif Length/Note Variance/Pitch Repeat/Octave Range edit, the deal and a restored session) — ignores its `melody` argument entirely and substitutes a fixed pattern (`src/engine/clickTrack.ts`'s `buildClickTrackMelody`) whenever the robot's own `clickTrackActive` flag (`Robot.ts`) is true: a straight sixteenth on every step, `startStep` 1 to 16, each beat's four on its own noteIndex (`0000 1111 2222 3333` into the measure's palette), all at the robot's lowest octave except step 1, an octave up. So the step, the beat (a change of note) and the downbeat (the high note, where the palette changes every second measure) can each be heard. The override is enforced at that single funnel rather than at each call site, so nothing — including melody changes a user never directly triggered, like the deal's regeneration — can silently fall back to the real melody while the toggle still reads as on. The journey does not develop a Click Track robot: the engine plays the registered click pattern at every measure. Toggled from the last row of Composition > Rhythm & Melody, per robot on the robot screen and broadcast to every member on the company and All Probes screens (`useCompanyOptions`); purely a timing-by-ear testing aid, not part of a robot's generated melody. The toggle itself only renders behind `DEV_TUNING` (`CompositionSections.tsx`'s `CompositionRhythmMelodySection`), so it's unreachable in a production build.
 
 ## Testing Notes
 
@@ -396,7 +540,6 @@ The current tests cover:
 - `buildMotifOnsets()`'s tail-cell pass: `M` values `1/2/4/8` unaffected (regression guard), `M` values `3/5/6/7` gain tail onsets that are a subset of the base motif's own positions and survive the overshoot-trim branch
 - `computePitchLockPlan()`: `pct: 0` → all false, `pct: 100` → full lock (float-safety guard), monotonicity across a `0-100` sweep, determinism, seed-dependent (not always position-0-first) lock order, and tail-repeat exclusion for positions `>= tailLength`
 - `generateMelodyForRobot`'s Pitch Repeat wiring: gating when Motif Length is off, no `pitchLocked` events at `pitchRepeat: 0`, full-lock verbatim repetition at `pitchRepeat: 100`, and Note Variance's uniqueness cap staying unaffected by locked copies
-- `reRollMelodyPitches` excluding `pitchLocked` events from its candidate pool, including the fully-locked (zero changes) and no-locks-present (regression) cases
 - `buildSeededComposition`: determinism (same `compositionSeed` + attrs → identical sequence), independent sensitivity to each of its six inputs, drop-in validity as `generateMelodyForRobot`'s `opts.rand`, and a `Math.random` spy confirming zero incidental randomness (`melodyGenerator.test.ts`)
 - `rhythmShape`: densities that round to one count are one shape, an inert motif length is not part of it, and it is the count the generator plays; `buildSeededRhythm` / `buildSeededPerformance`: the same world and shape give the same stream (another density of the same shape included), a world or shape change a different one, and note variance, pitch repeat and octave never enter it; `rhythmRand`: one rhythm stream with two composition streams gives the same onsets and lengths and different notes, and two literal parity pins hold the one-stream melody (`melodyGenerator.test.ts`)
 - `regenerateMelody.test.ts`, "the rhythm stream": only a rhythm setting moves the rhythm (B7), and in one world one shape is one rhythm (robots with different seeds play the same onsets, lengths and stamps, with their own notes)
@@ -404,3 +547,10 @@ The current tests cover:
 - `regenerateMelody.test.ts`: determinism across repeated calls, the "edit then revert" case, and two robots with identical attributes but different `compositionSeed` producing different melodies
 - `spawnSystem.families.test.ts`: over the 121 grid worlds, every company member plays its founder's onsets, lengths and stamps exactly, and most members' notes differ from their founder's
 - `sessionDiff.test.ts`: a save → edit → wipe → load round trip reproduces a robot's exact melody, not just its attribute values
+- The melody journey (roadmap 92; each new rule mutation-checked, the runs in [docs/tasks/MELODY_JOURNEY.md](tasks/MELODY_JOURNEY.md)'s Results):
+  - `melodyJourney.test.ts`: `positionInPairs` on pairs written by hand (the spec's worked example, both calm limits; a pair's intensity first on its turning measure; never past it inside a pair); `journeyShares` (the same key gives the same shares, the three scopes differ, the home odds and the time lean as comparisons, the drop's rules); `robotPairs` (the rounding, the calm limit, even times, the pair before a drop); `journeyPosition` (0 at measure 0 and at max intensity 0, robots on one key turning together at different max intensities, the memo per max time); `robotJourney` (the scopes, Company with no company as Own, the defaults, one max time for every robot)
+  - `melodyDevelopment.test.ts`: the floor, each busy phase and the calm ties, the spec's worked example, `calmLimit`, `eventSixteenths`; `melodyDevelopment.worlds.test.ts` sweeps the 121 sim worlds' home melodies from the calm floor to past the last fill (no overlap, nothing outside the bar or under the floor, one change per position, every home note on its slot until the shifts, the same events and ids for the same inputs, the calm floor below it)
+  - `harmonySystem.test.ts`: `stepInPalette` (the next pitch class, the octave across B to C, the turn back at the octave range)
+  - `AudioEngine.test.ts`: `stepNotes` reading each measure's own melody from one registration, `sixteenths` sounding at the live tempo, a max intensity of 0 playing home at every measure, never a position below the calm limit, a Click Track robot never developed, the motif accent and the stamps kept on home notes only, and reading measure m, m+1, then m again rebuilding nothing
+  - `spawnSystem.families.test.ts`: over the 121 worlds, every company's members play the same starts and lengths at every measure of a run
+  - the settings' seeding (`robotFieldDerivation.test.ts`, `spawnSystem.test.ts`, `aspectDeal.widened.test.ts`), the store's normalisation (`localeStore.test.ts`), the controls and the broadcast (`CompositionSections.test.tsx`, `RobotScreen.test.tsx`, `useCompanyOptions.test.ts`) and the save and the link (`sessionDiff.test.ts`, `worldDiffCodec.test.ts`)

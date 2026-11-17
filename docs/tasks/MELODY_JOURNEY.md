@@ -1247,7 +1247,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
 ### Phase 10: Docs
 
-- [ ] **Task 21: `MELODY_SYSTEM.md`, `AUDIO_SYSTEM.md`, `ROBOT_LIFECYCLE.md`**
+- [x] **Task 21: `MELODY_SYSTEM.md`, `AUDIO_SYSTEM.md`, `ROBOT_LIFECYCLE.md`**
 
   **Description:** `MELODY_SYSTEM.md`: the home melody, a section for the journey (the pairs, the shares, the drop,
   the calm limit) and the changes, the two new event fields, and the docking re-roll's text out. `AUDIO_SYSTEM.md`: the note resolution pipeline's per-measure read,
@@ -1257,8 +1257,8 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] No doc says a melody changes at a docking, or names a deleted function.
-  - [ ] Every function, field and constant named exists as written.
+  - [x] No doc says a melody changes at a docking, or names a deleted function.
+  - [x] Every function, field and constant named exists as written.
 
   **Verification:** each name spot-checked against the code; links and anchors checked.
 
