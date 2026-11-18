@@ -238,10 +238,10 @@ describe('a seeded company is a family at spawn (Company Families Task 5)', () =
         developMelody(robot.melody, journeyPosition(journey.key, bounds, measure), journey).map((e) => `${e.startStep}:${eventSixteenths(e)}`).join(' '),
       );
     };
-    it('every robot of a seeded company, founder included, is on Company; every freelancer on Own', () => {
+    it('every robot of a seeded company, founder included, is on Company; every freelancer on Fleet', () => {
       for (const { key, robots, companies } of WORLDS) {
         const members = new Set(companies.flatMap((c) => c.robotIds));
-        for (const robot of robots) expect(robot.journey, `${key} ${robot.id}`).toBe(members.has(robot.id) ? 'company' : 'own');
+        for (const robot of robots) expect(robot.journey, `${key} ${robot.id}`).toBe(members.has(robot.id) ? 'company' : 'fleet');
       }
     });
 
