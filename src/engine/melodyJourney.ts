@@ -56,7 +56,18 @@ export interface JourneyShare {
   drop: boolean;
 }
 
-const sharesByKey = new Map<string, { rand: () => number; list: JourneyShare[] }>();
+/** A key's shares as far as they have been drawn, and each pair's trip beside it (tripOfNext). */
+const sharesByKey = new Map<string, { rand: () => number; list: JourneyShare[]; trips: number[] }>();
+
+/** The trip of the pair that heads for `share`, after a pair on `tripBefore` that headed for `before` (undefined for
+ *  the first pair, trip 0). A trip is one stretch away from home on one side: a pair starts a new one when it heads
+ *  for a side the pair before it did not head for (away from home after a pair that headed there, or across home). A
+ *  pair that heads home, or further along the same side, stays on the trip. */
+function tripOfNext(share: JourneyShare, before: JourneyShare | undefined, tripBefore: number): number {
+  if (!before) return 0;
+  const heads = Math.sign(share.intensity);
+  return tripBefore + (heads !== 0 && heads !== Math.sign(before.intensity) ? 1 : 0);
+}
 
 /** The pair after `before` (undefined for the first), by §1.3's table. Takes four draws whatever it uses, so pair i
  *  always reads draws 4i to 4i + 3. */
@@ -93,17 +104,25 @@ export function journeyShares(key: string, count: number): JourneyShare[] {
   return sharesOf(key, count).slice(0, count);
 }
 
-/** The memo's own list for `key`, drawn to at least `count` pairs; not copied, so never handed out. */
-function sharesOf(key: string, count: number): readonly JourneyShare[] {
+/** The memo's own entry for `key`, drawn to at least `count` pairs; not copied, so never handed out. */
+function drawnTo(key: string, count: number): { list: readonly JourneyShare[]; trips: readonly number[] } {
   let shares = sharesByKey.get(key);
   if (!shares) {
-    shares = { rand: alea(key), list: [] };
+    shares = { rand: alea(key), list: [], trips: [] };
     sharesByKey.set(key, shares);
   }
   while (shares.list.length < count) {
-    shares.list.push(drawShare(shares.rand, shares.list[shares.list.length - 1]));
+    const last = shares.list.length - 1;
+    const share = drawShare(shares.rand, shares.list[last]);
+    shares.trips.push(tripOfNext(share, shares.list[last], shares.trips[last]));
+    shares.list.push(share);
   }
-  return shares.list;
+  return shares;
+}
+
+/** The memo's own list for `key`, drawn to at least `count` pairs; not copied, so never handed out. */
+function sharesOf(key: string, count: number): readonly JourneyShare[] {
+  return drawnTo(key, count).list;
 }
 
 // ========================================
@@ -222,12 +241,33 @@ function pairAt(key: string, maxTime: number, measure: number): { i: number; end
  * negative or non-finite measure, so every world starts at home. Pure.
  */
 export function journeyPosition(key: string, bounds: JourneyBounds, measure: number): number {
-  if (!(bounds.maxIntensity > 0) || !Number.isFinite(measure) || measure <= 0) return 0;
+  return journeyAt(key, bounds, measure).position;
+}
+
+/** Where a robot is on its journey at one measure: its position (journeyPosition) and its trip. */
+export interface JourneyRead {
+  /** Whole changes from home: busier above 0, calmer below it. */
+  position: number;
+  /** Which stretch away from home this is, counted from 0 on the journey's shares (tripOfNext), so robots on one
+   *  journey count alike. While a robot is still on the side it is leaving, it is on the trip of the pair before. */
+  trip: number;
+}
+
+/**
+ * A robot's read of `key`'s journey at `measure`, scaled by its bounds (§1.3, §1.7): the position (positionInPairs
+ * over robotPairs, read without walking there) and the trip. Position 0 and trip 0 at a max intensity of 0, at measure
+ * 0 and at a negative or non-finite measure, so every world starts at home. Pure.
+ */
+export function journeyAt(key: string, bounds: JourneyBounds, measure: number): JourneyRead {
+  if (!(bounds.maxIntensity > 0) || !Number.isFinite(measure) || measure <= 0) return { position: 0, trip: 0 };
   const { i, ends } = pairAt(key, bounds.maxTime, measure);
-  const shares = sharesOf(key, i + 1);
+  const { list: shares, trips } = drawnTo(key, i + 1);
   const start = i === 0 ? 0 : ends[i - 1];
   const from = i === 0 ? 0 : pairIntensity(shares[i - 1], bounds);
-  return insidePair(from, pairIntensity(shares[i], bounds), measure - start, ends[i] - start);
+  const position = insidePair(from, pairIntensity(shares[i], bounds), measure - start, ends[i] - start);
+  // Still on the side it is leaving: the pair before's trip, until the robot is home or across.
+  const crossed = position === 0 || i === 0 || Math.sign(position) === Math.sign(shares[i].intensity);
+  return { position, trip: crossed ? trips[i] : trips[i - 1] };
 }
 
 // ========================================

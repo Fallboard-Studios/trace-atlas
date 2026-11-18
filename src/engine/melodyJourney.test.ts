@@ -3,6 +3,7 @@
 // ========================================
 import { describe, it, expect, vi } from 'vitest';
 import {
+  journeyAt,
   journeyKey,
   journeyPosition,
   journeyShares,
@@ -514,6 +515,96 @@ describe('robotPairs (spec §1.3)', () => {
       }
     }
     expect(misses).toEqual([]);
+  });
+});
+
+// A trip (journey dynamics, 2026-11-18): one stretch away from home on one side. The changes take a different path
+// each trip, so the engine reads the trip beside the position. It is counted on the shares, so robots on one journey
+// count alike.
+describe('journeyAt: the position and the trip', () => {
+  const RUN = 2000;
+  const KEYS = [OWN, 'x:journey', 'y:journey', journeyKey(WORLD, { kind: 'fleet' })];
+  const b = (maxIntensity: number, calmLimit: number): JourneyBounds => ({ maxIntensity, maxTime: 16, calmLimit });
+  const CASES = [b(16, 15), b(16, 4), b(3, 2), b(8, 0)];
+
+  it('reads the position journeyPosition reads, at every measure', () => {
+    for (const key of KEYS) {
+      for (const bounds of CASES) {
+        for (let m = 0; m <= 400; m++) expect(journeyAt(key, bounds, m).position).toBe(journeyPosition(key, bounds, m));
+      }
+    }
+  });
+
+  it('is trip 0 at measure 0 and through the first pair', () => {
+    for (const key of KEYS) {
+      const first = robotPairs(journeyShares(key, 2), b(16, 15))[0].time;
+      for (let m = 0; m < first; m++) expect(journeyAt(key, b(16, 15), m).trip).toBe(0);
+    }
+  });
+
+  it('is trip 0 at a max intensity of 0, and at a negative or non-finite measure', () => {
+    for (let m = 0; m <= 200; m++) expect(journeyAt(OWN, b(0, 15), m)).toEqual({ position: 0, trip: 0 });
+    for (const m of [-1, Number.NaN, Infinity]) expect(journeyAt(OWN, b(16, 15), m)).toEqual({ position: 0, trip: 0 });
+  });
+
+  it('follows the shares: a new trip when a pair heads for a side the pair before did not, the old one until the robot has crossed', () => {
+    const misses: string[] = [];
+    for (const key of KEYS) {
+      const shares = journeyShares(key, RUN + 2);
+      // The trip of each pair, from the shares alone.
+      const tripOf: number[] = [0];
+      for (let i = 1; i < shares.length; i++) {
+        const heads = Math.sign(shares[i].intensity);
+        tripOf.push(tripOf[i - 1] + (heads !== 0 && heads !== Math.sign(shares[i - 1].intensity) ? 1 : 0));
+      }
+      for (const bounds of CASES) {
+        const pairs = robotPairs(shares, bounds);
+        let i = 0;
+        let turn = pairs[0].time;
+        for (let m = 1; m <= RUN; m++) {
+          while (m >= turn) turn += pairs[++i].time;
+          const { position, trip } = journeyAt(key, bounds, m);
+          const crossed = position === 0 || i === 0 || Math.sign(position) === Math.sign(shares[i].intensity);
+          const want = crossed ? tripOf[i] : tripOf[i - 1];
+          if (trip !== want) misses.push(`${key} ${JSON.stringify(bounds)} m${m}: ${trip}, not ${want}`);
+        }
+      }
+    }
+    expect(misses.slice(0, 5)).toEqual([]);
+  });
+
+  it('never goes back, and holds while a robot stays on one side of home', () => {
+    for (const key of KEYS) {
+      for (const bounds of CASES) {
+        let before = journeyAt(key, bounds, 0);
+        for (let m = 1; m <= RUN; m++) {
+          const now = journeyAt(key, bounds, m);
+          expect(now.trip, `${key} m${m}`).toBeGreaterThanOrEqual(before.trip);
+          if (now.position !== 0 && Math.sign(now.position) === Math.sign(before.position)) {
+            expect(now.trip, `${key} ${JSON.stringify(bounds)} m${m}`).toBe(before.trip);
+          }
+          before = now;
+        }
+      }
+    }
+  });
+
+  it('gives two robots on one journey one trip wherever both are away from home on one side, whatever their bounds', () => {
+    let together = 0;
+    for (const key of KEYS) {
+      for (let m = 0; m <= RUN; m++) {
+        const deep = journeyAt(key, b(16, 15), m);
+        const shallow = journeyAt(key, b(5, 3), m);
+        if (deep.position === 0 || Math.sign(deep.position) !== Math.sign(shallow.position)) continue;
+        together++;
+        expect(shallow.trip, `${key} m${m}`).toBe(deep.trip);
+      }
+    }
+    expect(together).toBeGreaterThan(1000);
+  });
+
+  it('takes many trips over a long run', () => {
+    for (const key of KEYS) expect(journeyAt(key, b(16, 15), RUN).trip).toBeGreaterThan(20);
   });
 });
 
