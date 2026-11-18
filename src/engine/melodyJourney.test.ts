@@ -453,12 +453,22 @@ describe('robotPairs (spec §1.3)', () => {
     expect(intensities([share(-0.7), share(0.5)], bounds(16, 16, 0))).toEqual([0, 8]);
   });
 
-  it('brings a calm intensity past the calm limit in to it, and never brings a busy one in', () => {
-    expect(intensities([share(-0.75)], bounds(16, 16, 4))).toEqual([-4]);
-    expect(intensities([share(-0.25)], bounds(16, 16, 4))).toEqual([-4]);
-    expect(intensities([share(-0.125)], bounds(16, 16, 4))).toEqual([-2]);
+  it('scales a calm share across the calm range, the smaller of max intensity and the calm limit, and a busy one across max intensity', () => {
+    // A calm limit of 4 under a max intensity of 16: the whole calm side is spread over the four changes there are.
+    expect(intensities([share(-1)], bounds(16, 16, 4))).toEqual([-4]);
+    expect(intensities([share(-0.75)], bounds(16, 16, 4))).toEqual([-3]);
+    expect(intensities([share(-0.5)], bounds(16, 16, 4))).toEqual([-2]);
+    expect(intensities([share(-0.25)], bounds(16, 16, 4))).toEqual([-1]);
+    // A max intensity under the calm limit bounds the calm side as it does the busy one.
+    expect(intensities([share(-1), share(-0.5)], bounds(6, 16, 15))).toEqual([-6, -3]);
+    // The busy side is never brought in.
     expect(intensities([share(0.75)], bounds(16, 16, 4))).toEqual([12]);
     expect(intensities([share(1)], bounds(16, 16, 0))).toEqual([16]);
+  });
+
+  it('reaches the calm floor only on a full calm share: a robot does not wait on its floor through a ramp', () => {
+    const shares = [-0.9, -0.8, -0.7, -0.6].map((s) => share(s));
+    expect(intensities(shares, bounds(16, 16, 4))).toEqual([-4, -3, -3, -2]);
   });
 
   it('scales time to the nearest even number of measures, never under 2: at 16, 0, 0.1, 0.5 and 1 give 2, 2, 8 and 16', () => {
@@ -477,7 +487,7 @@ describe('robotPairs (spec §1.3)', () => {
   });
 
   it('gives Crawford example from shares that scale to it: [[16, 15], [-8, 1], [0, 16]]', () => {
-    const pairs = robotPairs([share(1, 1), share(-0.5, 0.25, true), share(0, 1)], bounds(16, 16, 8));
+    const pairs = robotPairs([share(1, 1), share(-0.5, 0.25, true), share(0, 1)], bounds(16, 16, 16));
     expect(pairs.map((p) => [p.intensity, p.time])).toEqual([
       [16, 15],
       [-8, 1],

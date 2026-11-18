@@ -127,9 +127,10 @@ export interface JourneyBounds {
 }
 
 /**
- * A robot's own pairs from its journey's shares (§1.3, "A robot's pairs"). Intensity: the share times max intensity,
- * rounded to the nearest whole change the same way on both sides of home, and never below minus the calm limit (the
- * busy side is not brought in). Time: the share times max time, rounded to the nearest even number of measures, never
+ * A robot's own pairs from its journey's shares (§1.3, "A robot's pairs"). Intensity: a busy share times max
+ * intensity, a calm share times the calm range (the smaller of max intensity and the calm limit), each rounded to the
+ * nearest whole change the same way on both sides of home. So the calm side is never past the calm limit, and is
+ * spread over the calm changes the robot has. Time: the share times max time, rounded to the nearest even number of measures, never
  * under 2. A drop's time is 1, and the pair before a drop is one measure shorter, so the times through a drop sum to
  * an even number. A drop is seen only in the shares handed in: a caller reading pair i hands in share i + 1. Pure.
  */
@@ -142,8 +143,11 @@ export function robotPairs(shares: readonly JourneyShare[], bounds: JourneyBound
 
 /** A share's intensity in a robot's whole changes (robotPairs' rule). */
 function pairIntensity(share: JourneyShare, bounds: JourneyBounds): number {
-  const scaled = share.intensity * bounds.maxIntensity;
-  const intensity = Math.max(-bounds.calmLimit, Math.sign(scaled) * Math.round(Math.abs(scaled)));
+  // The calm side is as deep as the robot has calm changes, so a calm share is spread over those: a full calm share
+  // is the floor, and nothing short of one waits there.
+  const range = share.intensity < 0 ? Math.min(bounds.maxIntensity, bounds.calmLimit) : bounds.maxIntensity;
+  const scaled = share.intensity * range;
+  const intensity = Math.sign(scaled) * Math.round(Math.abs(scaled));
   // `intensity === 0` is true of −0 as well: hand back a plain 0.
   return intensity === 0 ? 0 : intensity;
 }
