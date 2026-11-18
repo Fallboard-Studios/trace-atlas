@@ -1793,6 +1793,34 @@ same word: it was not run on the pairs, so the last measure is Checkpoint E's au
 **Left as they are:** `docs/ideas/the-score.md` (roadmap 90's idea) and two items in `backlog.md` still describe docking pitch drift as current; they are idea and backlog text, outside
 Phase 10's files.
 
+**Gate B on the pairs, run after the waiver** (2026-11-17, on Crawford's "go for it", after the five-axis review and
+its fixes). `npm run perf:audio`, same session: `main` `2e316525` (the branch's merge-base, built in a scratch
+worktree) on :4173 and the branch `c7c78ff9` on :4175, production builds, each port's bundle proven (only the branch's
+carries `journeyMaxIntensity`). One link for both, `charlie:200:-30` with an `s=` blob setting every robot's max
+intensity to 16 (the twelve ids read off the page's `data-robot-id`, the blob made by the app's own `encodeBlob`). On
+the branch's dev server the link loaded all twelve at 16 (seven on Company, five on Own); `main` ignores the key and
+plays its home melodies, so the A/B is the branch's deepest journey against no journey at all. Fresh Chrome per run,
+foreground, orphaned-Chrome count 0 before and after every call.
+
+| 180 s run, 30 s buckets | Mean capacity | Max capacity | Bucket max lag | Underruns in the series |
+|---|---|---|---|---|
+| `main` 1 | 0.329 | 0.857 | 15–19 ms | 0 |
+| branch 1 | 0.321 | 0.814 | 11–16 ms | 0 |
+| branch 2 | 0.327 | 0.987 | 12–28 ms | 0 |
+| `main` 2 | 0.321 | 0.830 | 12–17 ms | 0 |
+
+Steady play is level: the means are within 0.008 either way, bucket by bucket the two sides track each other (r of
+audible robots against capacity 0.99–1.00 on both), and every run's two underruns came at boot (0:01–0:04), none in
+play. Branch 2's 0.987 is one sample, in a bucket whose mean (0.340) is `main`'s (0.334).
+
+The warm-up (power-on and the first seconds, the overlay's max lag since boot) leans the other way. Over the two long
+runs and four short ones each side, interleaved: `main` 27, 89, 176, 111, 127, 232 ms (median 119); branch 183, 192,
+118, 155, 236, 203 ms (median 188). The ranges overlap and six a side do not separate them (rank-sum U = 8; 5 or
+under is the 5 % line), and no run took an extra underrun (1 or 2 at boot on both). A possible cause, not measured:
+the warm-up spans the first few measures, where every robot leaves home together and builds its first developed
+melodies (one `developMelody` per robot per new position, a first pair to 16 reaching 8 by measure 1). Crawford's to
+accept as Gate B, or to have the power-on traced (`npm run perf:trace`) first.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
@@ -1830,6 +1858,7 @@ The revision's (Phases 6 to 9):
    the two words; nothing else in CLAUDE.md changes.
 4. Spec §7.3's assumptions (B1 to B15). **Open by design:** they stand at their first cuts until Gates A and C.
 5. Gate B's harness. **Open** — Crawford's word, before Checkpoint I: mend the step harness (`npm run perf` stops at
-   a nav button it can no longer find), or accept the audio-thread A/B (`npm run perf:audio`) as the gate.
+   a nav button it can no longer find), or accept the audio-thread A/B (`npm run perf:audio`) as the gate. The A/B
+   was run on the pairs at max intensity 16 after the waiver (Results, Checkpoint Complete); its acceptance is his.
 6. The link's new key. **For Task 35:** `ji` if nothing else in the codec uses it (`jt` is no longer needed: max
    time left the robot, spec §7.4).
