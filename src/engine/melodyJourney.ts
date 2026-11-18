@@ -10,6 +10,7 @@ import {
   JOURNEY_DROP_MIN_MOVE,
   JOURNEY_DROP_ODDS,
   JOURNEY_HOME_ODDS,
+  JOURNEY_INTENSITY_MAX,
   JOURNEY_MIN_MOVE,
   JOURNEY_TIME_LEAN,
   JOURNEY_TIME_MAX,
@@ -251,15 +252,19 @@ export interface JourneyRead {
   /** Which stretch away from home this is, counted from 0 on the journey's shares (tripOfNext), so robots on one
    *  journey count alike. While a robot is still on the side it is leaving, it is on the trip of the pair before. */
   trip: number;
+  /** How far out the journey is, from −1 (as calm as it goes) to 1 (as busy), for the performance to follow: the
+   *  shares in a straight line across the pair, unrounded, so it moves every measure, times the robot's max intensity
+   *  as a share of JOURNEY_INTENSITY_MAX. It does not read the calm limit: a one-note robot has a calm level too. */
+  level: number;
 }
 
 /**
  * A robot's read of `key`'s journey at `measure`, scaled by its bounds (§1.3, §1.7): the position (positionInPairs
- * over robotPairs, read without walking there) and the trip. Position 0 and trip 0 at a max intensity of 0, at measure
- * 0 and at a negative or non-finite measure, so every world starts at home. Pure.
+ * over robotPairs, read without walking there), the trip and the level. All 0 at a max intensity of 0, at measure 0
+ * and at a negative or non-finite measure, so every world starts at home. Pure.
  */
 export function journeyAt(key: string, bounds: JourneyBounds, measure: number): JourneyRead {
-  if (!(bounds.maxIntensity > 0) || !Number.isFinite(measure) || measure <= 0) return { position: 0, trip: 0 };
+  if (!(bounds.maxIntensity > 0) || !Number.isFinite(measure) || measure <= 0) return { position: 0, trip: 0, level: 0 };
   const { i, ends } = pairAt(key, bounds.maxTime, measure);
   const { list: shares, trips } = drawnTo(key, i + 1);
   const start = i === 0 ? 0 : ends[i - 1];
@@ -267,7 +272,10 @@ export function journeyAt(key: string, bounds: JourneyBounds, measure: number): 
   const position = insidePair(from, pairIntensity(shares[i], bounds), measure - start, ends[i] - start);
   // Still on the side it is leaving: the pair before's trip, until the robot is home or across.
   const crossed = position === 0 || i === 0 || Math.sign(position) === Math.sign(shares[i].intensity);
-  return { position, trip: crossed ? trips[i] : trips[i - 1] };
+  const fromShare = i === 0 ? 0 : shares[i - 1].intensity;
+  const share = fromShare + ((shares[i].intensity - fromShare) * (measure - start)) / (ends[i] - start);
+  const level = (share * Math.min(bounds.maxIntensity, JOURNEY_INTENSITY_MAX)) / JOURNEY_INTENSITY_MAX;
+  return { position, trip: crossed ? trips[i] : trips[i - 1], level: level === 0 ? 0 : level };
 }
 
 // ========================================

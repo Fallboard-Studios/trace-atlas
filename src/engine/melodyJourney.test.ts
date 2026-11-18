@@ -543,8 +543,72 @@ describe('journeyAt: the position and the trip', () => {
   });
 
   it('is trip 0 at a max intensity of 0, and at a negative or non-finite measure', () => {
-    for (let m = 0; m <= 200; m++) expect(journeyAt(OWN, b(0, 15), m)).toEqual({ position: 0, trip: 0 });
-    for (const m of [-1, Number.NaN, Infinity]) expect(journeyAt(OWN, b(16, 15), m)).toEqual({ position: 0, trip: 0 });
+    for (let m = 0; m <= 200; m++) expect(journeyAt(OWN, b(0, 15), m)).toEqual({ position: 0, trip: 0, level: 0 });
+    for (const m of [-1, Number.NaN, Infinity]) expect(journeyAt(OWN, b(16, 15), m)).toEqual({ position: 0, trip: 0, level: 0 });
+    expect(journeyAt(OWN, b(16, 15), 0)).toEqual({ position: 0, trip: 0, level: 0 });
+  });
+
+  // The level (journey dynamics, 2026-11-18): how far out the journey is, unrounded, for the performance to follow.
+  describe('the level', () => {
+    /** Each pair's start measure, turning measure and the shares it runs between, for `key` at a max time of 16. */
+    const spans = (key: string) => {
+      const shares = journeyShares(key, RUN + 2);
+      const times = robotPairs(shares, b(16, 15)).map((p) => p.time);
+      const out: { start: number; turn: number; from: number; to: number }[] = [];
+      let start = 0;
+      for (let i = 0; start + times[i] <= RUN; i++) {
+        out.push({ start, turn: start + times[i], from: i === 0 ? 0 : shares[i - 1].intensity, to: shares[i].intensity });
+        start += times[i];
+      }
+      return out;
+    };
+
+    it('is the share the pair heads for on its turning measure, at a max intensity of 16', () => {
+      for (const key of KEYS) {
+        for (const { turn, to } of spans(key)) expect(journeyAt(key, b(16, 15), turn).level).toBeCloseTo(to, 10);
+      }
+    });
+
+    it('runs in a straight line from one share to the next across the pair, every measure a step', () => {
+      for (const key of KEYS) {
+        for (const { start, turn, from, to } of spans(key)) {
+          for (let m = start; m <= turn; m++) {
+            const want = from + ((to - from) * (m - start)) / (turn - start);
+            expect(journeyAt(key, b(16, 15), m).level, `${key} m${m}`).toBeCloseTo(want, 10);
+          }
+        }
+      }
+    });
+
+    it('scales with max intensity: at 8 it is half what it is at 16, and at 4 a quarter', () => {
+      for (const key of KEYS) {
+        for (let m = 0; m <= 400; m++) {
+          const full = journeyAt(key, b(16, 15), m).level;
+          expect(journeyAt(key, b(8, 15), m).level).toBeCloseTo(full / 2, 10);
+          expect(journeyAt(key, b(4, 15), m).level).toBeCloseTo(full / 4, 10);
+        }
+      }
+    });
+
+    it('stays from -1 to 1, and goes both ways', () => {
+      for (const key of KEYS) {
+        const levels = Array.from({ length: RUN + 1 }, (_, m) => journeyAt(key, b(16, 15), m).level);
+        expect(Math.max(...levels)).toBeLessThanOrEqual(1);
+        expect(Math.min(...levels)).toBeGreaterThanOrEqual(-1);
+        expect(levels.some((l) => l > 0.5)).toBe(true);
+        expect(levels.some((l) => l < -0.5)).toBe(true);
+      }
+    });
+
+    it('does not read the calm limit: a robot with no calm change still has a calm level', () => {
+      let calmAtHome = 0;
+      for (let m = 0; m <= RUN; m++) {
+        const one = journeyAt(OWN, b(16, 0), m);
+        expect(one.level).toBe(journeyAt(OWN, b(16, 15), m).level);
+        if (one.position === 0 && one.level < -0.25) calmAtHome++;
+      }
+      expect(calmAtHome).toBeGreaterThan(0);
+    });
   });
 
   it('follows the shares: a new trip when a pair heads for a side the pair before did not, the old one until the robot has crossed', () => {
