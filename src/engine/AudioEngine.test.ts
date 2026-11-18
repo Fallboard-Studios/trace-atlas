@@ -7936,10 +7936,27 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         const bounds = { maxIntensity: j.maxIntensity, maxTime: j.maxTime, calmLimit: real.calmLimit(home as never) };
         return journey.journeyPosition(j.key, bounds, measure);
       };
-      /** The robot's melody at `measure`, by the real journey and the real changes. */
-      const oracle = (robot: Journeyed, measure: number, home = HOME) => {
+      /** What the changes read for the robot at `measure` (developMelody's options): its journey's floor, seed and
+       *  octave range, and the trip it is on there (journey dynamics: a different path each trip). */
+      const optionsOf = (robot: Journeyed, measure: number, home = HOME) => {
         const j = journey.robotJourney(robot as never, WORLD_KEY, bpmTop);
-        return expected(real.developMelody(home as never, positionOf(robot, measure, home), j) as never, robot.octaveRange as [number, number]);
+        const bounds = { maxIntensity: j.maxIntensity, maxTime: j.maxTime, calmLimit: real.calmLimit(home as never) };
+        return { ...j, variation: { key: j.key, trip: journey.journeyAt(j.key, bounds, measure).trip } };
+      };
+      /** The robot's melody at `measure`, by the real journey and the real changes. */
+      const oracle = (robot: Journeyed, measure: number, home = HOME) =>
+        expected(
+          real.developMelody(home as never, positionOf(robot, measure, home), optionsOf(robot, measure, home)) as never,
+          robot.octaveRange as [number, number],
+        );
+      /** Whether the trip at `measure` happens to take the changes in the order they are written in (the worked
+       *  examples below are in that order): the rhythm with the trip's order equals the rhythm without it. */
+      const asWritten = (robot: Journeyed, measure: number, home = HOME) => {
+        const options = optionsOf(robot, measure, home);
+        const { variation: _variation, ...plain } = options;
+        const rhythm = (events: Array<Record<string, any>>) => JSON.stringify(events.map((e) => [e.id, e.startStep, e.sixteenths]));
+        const position = positionOf(robot, measure, home);
+        return rhythm(real.developMelody(home as never, position, options) as never) === rhythm(real.developMelody(home as never, position, plain) as never);
       };
       /** Every note the engine reads for `robotId` over the 16 steps of `measure`. */
       const played = (robotId: string, measure: number, strip = false) => {
@@ -7951,7 +7968,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         }
         return out.sort();
       };
-      return { ...ctx, development, positionOf, oracle, played, expected, journey, real, bpmTop };
+      return { ...ctx, development, positionOf, optionsOf, asWritten, oracle, played, expected, journey, real, bpmTop };
     }
 
     afterEach(() => {
@@ -8034,15 +8051,17 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         ctx.AudioEngine.registerRobotMelody('r', SIXTEENTHS as never);
         const register = vi.spyOn(ctx.AudioEngine, 'registerRobotMelody');
         const m = firstMeasure((k) => ctx.positionOf(r, k, SIXTEENTHS) === 1);
+        /** The notes sounding in octave 5 (a played entry is `step|note|duration`, the note ending in its octave). */
+        const inOctaveFive = (notes: string[]) => notes.filter((n) => n.split('|')[1].endsWith('5'));
         const was = ctx.played('r', m);
         expect(was).toEqual(ctx.oracle(r, m, SIXTEENTHS));
-        expect(was.filter((n) => n.includes(`${PALETTE[0]}5`))).toHaveLength(1);
+        expect(inOctaveFive(was)).toHaveLength(1);
         // Inside 4 to 4 no note can jump, so the same position is a shift on the home octave.
         r.octaveRange = [4, 4];
         const now = ctx.played('r', m);
         expect(now).toEqual(ctx.oracle(r, m, SIXTEENTHS));
         expect(now).not.toEqual(was);
-        expect(now.some((n) => n.includes(`${PALETTE[0]}5`))).toBe(false);
+        expect(inOctaveFive(now)).toHaveLength(0);
         expect(register).not.toHaveBeenCalled();
       });
     });
@@ -8071,7 +8090,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     it('a robot plays the position at its max intensity and the journey max time of 16, whatever max time it carries', async () => {
       const plain = developing('plain', { journeyMaxIntensity: 8 });
       const stray = developing('stray', { journeyMaxIntensity: 8, journeyMaxTime: 2, compositionSeed: 0.8125 });
-      const { AudioEngine, played, expected, journey, real, bpmTop } = await setupJourney([plain, stray]);
+      const { AudioEngine, played, expected, optionsOf, journey, real, bpmTop } = await setupJourney([plain, stray]);
       AudioEngine.registerRobotMelody('plain', HOME as never);
       AudioEngine.registerRobotMelody('stray', HOME as never);
       for (const [id, robot] of [['plain', plain], ['stray', stray]] as const) {
@@ -8081,7 +8100,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         for (let m = 0; m <= 96; m++) {
           const position = journey.journeyPosition(j.key, bounds, m);
           if (position !== 0) moved++;
-          expect(played(id, m), `${id} m${m}`).toEqual(expected(real.developMelody(HOME as never, position, j) as never));
+          expect(played(id, m), `${id} m${m}`).toEqual(expected(real.developMelody(HOME as never, position, optionsOf(robot, m)) as never));
         }
         expect(moved, id).toBeGreaterThan(0);
       }
@@ -8096,7 +8115,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         journeyMaxTime: 2, // a leftover from an old save: never read
         compositionSeed: 0.9,
       });
-      const { AudioEngine, played, expected, journey, real, bpmTop } = await setupJourney([deep, shallow]);
+      const { AudioEngine, played, expected, optionsOf, journey, real, bpmTop } = await setupJourney([deep, shallow]);
       AudioEngine.registerRobotMelody('deep', HOME as never);
       AudioEngine.registerRobotMelody('shallow', HOME as never);
       const key = journey.robotJourney(deep as never, WORLD_KEY, bpmTop).key;
@@ -8111,9 +8130,8 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         turn += robots[0][2][i].time;
         turns++;
         for (const [id, robot, pairs] of robots) {
-          const j = journey.robotJourney(robot as never, WORLD_KEY, bpmTop);
           expect(played(id, turn), `${id} pair ${i} at ${turn}`).toEqual(
-            expected(real.developMelody(HOME as never, pairs[i].intensity, j) as never),
+            expected(real.developMelody(HOME as never, pairs[i].intensity, optionsOf(robot, turn)) as never),
           );
         }
       }
@@ -8214,14 +8232,16 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         const seeds = Array.from({ length: 16 }, (_, k) => k / 16);
         const motif = { active: true, value: 16 };
         const probe = await setupJourney([]);
+        // A measure at position 3 on a trip that takes the changes in the written order, which the example is in.
         const seed = seeds.find((s) => {
-          try { firstMeasure((m) => probe.positionOf(developing('x', { compositionSeed: s }), m) === 3); return true; } catch { return false; }
+          const x = developing('x', { compositionSeed: s });
+          try { firstMeasure((m) => probe.positionOf(x, m) === 3 && probe.asWritten(x, m, marked as never)); return true; } catch { return false; }
         });
         expect(seed).toBeDefined();
         const r = developing('r', { compositionSeed: seed, rhythmicMotifLength: motif });
-        const { AudioEngine, stepNotes, positionOf } = await setupJourney([r]);
+        const { AudioEngine, stepNotes, positionOf, asWritten } = await setupJourney([r]);
         AudioEngine.registerRobotMelody('r', marked as never);
-        const m = firstMeasure((k) => positionOf(r, k) === 3);
+        const m = firstMeasure((k) => positionOf(r, k) === 3 && asWritten(r, k, marked as never));
         const read = (step: number) => at(stepNotes(atStep(step, m), 0), 'r');
 
         const [a] = read(1);
@@ -8245,9 +8265,9 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       it('calmer: a tied-away accented note takes its accent with it; the note before keeps its own', async () => {
         // Motif windows of 4 accent A (window 0), B (window 2) and C (window 3). Position -1 ties C into B.
         const r = developing('r', { rhythmicMotifLength: { active: true, value: 4 } });
-        const { AudioEngine, stepNotes, positionOf } = await setupJourney([r]);
+        const { AudioEngine, stepNotes, positionOf, asWritten } = await setupJourney([r]);
         AudioEngine.registerRobotMelody('r', HOME as never);
-        const m = firstMeasure((k) => positionOf(r, k) === -1);
+        const m = firstMeasure((k) => positionOf(r, k) === -1 && asWritten(r, k));
         expect(at(stepNotes(atStep(13, m), 0), 'r')).toEqual([]);
         const [b] = at(stepNotes(atStep(9, m), 0), 'r');
         expect(b.accentMultiplier).toBe(1.25);
