@@ -677,10 +677,16 @@ broadcast), [SESSION_STORAGE.md](../SESSION_STORAGE.md) (the save and the link) 
 
 ### 9.1 What the gates moved
 
-**Nothing yet.** None of Crawford's gates has been run, so every number below is the first cut this spec gave it:
+**Nothing yet.** None of Crawford's gates has been run, so every number below is the first cut this spec gave it, but
+one is now his by word:
 
+- **The one max time of 16 stands** (Crawford, 2026-11-17, after Phase 10). He asked whether journey length was
+  hardcoded and should be dynamic; the length a journey runs has no end, and each pair's time is drawn, 2 to 16
+  measures, so the pace already varies pair to pair. Only the ceiling is one number for every journey, and he kept
+  it. A ceiling per journey (seeded, from the chord progressions, from tempo, or a setting) stays the later change in
+  one place §7.4 names.
 - **Gate A** (his ear, the journey by hand): not run. A first Gate A on the walk was never recorded; Phases 5 and 9
-  were built on his word without it.
+  were built on his word without it. Its max-time question is settled above.
 - **Gate B** (profile): open on his call (the plan's Open Questions 5). `npm run perf` stops at a nav button it can no
   longer find; an `npm run perf:audio` A/B stood in on the walk's build (Checkpoint E: steady play equal on `main` and
   the branch, the warm-up noisy on both) and has not been run on the pairs.

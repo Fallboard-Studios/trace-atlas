@@ -1769,6 +1769,12 @@ standing fast-refresh warnings; `npm run build` clean apart from the standing ch
 together), Gate A (his ear), Gate B (his call on the harness, then the A/B at max intensity 16) and Gate C (his ear,
 desktop and phone). Every number stands at its first cut until he moves it.
 
+**The one max time, settled** (Crawford, 2026-11-17, after Checkpoint Complete). He asked whether journey length was
+hardcoded at 16 and should be dynamic. A journey has no end, and each pair's time is drawn, 2 to 16 measures; only
+the ceiling is one constant (`JOURNEY_TIME_MAX`, read in `robotJourney`) for every journey, so robots on one journey
+turn together. He kept it: "ok i'm happy let's mark it and move on". Gate A's and Gate C's max-time item is closed;
+the rest of both gates stays open. Spec §9.1 records it.
+
 **Left as they are:** `docs/ideas/the-score.md` (roadmap 90's idea) and two items in `backlog.md` still describe docking pitch drift as current; they are idea and backlog text, outside
 Phase 10's files.
 
