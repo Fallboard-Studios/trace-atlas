@@ -7921,11 +7921,11 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         `${step}|${note}|${typeof duration === 'number' ? duration.toFixed(4) : String(duration)}`;
       /** What the engine plays for plain events (no rest, mark or accent): pitch through the palette step, length
        *  from sixteenths at the pretend tempo. */
-      const expected = (events: Array<Record<string, any>>) =>
+      const expected = (events: Array<Record<string, any>>, range: [number, number] = RANGE) =>
         events
           .map((e) => {
             const n = e.pitchStep
-              ? harmony.stepInPalette(PALETTE, e.noteIndex, e.octave, e.pitchStep, RANGE)
+              ? harmony.stepInPalette(PALETTE, e.noteIndex, e.octave, e.pitchStep, range)
               : { note: PALETTE[e.noteIndex], octave: e.octave };
             return fmt(e.startStep, `${n.note}${n.octave}`, e.sixteenths !== undefined ? e.sixteenths * SECONDS['16n'] : e.length);
           })
@@ -7939,7 +7939,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       /** The robot's melody at `measure`, by the real journey and the real changes. */
       const oracle = (robot: Journeyed, measure: number, home = HOME) => {
         const j = journey.robotJourney(robot as never, WORLD_KEY, bpmTop);
-        return expected(real.developMelody(home as never, positionOf(robot, measure, home), j) as never);
+        return expected(real.developMelody(home as never, positionOf(robot, measure, home), j) as never, robot.octaveRange as [number, number]);
       };
       /** Every note the engine reads for `robotId` over the 16 steps of `measure`. */
       const played = (robotId: string, measure: number, strip = false) => {
@@ -8022,6 +8022,28 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
 
       it('attack (the floor)', async () => {
         await across({}, (r) => { r.audioAttributes = { ...r.audioAttributes, adsr: { ...TEST_ADSR, attack: 1.14 } }; });
+      });
+
+      it('octave range (the octave jumps stay inside it)', async () => {
+        // A full bar of sixteenths has no split and no fill: its first busy change is an octave jump, 4 up to 5.
+        const SIXTEENTHS = Array.from({ length: 16 }, (_, i) =>
+          eventFixture({ id: `s${i}`, startStep: i + 1, length: '16n', noteIndex: i % 8 }),
+        );
+        const r = developing('r', { journeyMaxIntensity: 16 });
+        const ctx = await setupJourney([r]);
+        ctx.AudioEngine.registerRobotMelody('r', SIXTEENTHS as never);
+        const register = vi.spyOn(ctx.AudioEngine, 'registerRobotMelody');
+        const m = firstMeasure((k) => ctx.positionOf(r, k, SIXTEENTHS) === 1);
+        const was = ctx.played('r', m);
+        expect(was).toEqual(ctx.oracle(r, m, SIXTEENTHS));
+        expect(was.filter((n) => n.includes(`${PALETTE[0]}5`))).toHaveLength(1);
+        // Inside 4 to 4 no note can jump, so the same position is a shift on the home octave.
+        r.octaveRange = [4, 4];
+        const now = ctx.played('r', m);
+        expect(now).toEqual(ctx.oracle(r, m, SIXTEENTHS));
+        expect(now).not.toEqual(was);
+        expect(now.some((n) => n.includes(`${PALETTE[0]}5`))).toBe(false);
+        expect(register).not.toHaveBeenCalled();
       });
     });
 

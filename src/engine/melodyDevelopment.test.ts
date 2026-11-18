@@ -382,6 +382,78 @@ describe('developMelody: busier, the silence fills (spec §1.5, phase 3)', () =>
   });
 });
 
+// The octave jumps (journey dynamics, Crawford 2026-11-18): after the fills and before the shifts, a change moves one
+// note an octave. A note in octave 1, 4 or 5 jumps up; a note in any other octave jumps down.
+describe('developMelody: busier, the octave jumps', () => {
+  const WIDE = { ...OPTS, floor: 16, octaveRange: [1, 7] as [number, number] };
+  /** One whole note at a floor of a whole note: nothing to split, no gap, so change 1 is its octave jump. */
+  const whole = (octave: number | undefined) => [ev(1, '1n', octave === undefined ? { octave: undefined } : { octave })];
+
+  it('jumps a note in octave 1, 4 or 5 up, and a note in octave 2, 3, 6 or 7 down', () => {
+    const after: Record<number, number> = { 1: 2, 2: 1, 3: 2, 4: 5, 5: 6, 6: 5, 7: 6 };
+    for (const [from, to] of Object.entries(after)) {
+      const out = developMelody(whole(Number(from)), 1, WIDE);
+      expect(out[0].octave, `octave ${from}`).toBe(to);
+    }
+  });
+
+  it('reads a note with no octave as octave 4, and jumps it to 5', () => {
+    expect(developMelody(whole(undefined), 1, WIDE)[0].octave).toBe(5);
+  });
+
+  it('changes the octave and nothing else: the id, slot, start, length, rest and mark stay, and no pitch step is added', () => {
+    const home = [ev(1, '1n', { octave: 3, noteIndex: 5, rest: 0.25, mark: 'accent' })];
+    const out = developMelody(home, 1, WIDE);
+    expect(out[0]).toEqual({ ...home[0], octave: 2 });
+    expect(out[0]).not.toBe(home[0]);
+  });
+
+  // Four quarters at floor 4: no split, no fill. By length then start they are 1, 5, 9, 13; from alternating ends 1, 13.
+  const full = [ev(1, '4n', { octave: 1 }), ev(5, '4n', { octave: 2 }), ev(9, '4n', { octave: 4 }), ev(13, '4n', { octave: 6 })];
+  const FLOOR4 = { ...OPTS, floor: 4, octaveRange: [1, 7] as [number, number] };
+  const octaves = (events: MelodyEvent[]) => events.map((e) => e.octave);
+
+  it('jumps one note a change, from alternating ends, and stops at half the notes that can jump, rounded up', () => {
+    expect(octaves(developMelody(full, 1, FLOOR4))).toEqual([2, 2, 4, 6]);
+    expect(octaves(developMelody(full, 2, FLOOR4))).toEqual([2, 2, 4, 5]);
+    // Change 3 is a shift: no third jump, and the first note moves a palette step.
+    const three = developMelody(full, 3, FLOOR4);
+    expect(octaves(three)).toEqual([2, 2, 4, 5]);
+    expect(three[0].pitchStep).toBeDefined();
+    expect(octaves(developMelody(full, 30, FLOOR4))).toEqual([2, 2, 4, 5]);
+  });
+
+  it('never jumps a note out of the robot octave range: such a note is not counted, and the next in line jumps', () => {
+    // Range 2 to 6: the octave-1 note is outside already and its jump lands inside (2); the octave-6 note may go to 5;
+    // the octave-2 note would leave (to 1), so it is no candidate. Candidates 1, 9, 13: half of three is two.
+    const out = developMelody(full, 2, { ...FLOOR4, octaveRange: [2, 6] });
+    expect(octaves(out)).toEqual([2, 2, 4, 5]);
+    // Range 4 to 4: the one note there would jump to 5, and the others stay outside it: no jump at all.
+    const narrow = developMelody(full, 1, { ...FLOOR4, octaveRange: [4, 4] });
+    expect(octaves(narrow)).toEqual([1, 2, 4, 6]);
+    expect(narrow[0].pitchStep).toBeDefined(); // change 1 is already a shift
+  });
+
+  it('makes no jump with no octave range handed in: the shifts follow the fills', () => {
+    const out = developMelody(full, 1, { ...OPTS, floor: 4 });
+    expect(octaves(out)).toEqual([1, 2, 4, 6]);
+    expect(out[0].pitchStep).toBeDefined();
+  });
+
+  it('starts once the fills are done, and a note a change added may jump too', () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => ev(i + 1, '16n'));
+    const opts = { ...OPTS, octaveRange: [1, 7] as [number, number] };
+    // Four fills (13 to 16), then sixteen notes of one length: change 5 jumps the first.
+    expect(octaves(developMelody(twelve, 4, opts)).every((o) => o === 4)).toBe(true);
+    const five = developMelody(twelve, 5, opts);
+    expect(bar(five)).toBe(bar(developMelody(twelve, 4, opts)));
+    expect(octaves(five)).toEqual([5, ...Array.from({ length: 15 }, () => 4)]);
+    // Change 6 jumps the last note, a fill: half of sixteen is eight jumps in all.
+    expect(octaves(developMelody(twelve, 6, opts))[15]).toBe(5);
+    expect(octaves(developMelody(twelve, 40, opts)).filter((o) => o === 5)).toHaveLength(8);
+  });
+});
+
 describe('developMelody: busier, the shifts (spec §1.5, phase 4)', () => {
   const dirs = (seed: number, n: number) => {
     const rand = alea(`${seed}:development`);

@@ -54,28 +54,34 @@ export function developmentFloor(attackSeconds: number, bpmTop: number): number 
 // THE WORKING BAR
 // ========================================
 
-/** What a robot's changes read besides its home melody (§1.8): its floor (developmentFloor) and its composition seed,
- *  whose `${seed}:development` stream gives each change's direction. */
+/** What a robot's changes read besides its home melody (§1.8): its floor (developmentFloor), its composition seed,
+ *  whose `${seed}:development` stream gives each change's direction, and its octave range, which the octave jumps stay
+ *  inside (none handed in, no jumps). */
 export interface DevelopmentOptions {
   floor: number;
   seed: number;
+  octaveRange?: readonly [number, number];
 }
 
+/** The octave a note with none sounds in, as the engine reads it (stepNotes). */
+const DEFAULT_OCTAVE = 4;
+
 /** One note of the bar as the changes see it. `src` is the home event it came from, or, for a note a change added,
- *  the note it was made from (its slot and octave). */
+ *  the note it was made from (its slot and octave). `octaveJump` is the octaves an octave jump moved it, 0 for none. */
 interface Note {
   src: MelodyEvent;
   id: string;
   start: number;
   len: number;
   pitchStep: number;
+  octaveJump: number;
   added: boolean;
 }
 
 function homeNotes(home: MelodyEvent[]): Note[] {
   return [...home]
     .sort((a, b) => a.startStep - b.startStep)
-    .map((e) => ({ src: e, id: e.id, start: e.startStep, len: eventSixteenths(e), pitchStep: 0, added: false }));
+    .map((e) => ({ src: e, id: e.id, start: e.startStep, len: eventSixteenths(e), pitchStep: 0, octaveJump: 0, added: false }));
 }
 
 /** Sorted by length, then by start (§1.5): the sort fixes the order and changes nothing. */
@@ -107,16 +113,18 @@ function nameAtMost(sixteenths: number): NoteDuration {
 
 /** The working bar back as events, in start order. A home note no change touched is its own home event (the same
  *  object); a changed one is a new object keeping its id, slot, octave, rest and mark. A note a change added carries
- *  its source's slot and octave and nothing else of it: no rest, mark or pitch lock (A10). */
+ *  its source's slot and octave and nothing else of it: no rest, mark or pitch lock (A10). A note an octave jump moved
+ *  carries the octave it landed in. */
 function toEvents(notes: Note[]): MelodyEvent[] {
   return notes.map((n) => {
     const homeLength = n.len === eventSixteenths(n.src);
-    if (!n.added && homeLength && n.pitchStep === 0) return n.src;
+    if (!n.added && homeLength && n.pitchStep === 0 && n.octaveJump === 0) return n.src;
     const event: MelodyEvent = n.added
       ? { id: n.id, startStep: n.start, length: nameAtMost(n.len), noteIndex: n.src.noteIndex, octave: n.src.octave, sixteenths: n.len }
       : { ...n.src };
     if (!n.added && !homeLength) event.sixteenths = n.len;
     if (n.pitchStep !== 0) event.pitchStep = n.pitchStep;
+    if (n.octaveJump !== 0) event.octave = (n.src.octave ?? DEFAULT_OCTAVE) + n.octaveJump;
     return event;
   });
 }
@@ -155,7 +163,7 @@ type Phase = (notes: Note[], k: number, dir: number) => boolean;
  *  from it, with the id `${note.id}:d${k}`. Only called on a note at least `2t` long. */
 function split(notes: Note[], note: Note, t: number, k: number, dir: number): void {
   note.len -= t;
-  const added: Note = { src: note.src, id: `${note.id}:d${k}`, start: note.start + note.len, len: t, pitchStep: note.pitchStep + dir, added: true };
+  const added: Note = { src: note.src, id: `${note.id}:d${k}`, start: note.start + note.len, len: t, pitchStep: note.pitchStep + dir, octaveJump: 0, added: true };
   notes.splice(notes.indexOf(note) + 1, 0, added);
 }
 
@@ -207,12 +215,41 @@ function fills(fill: number): Phase {
     }
     if (!best) return false;
     const { into } = best;
-    bar.splice(best.at, 0, { src: into.src, id: `${into.id}:d${k}`, start: best.end - fill, len: fill, pitchStep: into.pitchStep + dir, added: true });
+    bar.splice(best.at, 0, { src: into.src, id: `${into.id}:d${k}`, start: best.end - fill, len: fill, pitchStep: into.pitchStep + dir, octaveJump: 0, added: true });
     return true;
   };
 }
 
-/** Phase 4, the shifts: a change moves one note one palette step, the notes visited in start order, round and round.
+/** The octaves a jump goes up from (Crawford, 2026-11-18): a note in octave 1, 4 or 5 jumps up one, a note in any
+ *  other octave jumps down one. */
+const OCTAVES_THAT_JUMP_UP: ReadonlySet<number> = new Set([1, 4, 5]);
+
+/** Phase 4, the octave jumps: a change moves one note an octave, up from octave 1, 4 or 5 and down from any other. The
+ *  notes that can jump are those whose jump lands inside `octaveRange`; they are visited by length then start, from
+ *  alternating ends, until half of them (rounded up) have jumped. A note jumps once. With no range, no note jumps.
+ *  Built when the fills are done (the phase before never runs again), so the bar it reads is the one it walks. */
+function octaveJumps(octaveRange: readonly [number, number] | undefined): Phase {
+  let order: Note[] | null = null;
+  let i = 0;
+  const jumpOf = (n: Note) => (OCTAVES_THAT_JUMP_UP.has(n.src.octave ?? DEFAULT_OCTAVE) ? 1 : -1);
+  return (bar) => {
+    if (!octaveRange) return false;
+    if (!order) {
+      const able = bar.filter((n) => {
+        const to = (n.src.octave ?? DEFAULT_OCTAVE) + jumpOf(n);
+        return to >= octaveRange[0] && to <= octaveRange[1];
+      });
+      const sorted = fromAlternatingEnds(able.sort(byLengthThenStart));
+      order = sorted.slice(0, Math.ceil(sorted.length / 2));
+    }
+    if (i >= order.length) return false;
+    const note = order[i++];
+    note.octaveJump = jumpOf(note);
+    return true;
+  };
+}
+
+/** Phase 5, the shifts: a change moves one note one palette step, the notes visited in start order, round and round.
  *  A note keeps the way it first went: a note a split or a fill added goes on the way that change sent it, and any
  *  other takes its first shift's draw and holds it. So the shifts add up to a line, and no shift undoes another. It
  *  never runs out, so the busy side has no limit; the journey's max intensity bounds it. Nothing adds a note after the
@@ -241,7 +278,7 @@ function busier(home: MelodyEvent[], steps: number, options: DevelopmentOptions)
   const T = Math.max(Math.min(...notes.map((n) => n.len)), floor);
   const sub = Math.max(floor, Math.floor(T / 2));
   // The fill length is the smaller threshold in use: the subdivision, which is T itself when there is one threshold.
-  const phases: Phase[] = [firstPass(notes, T), twoThresholds(T, sub), fills(sub), shifts()];
+  const phases: Phase[] = [firstPass(notes, T), twoThresholds(T, sub), fills(sub), octaveJumps(options.octaveRange), shifts()];
   const rand = alea(`${options.seed}:development`);
   let phase = 0;
   let made = 0;

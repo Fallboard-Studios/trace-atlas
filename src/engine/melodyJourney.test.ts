@@ -592,6 +592,12 @@ describe('robotJourney (spec §1.7, §1.9)', () => {
     expect(robotJourney(robot({ compositionSeed: 0.8125 }) as never, WORLD, BPM_TOP).seed).toBe(0.8125);
   });
 
+  it('the octave range is the stored one, for the octave jumps to stay inside; a robot with none hands on none', () => {
+    expect(robotJourney(robot({ octaveRange: [2, 5] }) as never, WORLD, BPM_TOP).octaveRange).toEqual([2, 5]);
+    expect(robotJourney(robot({ octaveRange: [4, 4] }) as never, WORLD, BPM_TOP).octaveRange).toEqual([4, 4]);
+    expect(robotJourney(robot() as never, WORLD, BPM_TOP).octaveRange).toBeUndefined();
+  });
+
   it('the floor follows the attack and the bpm top: 1.14 s at 100 is 4, 0.01 s is 1, 1.14 s at 50 is 2', () => {
     const floorAt = (attack: number, bpmTop: number) =>
       robotJourney(robot({ audioAttributes: { adsr: { attack, decay: 0.1, sustain: 0.8, release: 0.5 } } }) as never, WORLD, bpmTop).floor;

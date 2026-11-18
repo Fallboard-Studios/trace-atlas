@@ -243,11 +243,12 @@ export function worldKeyOf(coordinates: { x: number; y: number }): string {
 /** What robotJourney reads from a stored robot; the settings absent read as their defaults. */
 export type RobotJourneyInputs = Pick<Robot, 'compositionSeed' | 'companyId' | 'journeyMaxIntensity' | 'journey'> & {
   audioAttributes?: { adsr?: { attack?: number } };
+  octaveRange?: Robot['octaveRange'];
 };
 
 /** A robot's journey as the engine plays it: the journey's key, the robot's max intensity, the journey's max time, and
- *  the two things the changes read (developMelody's options): the floor and the seed. The calm limit is the home
- *  melody's (calmLimit). */
+ *  the things the changes read (developMelody's options): the floor, the seed and the octave range. The calm limit is
+ *  the home melody's (calmLimit). */
 export interface RobotJourney extends DevelopmentOptions {
   key: string;
   maxIntensity: number;
@@ -258,7 +259,8 @@ export interface RobotJourney extends DevelopmentOptions {
  * The stored robot's journey (§1.7, §1.9): the key its Journey setting names (a robot on Company with no company
  * travels as Own), its max intensity, the journey's max time (JOURNEY_TIME_MAX for every robot, so robots on one
  * journey turn together, §7.4), its attack's floor at `bpmTop` (the top of the theme's bpm band, handed in by the
- * caller) and its composition seed. Absent settings read as DEFAULT_JOURNEY_MAX_INTENSITY and DEFAULT_JOURNEY. Pure.
+ * caller), its composition seed and its octave range (absent when the robot has none). Absent settings read as
+ * DEFAULT_JOURNEY_MAX_INTENSITY and DEFAULT_JOURNEY. Pure.
  */
 export function robotJourney(robot: RobotJourneyInputs, worldKey: string, bpmTop: number): RobotJourney {
   const setting = robot.journey ?? DEFAULT_JOURNEY;
@@ -274,5 +276,6 @@ export function robotJourney(robot: RobotJourneyInputs, worldKey: string, bpmTop
     maxTime: JOURNEY_TIME_MAX,
     floor: developmentFloor(robot.audioAttributes?.adsr?.attack ?? 0, bpmTop),
     seed: robot.compositionSeed,
+    ...(robot.octaveRange ? { octaveRange: robot.octaveRange } : {}),
   };
 }

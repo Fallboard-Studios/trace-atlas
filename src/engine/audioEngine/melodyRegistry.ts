@@ -127,7 +127,7 @@ function entriesOnStep(
   const bounds = { maxIntensity: journey.maxIntensity, maxTime: journey.maxTime, calmLimit: calmLimit(registered.melody) };
   const position = journeyPosition(journey.key, bounds, at.measure);
   if (position === 0) return registered.byStep.get(at.step);
-  const kept = `${position}:${journey.floor}:${journey.seed}`;
+  const kept = `${position}:${journey.floor}:${journey.seed}:${journey.octaveRange?.join('-') ?? ''}`;
   let byStep = registered.developed.get(kept);
   if (byStep) {
     // Read again: moved to the newest end, so the position being played is never the one that goes.
