@@ -866,8 +866,8 @@ function humanizeOffsetFor(position: number, roster: readonly Robot[]): (robotId
  * One robot's entries on `at.step`, from its melody for `at.measure` (melody journey §1.7): the stored robot's journey
  * (robotJourney: its key and two bounds) and the registered melody's calm limit give the position, and developMelody
  * the events there. The developed events by step are kept per
- * robot for the last DEVELOPED_KEPT positions and rebuilt only when the position or an input (the floor, the seed)
- * changes. A robot the store does not hold, a Click Track robot, and a robot at position 0 play what is registered.
+ * robot for the DEVELOPED_KEPT positions it read most recently and rebuilt only when the position or an input (the
+ * floor, the seed) changes. A robot the store does not hold, a Click Track robot, and a robot at position 0 play what is registered.
  * The accent stays on the home event that had it (by id); a note a change adds is never accented.
  */
 function entriesOnStep(
@@ -885,17 +885,20 @@ function entriesOnStep(
   if (position === 0) return registered.byStep.get(at.step);
   const kept = `${position}:${journey.floor}:${journey.seed}`;
   let byStep = registered.developed.get(kept);
-  if (!byStep) {
+  if (byStep) {
+    // Read again: moved to the newest end, so the position being played is never the one that goes.
+    registered.developed.delete(kept);
+  } else {
     byStep = new Map();
     for (const event of developMelody(registered.melody, position, journey)) {
       const entries = byStep.get(event.startStep) ?? [];
       entries.push({ robotId, event, isGroupAccent: registered.accented.has(event.id) });
       byStep.set(event.startStep, entries);
     }
-    registered.developed.set(kept, byStep);
-    // Oldest first out: the reads either side of a bar line keep the two or three newest.
-    if (registered.developed.size > DEVELOPED_KEPT) registered.developed.delete(registered.developed.keys().next().value!);
+    // Least recently read first out: the reads either side of a bar line keep the newest.
+    if (registered.developed.size >= DEVELOPED_KEPT) registered.developed.delete(registered.developed.keys().next().value!);
   }
+  registered.developed.set(kept, byStep);
   return byStep.get(at.step);
 }
 

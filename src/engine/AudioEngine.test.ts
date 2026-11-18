@@ -8113,6 +8113,33 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       expect(build).toHaveBeenCalledTimes(2);
     });
 
+    it('keeps the positions read most recently: a position read again outlives a fifth, and the least recent goes', async () => {
+      const r = developing('r', { journeyMaxIntensity: 16 });
+      const { AudioEngine, played, positionOf, development } = await setupJourney([r]);
+      AudioEngine.registerRobotMelody('r', HOME as never);
+      // The first measure of each of five different positions other than home.
+      const measures: number[] = [];
+      const seen = new Set<number>();
+      for (let k = 1; k <= 400 && measures.length < 5; k++) {
+        const p = positionOf(r, k);
+        if (p !== 0 && !seen.has(p)) {
+          seen.add(p);
+          measures.push(k);
+        }
+      }
+      expect(measures).toHaveLength(5);
+      const [live, first, second, third, fifth] = measures;
+      const build = vi.mocked(development.developMelody);
+      for (const m of [live, first, second, third, live]) played('r', m); // four kept, `live` read last
+      build.mockClear();
+      played('r', fifth); // one of the four goes
+      expect(build).toHaveBeenCalledTimes(1);
+      played('r', live);
+      expect(build).toHaveBeenCalledTimes(1); // still kept
+      played('r', first);
+      expect(build).toHaveBeenCalledTimes(2); // the least recent was the one that went
+    });
+
     it('never asks developMelody for a position below the calm limit of the registered melody', async () => {
       // HOME has three notes (calm limit 2); ONE has one (calm limit 0). At a max intensity of 16 the journey asks for
       // up to 16 calm changes, so only the calm limit holds a robot in.
