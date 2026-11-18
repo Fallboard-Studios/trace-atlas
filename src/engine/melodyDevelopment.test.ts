@@ -382,6 +382,86 @@ describe('developMelody: busier, the silence fills (spec §1.5, phase 3)', () =>
   });
 });
 
+// A different path each trip (journey dynamics, 2026-11-18): with a variation (the journey's key and the trip) the
+// visiting orders start somewhere else each trip and the directions are drawn afresh. The order comes from the key
+// and the trip, never from the robot's seed, so robots that share a journey and a rhythm keep one rhythm.
+describe('developMelody: a different path each trip', () => {
+  // T = 2; the three quarters (3, 7, 11) are the first pass candidates, and every note but the first a calm candidate.
+  const melody = [ev(1, '8n'), ev(3, '4n'), ev(7, '4n'), ev(11, '4n'), ev(15, '8n')];
+  const vary = (trip: number, key = 'k:journey', seed = OPTS.seed) => ({ ...OPTS, seed, variation: { key, trip } });
+  const TRIPS = Array.from({ length: 12 }, (_, t) => t);
+  const steps = (events: MelodyEvent[]) => events.map((e) => e.pitchStep ?? 0).join(',');
+
+  it('plays one path for one key and trip every time', () => {
+    for (const p of [-3, -1, 1, 2, 5, 9]) expect(developMelody(melody, p, vary(3))).toEqual(developMelody(melody, p, vary(3)));
+  });
+
+  it('does not always split the same note first: the first busy change differs between trips', () => {
+    expect(new Set(TRIPS.map((t) => bar(developMelody(melody, 1, vary(t))))).size).toBeGreaterThan(1);
+  });
+
+  it('does not always tie the same note first: the first calm change differs between trips', () => {
+    expect(new Set(TRIPS.map((t) => bar(developMelody(melody, -1, vary(t))))).size).toBeGreaterThan(1);
+  });
+
+  it('keeps each change on top of the one before, within a trip, on both sides', () => {
+    const starts = (events: MelodyEvent[]) => events.map((e) => e.startStep);
+    for (const t of TRIPS) {
+      for (let p = 0; p < 8; p++) {
+        const a = starts(developMelody(melody, p, vary(t)));
+        const next = starts(developMelody(melody, p + 1, vary(t)));
+        for (const s of a) expect(next, `trip ${t} position ${p + 1}`).toContain(s);
+      }
+      for (let p = 0; p > -4; p--) {
+        const a = starts(developMelody(melody, p, vary(t)));
+        const next = starts(developMelody(melody, p - 1, vary(t)));
+        expect(next).toHaveLength(a.length - 1);
+        for (const s of next) expect(a, `trip ${t} position ${p - 1}`).toContain(s);
+      }
+    }
+  });
+
+  it('reaches the same calm floor whatever the order: the bar first note alone, sounding the whole bar', () => {
+    for (const t of TRIPS) expect(bar(developMelody(melody, -4, vary(t)))).toBe('1: 16');
+  });
+
+  it('draws the order from the key and the trip, not the robot seed: two seeds play one rhythm at every position', () => {
+    for (const t of TRIPS) {
+      for (let p = -4; p <= 14; p++) {
+        expect(bar(developMelody(melody, p, vary(t, 'k:journey', 0.1))), `trip ${t} position ${p}`).toBe(
+          bar(developMelody(melody, p, vary(t, 'k:journey', 0.9))),
+        );
+      }
+    }
+  });
+
+  it('draws the order from the key: another journey takes another order on some trip', () => {
+    const paths = (key: string) => TRIPS.map((t) => bar(developMelody(melody, 1, vary(t, key)))).join(' / ');
+    expect(new Set(['a:journey', 'b:journey', 'c:journey', 'd:journey'].map(paths)).size).toBeGreaterThan(1);
+  });
+
+  it('draws the directions afresh each trip, from the seed and the trip', () => {
+    // Positions past the splits, so several notes carry a step.
+    expect(new Set(TRIPS.map((t) => steps(developMelody(melody, 14, vary(t))))).size).toBeGreaterThan(1);
+    // The rhythm aside, two seeds on one trip still differ in their steps somewhere.
+    const differs = TRIPS.some((t) => steps(developMelody(melody, 14, vary(t, 'k:journey', 0.1))) !== steps(developMelody(melody, 14, vary(t, 'k:journey', 0.9))));
+    expect(differs).toBe(true);
+  });
+
+  it('starts the octave jumps and the shifts somewhere else on another trip', () => {
+    const full = [ev(1, '4n'), ev(5, '4n'), ev(9, '4n'), ev(13, '4n')];
+    const jumped = (t: number) => developMelody(full, 1, { ...vary(t), floor: 4, octaveRange: [1, 7] }).findIndex((e) => e.octave === 5);
+    expect(new Set(TRIPS.map(jumped)).size).toBeGreaterThan(1);
+    const shifted = (t: number) => developMelody(full, 1, { ...vary(t), floor: 4 }).findIndex((e) => e.pitchStep !== undefined);
+    expect(new Set(TRIPS.map(shifted)).size).toBeGreaterThan(1);
+  });
+
+  it('with no variation plays the written order: the shortest candidate first', () => {
+    expect(bar(developMelody(melody, 1, OPTS))).toBe('1: 2, 3: 2, 5: 2, 7: 4, 11: 4, 15: 2');
+    expect(bar(developMelody(melody, -1, OPTS))).toBe('1: 2, 3: 4, 7: 4, 11: 6');
+  });
+});
+
 // The octave jumps (journey dynamics, Crawford 2026-11-18): after the fills and before the shifts, a change moves one
 // note an octave. A note in octave 1, 4 or 5 jumps up; a note in any other octave jumps down.
 describe('developMelody: busier, the octave jumps', () => {

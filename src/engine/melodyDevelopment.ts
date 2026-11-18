@@ -54,13 +54,37 @@ export function developmentFloor(attackSeconds: number, bpmTop: number): number 
 // THE WORKING BAR
 // ========================================
 
+/** Which trip of which journey a robot is on (journeyAt): what makes one trip's path differ from the next. */
+export interface DevelopmentVariation {
+  /** The journey's key, shared by every robot on the journey. */
+  key: string;
+  /** The trip, counted from 0 (journeyAt). */
+  trip: number;
+}
+
 /** What a robot's changes read besides its home melody (§1.8): its floor (developmentFloor), its composition seed,
- *  whose `${seed}:development` stream gives each change's direction, and its octave range, which the octave jumps stay
- *  inside (none handed in, no jumps). */
+ *  whose `${seed}:development` stream gives each change's direction, its octave range, which the octave jumps stay
+ *  inside (none handed in, no jumps), and the trip it is on (none handed in, the orders as written, every time). */
 export interface DevelopmentOptions {
   floor: number;
   seed: number;
   octaveRange?: readonly [number, number];
+  variation?: DevelopmentVariation;
+}
+
+/**
+ * A trip's order draws: where each visiting order starts on this trip. They come from the journey's key and the trip
+ * and from nothing of the robot's, so robots that share a journey and a rhythm make the same changes to it. With no
+ * variation every draw is 0: the orders as written.
+ */
+function orderDraws(variation: DevelopmentVariation | undefined): () => number {
+  return variation ? alea(`${variation.key}:${variation.trip}:order`) : () => 0;
+}
+
+/** A visiting order started `draw` (0 to 1) of the way round it: the same round, another first note. */
+function turned<T>(order: T[], draw: number): T[] {
+  const r = Math.floor(draw * order.length);
+  return r > 0 ? [...order.slice(r), ...order.slice(0, r)] : order;
 }
 
 /** The octave a note with none sounds in, as the engine reads it (stepNotes). */
@@ -135,11 +159,12 @@ function toEvents(notes: Note[]): MelodyEvent[] {
 
 /** `steps` ties on the home melody. A tie removes a note and the note before it sounds on through to the removed
  *  note's end, any silence between them covered. The candidates are every home note but the bar's first, by length
- *  then start, visited from alternating ends. The floor is the bar's first note alone. */
-function calmer(home: MelodyEvent[], steps: number): MelodyEvent[] {
+ *  then start, visited from alternating ends, the round started where the trip's order draw puts it. The floor is the
+ *  bar's first note alone. */
+function calmer(home: MelodyEvent[], steps: number, variation: DevelopmentVariation | undefined): MelodyEvent[] {
   if (home.length <= 1) return home;
   const notes = homeNotes(home);
-  const order = fromAlternatingEnds(notes.slice(1).sort(byLengthThenStart));
+  const order = turned(fromAlternatingEnds(notes.slice(1).sort(byLengthThenStart)), orderDraws(variation)());
   const ties = Math.min(steps, order.length);
   for (let k = 0; k < ties; k++) {
     const i = notes.indexOf(order[k]);
@@ -168,9 +193,10 @@ function split(notes: Note[], note: Note, t: number, k: number, dir: number): vo
 }
 
 /** Phase 1, the first pass of splits: the home notes at least `2T` long, by length then start, visited from
- *  alternating ends, each split at `T`, until half of them (rounded up) are split. */
-function firstPass(notes: Note[], T: number): Phase {
-  const order = fromAlternatingEnds(notes.filter((n) => n.len >= 2 * T).sort(byLengthThenStart));
+ *  alternating ends (the round started at `turn`, a trip's order draw), each split at `T`, until half of them
+ *  (rounded up) are split. */
+function firstPass(notes: Note[], T: number, turn: number): Phase {
+  const order = turned(fromAlternatingEnds(notes.filter((n) => n.len >= 2 * T).sort(byLengthThenStart)), turn);
   const limit = Math.ceil(order.length / 2);
   let i = 0;
   return (bar, k, dir) => {
@@ -183,9 +209,10 @@ function firstPass(notes: Note[], T: number): Phase {
 /** Phase 2, two thresholds: changes alternate between the subdivision `sub` and `T`, the subdivision first, and the
  *  pick between the shortest and the longest note at least twice the change's threshold (pieces made earlier
  *  included), change by change. A threshold with no candidate hands its turn to the other; the phase ends when
- *  neither has one. With `sub` not under `T` (a `T` of 1, or a floor at or above `T`) there is the one threshold. */
-function twoThresholds(T: number, sub: number): Phase {
-  let j = 0;
+ *  neither has one. With `sub` not under `T` (a `T` of 1, or a floor at or above `T`) there is the one threshold.
+ *  `first` is 0 as written; a trip's order draw may make it 1, and the alternation then starts on `T` and the longest. */
+function twoThresholds(T: number, sub: number, first: 0 | 1): Phase {
+  let j: number = first;
   return (bar, k, dir) => {
     const nominal = j % 2 === 0 ? [sub, T] : [T, sub];
     const thresholds = sub < T ? nominal : [T];
@@ -226,9 +253,10 @@ const OCTAVES_THAT_JUMP_UP: ReadonlySet<number> = new Set([1, 4, 5]);
 
 /** Phase 4, the octave jumps: a change moves one note an octave, up from octave 1, 4 or 5 and down from any other. The
  *  notes that can jump are those whose jump lands inside `octaveRange`; they are visited by length then start, from
- *  alternating ends, until half of them (rounded up) have jumped. A note jumps once. With no range, no note jumps.
- *  Built when the fills are done (the phase before never runs again), so the bar it reads is the one it walks. */
-function octaveJumps(octaveRange: readonly [number, number] | undefined): Phase {
+ *  alternating ends (the round started at `turn`, a trip's order draw), until half of them (rounded up) have jumped. A
+ *  note jumps once. With no range, no note jumps. Built when the fills are done (the phase before never runs again),
+ *  so the bar it reads is the one it walks. */
+function octaveJumps(octaveRange: readonly [number, number] | undefined, turn: number): Phase {
   let order: Note[] | null = null;
   let i = 0;
   const jumpOf = (n: Note) => (OCTAVES_THAT_JUMP_UP.has(n.src.octave ?? DEFAULT_OCTAVE) ? 1 : -1);
@@ -239,8 +267,8 @@ function octaveJumps(octaveRange: readonly [number, number] | undefined): Phase 
         const to = (n.src.octave ?? DEFAULT_OCTAVE) + jumpOf(n);
         return to >= octaveRange[0] && to <= octaveRange[1];
       });
-      const sorted = fromAlternatingEnds(able.sort(byLengthThenStart));
-      order = sorted.slice(0, Math.ceil(sorted.length / 2));
+      const round = turned(fromAlternatingEnds(able.sort(byLengthThenStart)), turn);
+      order = round.slice(0, Math.ceil(round.length / 2));
     }
     if (i >= order.length) return false;
     const note = order[i++];
@@ -253,12 +281,14 @@ function octaveJumps(octaveRange: readonly [number, number] | undefined): Phase 
  *  A note keeps the way it first went: a note a split or a fill added goes on the way that change sent it, and any
  *  other takes its first shift's draw and holds it. So the shifts add up to a line, and no shift undoes another. It
  *  never runs out, so the busy side has no limit; the journey's max intensity bounds it. Nothing adds a note after the
- *  fills, so the bar it walks is fixed. */
-function shifts(): Phase {
-  let j = 0;
+ *  fills, so the bar it walks is fixed. The round starts at the bar's first note as written, or `turn` (a trip's order
+ *  draw) of the way round it. */
+function shifts(turn: number): Phase {
+  let j = -1;
   const held: number[] = [];
   return (bar, _k, dir) => {
     if (bar.length === 0) return false;
+    if (j < 0) j = Math.floor(turn * bar.length);
     const i = j++ % bar.length;
     held[i] ??= Math.sign(bar[i].pitchStep) || dir;
     bar[i].pitchStep += held[i];
@@ -278,8 +308,18 @@ function busier(home: MelodyEvent[], steps: number, options: DevelopmentOptions)
   const T = Math.max(Math.min(...notes.map((n) => n.len)), floor);
   const sub = Math.max(floor, Math.floor(T / 2));
   // The fill length is the smaller threshold in use: the subdivision, which is T itself when there is one threshold.
-  const phases: Phase[] = [firstPass(notes, T), twoThresholds(T, sub), fills(sub), octaveJumps(options.octaveRange), shifts()];
-  const rand = alea(`${options.seed}:development`);
+  // Four order draws a trip, always in this order, whatever the phases go on to use.
+  const draw = orderDraws(options.variation);
+  const [splitTurn, thresholdDraw, jumpTurn, shiftTurn] = [draw(), draw(), draw(), draw()];
+  const phases: Phase[] = [
+    firstPass(notes, T, splitTurn),
+    twoThresholds(T, sub, thresholdDraw < 0.5 ? 0 : 1),
+    fills(sub),
+    octaveJumps(options.octaveRange, jumpTurn),
+    shifts(shiftTurn),
+  ];
+  // The directions are the robot's own, drawn afresh each trip.
+  const rand = alea(options.variation ? `${options.seed}:development:${options.variation.trip}` : `${options.seed}:development`);
   let phase = 0;
   let made = 0;
   for (let k = 1; k <= steps; k++) {
@@ -304,7 +344,7 @@ export function calmLimit(home: readonly MelodyEvent[]): number {
 /** The home melody at `position` (§1.5, §1.6): that many busy changes above 0, calm changes below it, home itself at
  *  0. Change k+1 is always one change on top of change k. Pure. */
 export function developMelody(home: MelodyEvent[], position: number, options: DevelopmentOptions): MelodyEvent[] {
-  if (position < 0) return calmer(home, -position);
+  if (position < 0) return calmer(home, -position, options.variation);
   if (position > 0) return busier(home, position, options);
   return home;
 }
