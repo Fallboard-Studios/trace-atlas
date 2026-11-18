@@ -213,13 +213,18 @@ function fills(fill: number): Phase {
 }
 
 /** Phase 4, the shifts: a change moves one note one palette step, the notes visited in start order, round and round.
- *  It never runs out, so the busy side has no limit; the journey's swing bounds it. Nothing adds a note after the
+ *  A note keeps the way it first went: a note a split or a fill added goes on the way that change sent it, and any
+ *  other takes its first shift's draw and holds it. So the shifts add up to a line, and no shift undoes another. It
+ *  never runs out, so the busy side has no limit; the journey's max intensity bounds it. Nothing adds a note after the
  *  fills, so the bar it walks is fixed. */
 function shifts(): Phase {
   let j = 0;
+  const held: number[] = [];
   return (bar, _k, dir) => {
     if (bar.length === 0) return false;
-    bar[j++ % bar.length].pitchStep += dir;
+    const i = j++ % bar.length;
+    held[i] ??= Math.sign(bar[i].pitchStep) || dir;
+    bar[i].pitchStep += held[i];
     return true;
   };
 }

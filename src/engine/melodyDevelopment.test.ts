@@ -403,9 +403,32 @@ describe('developMelody: busier, the shifts (spec §1.5, phase 4)', () => {
     const shuffled = [full[2], full[0], full[3], full[1]];
     const out = developMelody(shuffled, 9, FLOOR4);
     expect(out.map((e) => e.startStep)).toEqual([1, 5, 9, 13]);
-    // Note i is moved by changes i+1, i+5 and (the first only) i+9.
-    const sum = (ks: number[]) => ks.reduce((a, k) => a + want[k - 1], 0);
-    expect(out.map((e) => e.pitchStep ?? 0)).toEqual([sum([1, 5, 9]), sum([2, 6]), sum([3, 7]), sum([4, 8])]);
+    // Note i is moved by changes i+1, i+5 and (the first only) i+9, each time the way change i+1 sent it.
+    expect(out.map((e) => e.pitchStep ?? 0)).toEqual([3 * want[0], 2 * want[1], 2 * want[2], 2 * want[3]]);
+  });
+
+  it('holds each note direction: its first shift draws it, and every later round moves it the same way', () => {
+    const want = dirs(OPTS.seed, 4);
+    for (const rounds of [1, 2, 5]) {
+      const out = developMelody(full, 4 * rounds, FLOOR4);
+      expect(out.map((e) => e.pitchStep ?? 0)).toEqual(want.map((d) => rounds * d));
+    }
+    // So a shift never undoes an earlier one: no note is back on its home pitch at any position.
+    for (let p = 4; p < 60; p++) {
+      for (const e of developMelody(full, p, FLOOR4)) expect(e.pitchStep ?? 0).not.toBe(0);
+    }
+  });
+
+  it('moves a note a split added on the way the split sent it', () => {
+    // Two half notes at floor 4: two splits at a quarter (1: 4, 5: 4, 9: 4, 13: 4), then the shifts.
+    const halves = [ev(1, '2n'), ev(9, '2n')];
+    const want = dirs(OPTS.seed, 6);
+    const split = developMelody(halves, 2, FLOOR4);
+    expect(bar(split)).toBe('1: 4, 5: 4, 9: 4, 13: 4');
+    expect(split.map((e) => e.pitchStep ?? 0)).toEqual([0, want[0], 0, want[1]]);
+    // One round of shifts: the two home notes take changes 3 and 5's draws, the added two keep their own way.
+    const round = developMelody(halves, 6, FLOOR4);
+    expect(round.map((e) => e.pitchStep ?? 0)).toEqual([want[2], 2 * want[0], want[4], 2 * want[1]]);
   });
 
   it('never runs out: each next position is one shift on top of the last', () => {
