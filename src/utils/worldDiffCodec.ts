@@ -8,14 +8,14 @@
 // IMPORTS
 // ========================================
 import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
-import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES, type ADSREnvelope, type EnvelopeCurveName, type JourneySetting, type RobotFilterType } from '../types/Robot';
+import { ENVELOPE_CURVE_NAMES, JOURNEY_SETTINGS, ROBOT_FILTER_TYPES, type ADSREnvelope, type EnvelopeCurveName, type JourneySetting, type RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { withGlobalAudioDefaults, type GlobalAudioSettings } from '../types/globalAudio';
 import type { WorldDiff } from './seedBaseline';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
 import { NOTE_VALUES, isNoteValue, type NoteDivision, type NoteModifier, type NoteValue } from '../data/noteValues';
 import { ROBOT_SENDS } from '../data/robotSends';
-import { JOURNEY_SETTINGS, PAN_MIN, PAN_MAX, SEND_MIN, SEND_MAX } from '../constants';
+import { PAN_MIN, PAN_MAX, SEND_MIN, SEND_MAX } from '../constants';
 
 // ========================================
 // TYPES

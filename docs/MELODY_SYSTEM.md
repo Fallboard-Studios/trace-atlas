@@ -478,7 +478,8 @@ palette, `sixteenths` as seconds at the live tempo ([AUDIO_SYSTEM.md](AUDIO_SYST
   `JOURNEY_HOME_ODDS = 0.5`, `JOURNEY_MIN_MOVE = 0.125`, `JOURNEY_TIME_LEAN = 0.5`, `JOURNEY_DROP_ODDS = 0.3`,
   `JOURNEY_DROP_MIN_MOVE = 0.5` (all in shares of a robot's bounds); `JOURNEY_INTENSITY_MAX = 16`, the sixteen notes a
   measure can hold; `DEFAULT_JOURNEY_MAX_INTENSITY = 0`; `JOURNEY_TIME_MAX = 16`, every journey's max time;
-  `DEFAULT_JOURNEY = 'own'`; `JOURNEY_SETTINGS = ['own', 'company', 'fleet']`.
+  `DEFAULT_JOURNEY = 'own'`. `JOURNEY_SETTINGS = ['own', 'company', 'fleet']` sits beside its type, `JourneySetting`,
+  in `src/types/Robot.ts`.
 - `OCTAVE_JUMP_CHANCE = 0.15` — before each note after the first, the chance the melody jumps to another octave: any octave
   inside Octave Min–Max other than the one it is in, near or far, picked evenly. Until 2026-11-13 a jump went only to an octave
   more than one away: in the three-octave registers a melody that started at an edge leapt straight to the other edge and never

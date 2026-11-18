@@ -249,8 +249,6 @@ export const DEFAULT_JOURNEY_MAX_INTENSITY = 0;
  *  time is its share of this, rounded to an even number from 2 (Crawford, 2026-11-17: "one max journey time of 16 for
  *  now"). */
 export const JOURNEY_TIME_MAX = 16;
-/** The journey settings `Robot.journey` takes (§1.9): who a robot travels with. */
-export const JOURNEY_SETTINGS = ['own', 'company', 'fleet'] as const;
 
 /**
  * Whether background-depth buildings host work sites (jobHosts.ts's isWorkSiteEligible). True

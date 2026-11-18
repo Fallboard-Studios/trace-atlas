@@ -24,9 +24,9 @@ import {
   PERFORMANCE_MAX,
   PAN_MIN,
   PAN_MAX,
-  JOURNEY_SETTINGS,
   JOURNEY_INTENSITY_MAX,
 } from '../constants';
+import { JOURNEY_SETTINGS } from '../types/Robot';
 import { clampSend } from '../utils/clampSend';
 import { ROBOT_SEND_FIELDS } from '../data/robotSends';
 import { swallow } from '../utils/helpers';

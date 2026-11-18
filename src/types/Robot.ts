@@ -11,6 +11,9 @@ export type NoteDuration = '32n' | '16n' | '8n' | '4n' | '2n' | '1n' | '2m' | '4
 /** Whose melody journey a robot travels (docs/specs/MELODY_JOURNEY.md §1.3, §1.9). */
 export type JourneySetting = 'own' | 'company' | 'fleet';
 
+/** Every journey setting `Robot.journey` takes (§1.9): who a robot travels with. */
+export const JOURNEY_SETTINGS: readonly JourneySetting[] = ['own', 'company', 'fleet'];
+
 /**
  * Docking state machine — orthogonal to `activity` (the work loop's). Purely battery-driven
  * (see src/systems/robotSystems.ts): Docked/Active are the two "settled"
