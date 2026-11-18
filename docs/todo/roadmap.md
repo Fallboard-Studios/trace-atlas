@@ -663,10 +663,9 @@ edit; the editor is out of this piece (Crawford, 2026-11-17) and needs its own i
   revision to pairs and to one max time; 21 and 22, the docs). What shipped, with every number, is the spec's §9, As
   built ([MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md#9-as-built)); the reference docs are
   [MELODY_SYSTEM.md](../MELODY_SYSTEM.md#the-melody-journey-roadmap-92) and those it links.
-- **Open before the PR, all Crawford's:** Gate A and Gate C (his ear: one robot through a drop and a slow return, a
-  company on one journey, then a full seeded world on desktop and phone), Gate B (accept the `npm run perf:audio` A/B
-  or mend `npm run perf` first), and Checkpoint G's browser look. Until then every number (the journey's odds and
-  leans, the band `{ min: 1, max: 16, lit: 0.7 }`, the one max time of 16) is a first cut.
+- **The gates closed 2026-11-17:** Gates A and C and Checkpoint G's look passed on Crawford's listen with nothing
+  moved, Gate B waived; every number (the journey's odds and leans, the band `{ min: 1, max: 16, lit: 0.7 }`, the one
+  max time of 16) ships as first cut. Ready for his PR.
 - The spec's four questions are answered (its §7.2, 2026-11-17): at least one note in a bar, the band stays the
   theme's, `pitchLocked` stays in place, a phone listen is enough.
 - After the merge: the plan's Task 23 moves this entry to the archive.

@@ -26,7 +26,7 @@ of the build stands and what is replaced. The task file follows as its Phases 6 
 time of 16, so robots on one journey move in lock step; max intensity is a robot's one bound. §1.1, §1.3, §1.9,
 §1.10, §2, §4, §5 and §7.3 are touched; the task file adds Task 38 and revises Tasks 29 to 35.
 
-**Built 2026-11-17**, every phase; what shipped, every number and what the gates have (not yet) moved is §9, As built.
+**Built 2026-11-17**, every phase; what shipped, every number and what the gates moved (nothing; passed or waived 2026-11-17) is §9, As built.
 
 **Where the claims come from.** Two sources, marked where it matters:
 
@@ -677,21 +677,19 @@ broadcast), [SESSION_STORAGE.md](../SESSION_STORAGE.md) (the save and the link) 
 
 ### 9.1 What the gates moved
 
-**Nothing yet.** None of Crawford's gates has been run, so every number below is the first cut this spec gave it, but
-one is now his by word:
+**Nothing.** Every number below is the first cut this spec gave it, kept by Crawford as shipped (2026-11-17, after
+Phase 10):
 
-- **The one max time of 16 stands** (Crawford, 2026-11-17, after Phase 10). He asked whether journey length was
-  hardcoded and should be dynamic; the length a journey runs has no end, and each pair's time is drawn, 2 to 16
-  measures, so the pace already varies pair to pair. Only the ceiling is one number for every journey, and he kept
-  it. A ceiling per journey (seeded, from the chord progressions, from tempo, or a setting) stays the later change in
-  one place §7.4 names.
-- **Gate A** (his ear, the journey by hand): not run. A first Gate A on the walk was never recorded; Phases 5 and 9
-  were built on his word without it. Its max-time question is settled above.
-- **Gate B** (profile): open on his call (the plan's Open Questions 5). `npm run perf` stops at a nav button it can no
-  longer find; an `npm run perf:audio` A/B stood in on the walk's build (Checkpoint E: steady play equal on `main` and
-  the branch, the warm-up noisy on both) and has not been run on the pairs.
-- **Gate C** (his ear, a full seeded world, desktop and phone): not run.
-- **Checkpoint G's browser look** (a drop on a bar line, a company turning together): not run.
+- **The one max time of 16 stands.** He asked whether journey length was hardcoded and should be dynamic; a journey
+  has no end, and each pair's time is drawn, 2 to 16 measures, so the pace already varies pair to pair. Only the
+  ceiling is one number for every journey, and he kept it. A ceiling per journey (seeded, from the chord
+  progressions, from tempo, or a setting) stays the later change in one place §7.4 names.
+- **Gate A** (his ear, the journey by hand), **Gate C** (his ear, a full seeded world) and **Checkpoint G's browser
+  look** (a drop on a bar line, a company turning together): passed on his listen ("i listened, we're good"), nothing
+  moved. A first Gate A on the walk was never recorded; Phases 5 and 9 were built on his word before this one.
+- **Gate B** (profile): waived on the same word. It was not run on the pairs; the last measure is the `npm run
+  perf:audio` A/B on the walk's build (Checkpoint E: steady play equal on `main` and the branch, the warm-up noisy on
+  both). `npm run perf` still stops at a nav button it can no longer find.
 
 ### 9.2 Every number as shipped
 

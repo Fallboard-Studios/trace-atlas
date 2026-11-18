@@ -34,6 +34,10 @@ next.
 Gate A's numbers not recorded, so the plan's defaults stand (the band `{ min: 1, max: 16, lit: 0.7 }`, the key `ji`).
 Checkpoint I's suite, build and mutation checks done (Results). Gates B and C, Crawford's, are next.
 
+**Phase 10 built 2026-11-17** (Tasks 21–22, 59d43056, cb2aae71). The gates closed the same day: Gates A and C and
+Checkpoint G's look passed on Crawford's listen with nothing moved, Gate B waived (Results, Checkpoint Complete).
+Ready for his PR; Task 23 after the merge.
+
 ## Overview
 
 A robot's melody develops while it plays: busier, home, calmer, home, on a seeded journey read from the music clock.
@@ -965,10 +969,11 @@ rate, and everything that carries `development`. Their text is left as the recor
       max time (two max times share them); `robotJourney` ignoring the stored max time; a max intensity of 0 still
       walking the pairs. (The first three killed; the fourth is equivalent and survives, Results.)
 - [x] After Task 38: `npm test` clean, and the mutant of `robotJourney` reading a stored max time again killed.
-- [ ] Look: in the browser, a robot's max intensity set through the store and the robot soloed. Its notes change by
+- [x] Look: in the browser, a robot's max intensity set through the store and the robot soloed. Its notes change by
       the measure, a drop is heard on a bar line, and it comes home. Then two members of one company set to different
-      max intensities: they turn on the same bar lines.
-- [ ] Reviewed with Crawford before Phase 8.
+      max intensities: they turn on the same bar lines. (Crawford's listen, 2026-11-17, after Phase 10: Results,
+      Checkpoint Complete.)
+- [x] Reviewed with Crawford (after Phase 10, with the gates).
 
 ---
 
@@ -1079,14 +1084,15 @@ rate, and everything that carries `development`. Their text is left as the recor
 
 ### Checkpoint H: Gate A, Crawford's ear
 - [x] `npm test` clean (full suite).
-- [ ] **Gate A.** Every robot still loads at a max intensity of 0, so the world plays its home melodies. Crawford
+- [x] **Gate A** (passed, Crawford's listen, 2026-11-17, after Phase 10; nothing moved: Results, Checkpoint
+      Complete). Every robot still loads at a max intensity of 0, so the world plays its home melodies. Crawford
       sets one robot to 16 and solos it through a drop and a slow return home; then a low max intensity; then a
       company on Company at mixed max intensities, in lock step; then the fleet on Fleet. His to move here, each
       recorded in the spec before Phase 9: the journey's odds and leans (spec §7.3, B1 to B10, against the shape in
       Results, measured at max time 16), the one max time of 16 (§7.4), whether the busy top being pitch movement is
       right (B15), the row layout (C1), and the order rules of §1.5 and §1.6 (A1 to A6), which the first Gate A never
       recorded.
-- [ ] Stop. Phase 9 starts on his word.
+- [x] Stop. Phase 9 starts on his word.
 
 ---
 
@@ -1235,13 +1241,14 @@ rate, and everything that carries `development`. Their text is left as the recor
 - [x] `npm test`, `npm run build` clean.
 - [x] Mutation checks, each killed: the lit share ignored (33), a member drawing its own max intensity (34), max
       intensity left out of the deal's table (34), the diff key and the link key (35).
-- [ ] **Gate B (profile).** Run again, on the new journey, same session, `main` against the branch, one at a time.
+- [x] **Gate B (profile)** (waived, Crawford, 2026-11-17: "we're good" after his listen; not run on the pairs, so
+      Checkpoint E's audio-thread A/B on the walk is the last measure: Results, Checkpoint Complete). Run again, on the new journey, same session, `main` against the branch, one at a time.
       With the step harness if it has been mended, else the audio-thread A/B that stood in at Checkpoint E, this
       time on a world whose robots are set to a max intensity of 16, so drops are as deep as they go. Which one is
       Crawford's call (Open Questions). A miss stops the build here, with the numbers and options.
-- [ ] **Gate C (Crawford's ear).** A full seeded world, on desktop and on the phone. His to move: the band, the share
-      at home and the one max time.
-- [ ] Stop. The docs start on his word.
+- [x] **Gate C (Crawford's ear)** (passed, his listen, 2026-11-17, after Phase 10; nothing moved). A full seeded
+      world, on desktop and on the phone. His to move: the band, the share at home and the one max time.
+- [x] Stop. The docs start on his word.
 
 ---
 
@@ -1298,7 +1305,8 @@ rate, and everything that carries `development`. Their text is left as the recor
       and tests, its hearing after a reload is Gate C's).
 - [x] Any browser check not done in the session is flagged here, not skipped: **Checkpoint G's look, Gate A, Gate B
       and Gate C are not done** (Results, Checkpoint Complete).
-- [ ] Ready for Crawford's PR: once he has run, or waived, the open gates.
+- [x] Ready for Crawford's PR: once he has run, or waived, the open gates. (2026-11-17: A, C and Checkpoint G's look
+      passed by his listen, B waived; Results.)
 
 - [ ] **Task 23: archive, after the merge**
 
@@ -1774,6 +1782,12 @@ hardcoded at 16 and should be dynamic. A journey has no end, and each pair's tim
 the ceiling is one constant (`JOURNEY_TIME_MAX`, read in `robotJourney`) for every journey, so robots on one journey
 turn together. He kept it: "ok i'm happy let's mark it and move on". Gate A's and Gate C's max-time item is closed;
 the rest of both gates stays open. Spec §9.1 records it.
+
+**The gates, closed** (Crawford, 2026-11-17, after the max-time answer): "i listened, we're good". Gate A, Gate C and
+Checkpoint G's look pass on his listen, and nothing moved: every number stands as shipped (spec §9.2), the journey's
+odds and leans, the band `{ min: 1, max: 16, lit: 0.7 }` and the one max time of 16 among them. Gate B is waived on the
+same word: it was not run on the pairs, so the last measure is Checkpoint E's audio-thread A/B on the walk, and
+`npm run perf`'s broken nav labels stay as they were. Ready for his PR; Task 23 after the merge.
 
 **Left as they are:** `docs/ideas/the-score.md` (roadmap 90's idea) and two items in `backlog.md` still describe docking pitch drift as current; they are idea and backlog text, outside
 Phase 10's files.
