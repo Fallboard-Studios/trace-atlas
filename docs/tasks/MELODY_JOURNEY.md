@@ -358,7 +358,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 - [x] The path lengths, measured once over the 121 worlds with a throwaway probe (not committed) and written under
       Results below: per robot, the calm changes, the splits and the fills. Gate A's swing numbers are read against
       these.
-- [ ] Reviewed with Crawford before Phase 2.
+- [x] Reviewed with Crawford before Phase 2 (2026-11-17: he moved on to Phase 2).
 
 ---
 
@@ -417,7 +417,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 - [x] `npm test` clean (full suite).
 - [x] In the browser: a robot's melody is the same before and after a dock cycle (the note cloud, or a Solo by ear).
       Read from the store by a headless probe (Results); a listen is his at the review.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Reviewed with Crawford before Phase 3 (2026-11-17: he moved on to Phase 3).
 
 ---
 
@@ -433,10 +433,10 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** RED test — `src/engine/harmonySystem.test.ts`: the steps below.
 
   **Acceptance criteria:**
-  - [ ] In `C G E D B C E G`: up one from E4 is G4, up one from B4 is C5, down one from C4 is B3.
-  - [ ] A `pitchStep` of 0 is the palette's own note at the event's octave.
-  - [ ] Two steps are two single steps. A one-class palette steps by octaves.
-  - [ ] At the edge of `octaveRange` the step turns back, and the result is always inside the range.
+  - [x] In `C G E D B C E G`: up one from E4 is G4, up one from B4 is C5, down one from C4 is B3.
+  - [x] A `pitchStep` of 0 is the palette's own note at the event's octave.
+  - [x] Two steps are two single steps. A one-class palette steps by octaves.
+  - [x] At the edge of `octaveRange` the step turns back, and the result is always inside the range.
 
   **Verification:** `npx vitest run src/engine/harmonySystem.test.ts` passes.
 
@@ -456,10 +456,10 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** RED test — `src/engine/AudioEngine.test.ts`: a registered melody with one event carrying each field.
 
   **Acceptance criteria:**
-  - [ ] A `pitchStep` event's note is the palette step for the measure it sounds in, so it moves with the chord.
-  - [ ] A `sixteenths: 3` event's duration is three sixteenths at the transport's tempo; with a rest it shortens from
+  - [x] A `pitchStep` event's note is the palette step for the measure it sounds in, so it moves with the chord.
+  - [x] A `sixteenths: 3` event's duration is three sixteenths at the transport's tempo; with a rest it shortens from
         that length and is never under `MIN_SOUNDING_SECONDS`.
-  - [ ] Every existing `stepNotes` and `processMelodyStep` test passes unmodified.
+  - [x] Every existing `stepNotes` and `processMelodyStep` test passes unmodified.
 
   **Verification:** `npx vitest run src/engine/AudioEngine.test.ts` passes.
 
@@ -481,13 +481,13 @@ rate, and everything that carries `development`. Their text is left as the recor
   normalisation).
 
   **Acceptance criteria:**
-  - [ ] Two members of one company on Company get one key; the same two on Own get two; any two robots on Fleet get
+  - [x] Two members of one company on Company get one key; the same two on Own get two; any two robots on Fleet get
         one.
-  - [ ] A freelancer on Company gets the key it would have on Own.
-  - [ ] The floor follows the robot's attack; the rate is the stored development; a robot with neither field reads
+  - [x] A freelancer on Company gets the key it would have on Own.
+  - [x] The floor follows the robot's attack; the rate is the stored development; a robot with neither field reads
         as rate 0.
-  - [ ] `updateRobot` stores 0.3 as 0.25, 5 as 2, and drops a NaN and an unknown journey, keeping the stored value.
-  - [ ] `melodyWorldKey` returns what it returned before.
+  - [x] `updateRobot` stores 0.3 as 0.25, 5 as 2, and drops a NaN and an unknown journey, keeping the stored value.
+  - [x] `melodyWorldKey` returns what it returned before.
 
   **Verification:** `npx vitest run src/engine/melodyJourney.test.ts src/stores/localeStore.test.ts src/engine/regenerateMelody.test.ts`
   passes.
@@ -513,10 +513,10 @@ rate, and everything that carries `development`. Their text is left as the recor
   before and after it: the order of two robots' notes on one step, before and after a re-registration.
 
   **Acceptance criteria:**
-  - [ ] Every existing engine test passes unmodified.
-  - [ ] `registerRobotMelody` stays idempotent, `unregisterRobotMelody` removes every trace of a robot, and the click
+  - [x] Every existing engine test passes unmodified.
+  - [x] `registerRobotMelody` stays idempotent, `unregisterRobotMelody` removes every trace of a robot, and the click
         track still replaces a robot's melody at the one funnel.
-  - [ ] The order test above passes.
+  - [x] The order test above passes.
 
   **Verification:** `npx vitest run src/engine/AudioEngine.test.ts src/engine/clickTrack.test.ts src/engine/noteEvents.test.ts`
   passes.
@@ -540,15 +540,15 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** RED test — `src/engine/AudioEngine.test.ts`: the reads below.
 
   **Acceptance criteria:**
-  - [ ] From one registration, `stepNotes` at two measures with different positions returns each measure's own
+  - [x] From one registration, `stepNotes` at two measures with different positions returns each measure's own
         events.
-  - [ ] A robot at Development 0 returns its home melody's notes at every measure.
-  - [ ] Writing a new `development`, `journey`, `companyId` or attack to the store changes the next read with no
+  - [x] A robot at Development 0 returns its home melody's notes at every measure.
+  - [x] Writing a new `development`, `journey`, `companyId` or attack to the store changes the next read with no
         engine call.
-  - [ ] Two robots with one key and one rate are at the same position at every measure of a 200-measure run.
-  - [ ] Reading measure m, then m+1, then m again (the trigger and the early announcement either side of a bar line)
+  - [x] Two robots with one key and one rate are at the same position at every measure of a 200-measure run.
+  - [x] Reading measure m, then m+1, then m again (the trigger and the early announcement either side of a bar line)
         gives m's events both times and rebuilds nothing the second time.
-  - [ ] A note a change adds is never accented; a home event's accent, rest and mark are as registered.
+  - [x] A note a change adds is never accented; a home event's accent, rest and mark are as registered.
 
   **Verification:** `npx vitest run src/engine/AudioEngine.test.ts` passes, and the full suite (`npm test`) before
   the commit.
@@ -564,8 +564,9 @@ rate, and everything that carries `development`. Their text is left as the recor
 - [x] Mutation checks, each killed: the measure passed to `journeyPosition` (14), the Company fallback to Own (12),
       the octave-range turn-back (10), the kept positions (14).
 - [ ] In the browser, with a robot's `development` set from the console through the store: its notes change from
-      measure to measure and return to the home melody.
-- [ ] Reviewed with Crawford before Phase 4.
+      measure to measure and return to the home melody. **Overtaken by the revision:** `development` is gone; the
+      look is Checkpoint G's, on max intensity, passed on his listen.
+- [x] Reviewed with Crawford before Phase 4 (2026-11-17: he moved on to Phase 4).
 
 ---
 
@@ -582,9 +583,9 @@ rate, and everything that carries `development`. Their text is left as the recor
   regenerates the melody nor calls the engine.
 
   **Acceptance criteria:**
-  - [ ] Both applies write the store and make no `AudioEngine` and no `regenerateMelody` call.
-  - [ ] The stored melody is the same array after either.
-  - [ ] `src/content/content.test.ts` passes with the new entries.
+  - [x] Both applies write the store and make no `AudioEngine` and no `regenerateMelody` call.
+  - [x] The stored melody is the same array after either.
+  - [x] `src/content/content.test.ts` passes with the new entries.
 
   **Verification:** `npx vitest run src/systems/robotOptionsActions.test.ts src/content/content.test.ts` passes.
 
@@ -606,11 +607,11 @@ rate, and everything that carries `development`. Their text is left as the recor
   `src/components/panels/screen/screens/RobotScreen.test.tsx` (an edit reaches the store).
 
   **Acceptance criteria:**
-  - [ ] Both controls render with their content labels; a change calls its handler with the new value.
-  - [ ] Journey is disabled at Development 0 and enabled above it, showing the stored value either way.
-  - [ ] On the robot screen, moving Development writes `robot.development`, and choosing Fleet writes
+  - [x] Both controls render with their content labels; a change calls its handler with the new value.
+  - [x] Journey is disabled at Development 0 and enabled above it, showing the stored value either way.
+  - [x] On the robot screen, moving Development writes `robot.development`, and choosing Fleet writes
         `robot.journey`.
-  - [ ] Look: the row at phone width and desktop; neither control changes size as values change.
+  - [x] Look: the row at phone width and desktop; neither control changes size as values change.
 
   **Verification:** `npx vitest run src/components/robot/CompositionSections.test.tsx src/components/panels/screen/screens/RobotScreen.test.tsx`
   passes; the Look recorded in the commit.
@@ -634,10 +635,10 @@ rate, and everything that carries `development`. Their text is left as the recor
   every member.
 
   **Acceptance criteria:**
-  - [ ] A company's Development edit writes every member's `development` and the company's snapshot; the same for
+  - [x] A company's Development edit writes every member's `development` and the company's snapshot; the same for
         Journey.
-  - [ ] The All Probes screen's edit reaches every robot.
-  - [ ] A member edited on its own afterwards keeps its own value (broadcast, not link).
+  - [x] The All Probes screen's edit reaches every robot.
+  - [x] A member edited on its own afterwards keeps its own value (broadcast, not link).
 
   **Verification:** `npx vitest run src/components/company/useCompanyOptions.test.ts src/systems/companyOptions.test.ts src/components/company/CompanyOptionsSection.test.tsx src/components/panels/screen/screens/CompanyScreen.test.tsx`
   passes.
@@ -673,10 +674,10 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** RED test — `src/systems/robotFieldDerivation.test.ts`: the draw.
 
   **Acceptance criteria:**
-  - [ ] Over 12,000 spawn indices the share above 0 is the band's `lit` within a point, and every value above 0 is on
+  - [x] Over 12,000 spawn indices the share above 0 is the band's `lit` within a point, and every value above 0 is on
         the 0.125 grid inside the band.
-  - [ ] A `lit` of 0 gives every robot 0. The same index gives the same value.
-  - [ ] The four older Melody fields draw exactly what they drew before (their existing tests, unmodified).
+  - [x] A `lit` of 0 gives every robot 0. The same index gives the same value.
+  - [x] The four older Melody fields draw exactly what they drew before (their existing tests, unmodified).
 
   **Verification:** `npx vitest run src/systems/robotFieldDerivation.test.ts src/data/bands/classic.test.ts src/data/bands/resolveBands.test.ts`
   passes.
@@ -700,12 +701,12 @@ rate, and everything that carries `development`. Their text is left as the recor
   at spawn; `src/systems/aspectDeal.test.ts`: the re-derive.
 
   **Acceptance criteria:**
-  - [ ] In a spawned world every seeded company's robots, founder included, are on Company and every freelancer on
+  - [x] In a spawned world every seeded company's robots, founder included, are on Company and every freelancer on
         Own; a member's development is its founder's.
-  - [ ] A spawned roster equals its baseline in both fields, over the 121 worlds.
-  - [ ] Over the 121 worlds, the members of a company share one journey key and one rate, and their developed
+  - [x] A spawned roster equals its baseline in both fields, over the 121 worlds.
+  - [x] Over the 121 worlds, the members of a company share one journey key and one rate, and their developed
         melodies have the same starts and lengths at every measure of a 100-measure run (spec success criterion 3).
-  - [ ] A theme whose column moves the development band re-derives each robot's value in place, with no melody
+  - [x] A theme whose column moves the development band re-derives each robot's value in place, with no melody
         regeneration.
 
   **Verification:** `npx vitest run src/systems/spawnSystem.test.ts src/systems/spawnSystem.families.test.ts src/systems/aspectDeal.test.ts src/systems/aspectDeal.widened.test.ts`
@@ -727,10 +728,10 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** RED test — `src/utils/sessionDiff.test.ts` and `src/utils/worldDiffCodec.test.ts`: the round trips.
 
   **Acceptance criteria:**
-  - [ ] An untouched robot has neither key in a save.
-  - [ ] Save, edit, wipe and load brings back both settings on a robot, and a company-wide edit on every member.
-  - [ ] A world link round-trips both.
-  - [ ] A payload saved before the fields existed loads, and its robots read the seeded values.
+  - [x] An untouched robot has neither key in a save.
+  - [x] Save, edit, wipe and load brings back both settings on a robot, and a company-wide edit on every member.
+  - [x] A world link round-trips both.
+  - [x] A payload saved before the fields existed loads, and its robots read the seeded values.
 
   **Verification:** `npx vitest run src/utils/sessionDiff.test.ts src/utils/worldDiffCodec.test.ts src/utils/seedBaseline.test.ts src/utils/sessionShareUtils.test.ts`
   passes.
@@ -772,15 +773,15 @@ rate, and everything that carries `development`. Their text is left as the recor
   expected share worked out from the constants.
 
   **Acceptance criteria:**
-  - [ ] The same key gives the same shares whichever count is asked for first; a different key gives different ones.
-  - [ ] Every intensity share is from −1 to 1 and every time share from 0 to 1.
-  - [ ] No pair's intensity share is within `JOURNEY_MIN_MOVE` of the one before it (the first counts from 0), and
+  - [x] The same key gives the same shares whichever count is asked for first; a different key gives different ones.
+  - [x] Every intensity share is from −1 to 1 and every time share from 0 to 1.
+  - [x] No pair's intensity share is within `JOURNEY_MIN_MOVE` of the one before it (the first counts from 0), and
         pairs both stay on a side and cross home.
-  - [ ] A pair heads home only from at least `JOURNEY_MIN_MOVE` away. Of the pairs that start 0.9 or more from home,
+  - [x] A pair heads home only from at least `JOURNEY_MIN_MOVE` away. Of the pairs that start 0.9 or more from home,
         the share heading home is `JOURNEY_HOME_ODDS × 0.95` within five points; of those that start within 0.25,
         it is under `JOURNEY_HOME_ODDS × 0.25`.
-  - [ ] Every time share lies between `JOURNEY_TIME_LEAN × (1 − |v|)` and that plus `1 − JOURNEY_TIME_LEAN`.
-  - [ ] The first pair is never a drop, no drop follows a drop, and no drop moves less than `JOURNEY_DROP_MIN_MOVE`.
+  - [x] Every time share lies between `JOURNEY_TIME_LEAN × (1 − |v|)` and that plus `1 − JOURNEY_TIME_LEAN`.
+  - [x] The first pair is never a drop, no drop follows a drop, and no drop moves less than `JOURNEY_DROP_MIN_MOVE`.
         Of the pairs that could be a drop, the share that are is `JOURNEY_DROP_ODDS` within five points.
 
   **Verification:** `npx vitest run src/engine/melodyJourney.test.ts` passes.
@@ -802,11 +803,11 @@ rate, and everything that carries `development`. Their text is left as the recor
   by hand.
 
   **Acceptance criteria:**
-  - [ ] The worked example of spec §1.3, both columns, literally, at every measure from 0 to 32.
-  - [ ] Position 0 at measure 0, at a negative or non-finite measure, and everywhere on an empty list.
-  - [ ] A pair's intensity is played on its turning measure and on no earlier measure of that pair.
-  - [ ] Inside a pair the position never moves away from the pair's intensity.
-  - [ ] A pair with a time of 1 plays its intensity on the very next measure; a pair that does not move holds.
+  - [x] The worked example of spec §1.3, both columns, literally, at every measure from 0 to 32.
+  - [x] Position 0 at measure 0, at a negative or non-finite measure, and everywhere on an empty list.
+  - [x] A pair's intensity is played on its turning measure and on no earlier measure of that pair.
+  - [x] Inside a pair the position never moves away from the pair's intensity.
+  - [x] A pair with a time of 1 plays its intensity on the very next measure; a pair that does not move holds.
 
   **Verification:** `npx vitest run src/engine/melodyJourney.test.ts` passes.
 
@@ -829,15 +830,15 @@ rate, and everything that carries `development`. Their text is left as the recor
   (the calm limit).
 
   **Acceptance criteria:**
-  - [ ] Intensity: at 16, shares 0.5 and −0.5 give +8 and −8; at 1, shares 0.4, 0.6 and −0.6 give 0, +1 and −1.
-  - [ ] A calm intensity past the calm limit is brought in to it (share −0.75 at 16 with a limit of 4 gives −4); a
+  - [x] Intensity: at 16, shares 0.5 and −0.5 give +8 and −8; at 1, shares 0.4, 0.6 and −0.6 give 0, +1 and −1.
+  - [x] A calm intensity past the calm limit is brought in to it (share −0.75 at 16 with a limit of 4 gives −4); a
         busy intensity is never brought in.
-  - [ ] Time: at 16, shares 0, 0.1, 0.5 and 1 give 2, 2, 8 and 16; at 2, every share gives 2. Every time is even,
+  - [x] Time: at 16, shares 0, 0.1, 0.5 and 1 give 2, 2, 8 and 16; at 2, every share gives 2. Every time is even,
         except a drop's and that of the pair before a drop.
-  - [ ] A drop's time is 1 and the pair before it is one shorter (16 becomes 15, 2 becomes 1), so the times through
+  - [x] A drop's time is 1 and the pair before it is one shorter (16 becomes 15, 2 becomes 1), so the times through
         any drop sum to an even number.
-  - [ ] Shares that scale to Crawford's example give `[[16, 15], [-8, 1], [0, 16]]`.
-  - [ ] `calmLimit` is 2 for three notes and 0 for one note and for none; `developMelody` at minus the limit has one
+  - [x] Shares that scale to Crawford's example give `[[16, 15], [-8, 1], [0, 16]]`.
+  - [x] `calmLimit` is 2 for three notes and 0 for one note and for none; `developMelody` at minus the limit has one
         note, and one change past it is the same melody.
 
   **Verification:** `npx vitest run src/engine/melodyJourney.test.ts src/engine/melodyDevelopment.test.ts` passes.
@@ -874,9 +875,9 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** RED test — `src/stores/localeStore.test.ts`: the normalisation.
 
   **Acceptance criteria:**
-  - [ ] Max intensity: 7.4 is stored as 7, 20 as 16, −1 as 0, `Infinity` as 16.
-  - [ ] Max time: 5 is stored as 6, 1 as 2, 40 as 16, and every stored value is even.
-  - [ ] A `NaN` in either is dropped, keeping the stored value and the rest of the update.
+  - [x] Max intensity: 7.4 is stored as 7, 20 as 16, −1 as 0, `Infinity` as 16.
+  - [x] Max time: 5 is stored as 6, 1 as 2, 40 as 16, and every stored value is even.
+  - [x] A `NaN` in either is dropped, keeping the stored value and the rest of the update.
 
   **Verification:** `npx vitest run src/stores/localeStore.test.ts` passes.
 
@@ -903,17 +904,17 @@ rate, and everything that carries `development`. Their text is left as the recor
   `src/engine/AudioEngine.test.ts` (the per-measure read on a robot with bounds).
 
   **Acceptance criteria:**
-  - [ ] Position is 0 at measure 0 for any key and bounds, and at every measure at a max intensity of 0 or with no
+  - [x] Position is 0 at measure 0 for any key and bounds, and at every measure at a max intensity of 0 or with no
         bounds at all.
-  - [ ] Over 2,000 measures of several keys, at bounds (16, 16), (16, 2), (1, 16) and (5, 8) and calm limits 0, 3 and
+  - [x] Over 2,000 measures of several keys, at bounds (16, 16), (16, 2), (1, 16) and (5, 8) and calm limits 0, 3 and
         15: no position is past max intensity or below the calm limit, and every turning measure is even but the one
         before a drop.
-  - [ ] Reads in any order of measures give the same positions.
-  - [ ] Two robots on one key with one max time and different max intensities turn on the same measures; with
+  - [x] Reads in any order of measures give the same positions.
+  - [x] Two robots on one key with one max time and different max intensities turn on the same measures; with
         different max times they do not.
-  - [ ] `stepNotes` at two measures with different positions returns each measure's own events; a bound edited in the
+  - [x] `stepNotes` at two measures with different positions returns each measure's own events; a bound edited in the
         store is read on the next note with no engine call; a Click Track robot still plays the click track.
-  - [ ] The developed melody is rebuilt once per new position, not per sixteenth (the existing call-count case, on
+  - [x] The developed melody is rebuilt once per new position, not per sixteenth (the existing call-count case, on
         bounds), and `developMelody` is never asked for a position below the calm limit.
 
   **Verification:** `npx vitest run src/engine/melodyJourney.test.ts src/engine/AudioEngine.test.ts src/systems/spawnSystem.families.test.ts`
@@ -942,13 +943,13 @@ rate, and everything that carries `development`. Their text is left as the recor
   as 8 today, and a stored one is honoured.
 
   **Acceptance criteria:**
-  - [ ] `robotJourney`'s `maxTime` is `JOURNEY_TIME_MAX` for a robot with no fields and for one whose object still
+  - [x] `robotJourney`'s `maxTime` is `JOURNEY_TIME_MAX` for a robot with no fields and for one whose object still
         carries a `journeyMaxTime` (an old save's leftover).
-  - [ ] In the engine, a robot plays `journeyPosition(key, { its max intensity, JOURNEY_TIME_MAX, its calm limit })`
+  - [x] In the engine, a robot plays `journeyPosition(key, { its max intensity, JOURNEY_TIME_MAX, its calm limit })`
         at every measure of a run.
-  - [ ] Two robots on one Company journey with different max intensities, one of them carrying a stray
+  - [x] Two robots on one Company journey with different max intensities, one of them carrying a stray
         `journeyMaxTime`, change melody only on the same measures in the engine.
-  - [ ] Nothing in `src/` names `JOURNEY_TIME_MIN`, `JOURNEY_TIME_STEP` or `DEFAULT_JOURNEY_MAX_TIME`, and
+  - [x] Nothing in `src/` names `JOURNEY_TIME_MIN`, `JOURNEY_TIME_STEP` or `DEFAULT_JOURNEY_MAX_TIME`, and
         `journeyMaxTime` only in the test fixtures that stand for an old save's leftover (searched by hand before the
         commit).
 
@@ -990,9 +991,9 @@ rate, and everything that carries `development`. Their text is left as the recor
   regenerates the melody nor calls the engine.
 
   **Acceptance criteria:**
-  - [ ] The apply writes the store and makes no `AudioEngine` and no `regenerateMelody` call.
-  - [ ] The stored melody is the same array after it.
-  - [ ] `src/content/content.test.ts` passes with the new entry.
+  - [x] The apply writes the store and makes no `AudioEngine` and no `regenerateMelody` call.
+  - [x] The stored melody is the same array after it.
+  - [x] `src/content/content.test.ts` passes with the new entry.
 
   **Verification:** `npx vitest run src/systems/robotOptionsActions.test.ts src/content/content.test.ts` passes.
 
@@ -1015,12 +1016,12 @@ rate, and everything that carries `development`. Their text is left as the recor
   `src/components/panels/screen/screens/RobotScreen.test.tsx` (an edit reaches the store).
 
   **Acceptance criteria:**
-  - [ ] The Max Intensity slider renders with its content label; a change calls its handler with the new value.
-  - [ ] Journey is disabled at a Max Intensity of 0 and enabled above it, showing the stored value either way.
-  - [ ] On the robot screen, moving Max Intensity writes `robot.journeyMaxIntensity`, and choosing Fleet still writes
+  - [x] The Max Intensity slider renders with its content label; a change calls its handler with the new value.
+  - [x] Journey is disabled at a Max Intensity of 0 and enabled above it, showing the stored value either way.
+  - [x] On the robot screen, moving Max Intensity writes `robot.journeyMaxIntensity`, and choosing Fleet still writes
         `robot.journey`.
-  - [ ] No Development slider renders.
-  - [ ] Look: the row at phone width and desktop; no control changes size as values change (spec C1, Crawford's
+  - [x] No Development slider renders.
+  - [x] Look: the row at phone width and desktop; no control changes size as values change (spec C1, Crawford's
         eye).
 
   **Verification:** `npx vitest run src/components/robot/CompositionSections.test.tsx src/components/panels/screen/screens/RobotScreen.test.tsx`
@@ -1045,10 +1046,10 @@ rate, and everything that carries `development`. Their text is left as the recor
   every member.
 
   **Acceptance criteria:**
-  - [ ] A company's Max Intensity edit writes every member's `journeyMaxIntensity` and the company's snapshot.
-  - [ ] The All Probes screen's edit reaches every robot.
-  - [ ] A member edited on its own afterwards keeps its own value (broadcast, not link).
-  - [ ] Journey's broadcast is as it was (its existing tests, unmodified).
+  - [x] A company's Max Intensity edit writes every member's `journeyMaxIntensity` and the company's snapshot.
+  - [x] The All Probes screen's edit reaches every robot.
+  - [x] A member edited on its own afterwards keeps its own value (broadcast, not link).
+  - [x] Journey's broadcast is as it was (its existing tests, unmodified).
 
   **Verification:** `npx vitest run src/components/company/useCompanyOptions.test.ts src/systems/companyOptions.test.ts src/components/company/CompanyOptionsSection.test.tsx src/components/panels/screen/screens/CompanyScreen.test.tsx src/components/robot/CompositionSections.test.tsx`
   passes.
@@ -1070,8 +1071,8 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** Read — a deletion. No new test.
 
   **Acceptance criteria:**
-  - [ ] Nothing imports any of the three.
-  - [ ] `npm test`, `npm run build:types` and `npm run lint` pass, `src/content/content.test.ts` among them.
+  - [x] Nothing imports any of the three.
+  - [x] `npm test`, `npm run build:types` and `npm run lint` pass, `src/content/content.test.ts` among them.
 
   **Verification:** the full suite; the three names searched for in `src/` by hand before the commit.
 
@@ -1112,12 +1113,12 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** RED test — `src/systems/robotFieldDerivation.test.ts`: the draw.
 
   **Acceptance criteria:**
-  - [ ] Over 12,000 spawn indices the share of max intensities above 0 is the band's `lit` within a point; every
+  - [x] Over 12,000 spawn indices the share of max intensities above 0 is the band's `lit` within a point; every
         value above 0 is a whole number in the band, and each of them takes its even share within a point.
-  - [ ] A `lit` of 0 gives every robot 0.
-  - [ ] The same index gives the same values, and the five older Melody fields draw exactly what they drew (their
+  - [x] A `lit` of 0 gives every robot 0.
+  - [x] The same index gives the same values, and the five older Melody fields draw exactly what they drew (their
         existing tests, unmodified).
-  - [ ] `resolveBands.test.ts`'s rows for a band against its slider's range, and for the Melody keys no aspect names,
+  - [x] `resolveBands.test.ts`'s rows for a band against its slider's range, and for the Melody keys no aspect names,
         hold for the new band.
 
   **Verification:** `npx vitest run src/systems/robotFieldDerivation.test.ts src/data/bands/classic.test.ts src/data/bands/resolveBands.test.ts`
@@ -1142,14 +1143,14 @@ rate, and everything that carries `development`. Their text is left as the recor
   at spawn; `src/systems/aspectDeal.widened.test.ts`: the re-derive.
 
   **Acceptance criteria:**
-  - [ ] A member's max intensity is its founder's, over the 121 worlds.
-  - [ ] A spawned roster equals its baseline in both settings, over the 121 worlds.
-  - [ ] Over the 121 worlds, the share of robots that are not members and load above 0 is the band's `lit` within
+  - [x] A member's max intensity is its founder's, over the 121 worlds.
+  - [x] A spawned roster equals its baseline in both settings, over the 121 worlds.
+  - [x] Over the 121 worlds, the share of robots that are not members and load above 0 is the band's `lit` within
         five points.
-  - [ ] Over the 121 worlds, the members of a company share one journey key and the same max intensity, and their
+  - [x] Over the 121 worlds, the members of a company share one journey key and the same max intensity, and their
         developed melodies have the same starts and lengths at every measure of a 100-measure run (spec success
         criterion 3). The family case goes back from Task 28's hand-set values to the seeded ones.
-  - [ ] A theme whose column moves the band re-derives each robot's value in place, with no melody regeneration and no
+  - [x] A theme whose column moves the band re-derives each robot's value in place, with no melody regeneration and no
         engine call.
 
   **Verification:** `npx vitest run src/systems/spawnSystem.test.ts src/systems/spawnSystem.families.test.ts src/systems/aspectDeal.test.ts src/systems/aspectDeal.widened.test.ts`
@@ -1172,10 +1173,10 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** RED test — `src/utils/sessionDiff.test.ts` and `src/utils/worldDiffCodec.test.ts`: the round trips.
 
   **Acceptance criteria:**
-  - [ ] An untouched robot has no max intensity key in a save.
-  - [ ] Save, edit, wipe and load brings back both settings on a robot, and a company-wide edit on every member.
-  - [ ] A world link round-trips both.
-  - [ ] A max intensity that is not a finite number, in a save or a link, is dropped on its own, and the robot keeps
+  - [x] An untouched robot has no max intensity key in a save.
+  - [x] Save, edit, wipe and load brings back both settings on a robot, and a company-wide edit on every member.
+  - [x] A world link round-trips both.
+  - [x] A max intensity that is not a finite number, in a save or a link, is dropped on its own, and the robot keeps
         its seeded value.
 
   **Verification:** `npx vitest run src/utils/sessionDiff.test.ts src/utils/worldDiffCodec.test.ts src/utils/seedBaseline.test.ts src/utils/sessionShareUtils.test.ts`
@@ -1199,8 +1200,8 @@ rate, and everything that carries `development`. Their text is left as the recor
   own dataId, so taking two out moves none of the rest.
 
   **Acceptance criteria:**
-  - [ ] Nothing reads the band, the seeder or the baseline's `development`.
-  - [ ] The other Melody fields, max intensity among them, draw exactly what they drew.
+  - [x] Nothing reads the band, the seeder or the baseline's `development`.
+  - [x] The other Melody fields, max intensity among them, draw exactly what they drew.
 
   **Verification:** `npx vitest run src/systems/robotFieldDerivation.test.ts src/data/bands/classic.test.ts src/data/bands/resolveBands.test.ts src/systems/spawnSystem.test.ts src/systems/aspectDeal.widened.test.ts`
   passes.
@@ -1223,9 +1224,9 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** Read — a deletion. No new test.
 
   **Acceptance criteria:**
-  - [ ] No robot, snapshot, diff, band or constant carries `development`; what is left of the word in `src/` is the
+  - [x] No robot, snapshot, diff, band or constant carries `development`; what is left of the word in `src/` is the
         changes module and its callers.
-  - [ ] `npm test`, `npm run build:types`, `npm run lint` and `npm run build` pass.
+  - [x] `npm test`, `npm run build:types`, `npm run lint` and `npm run build` pass.
 
   **Verification:** the full suite and the build; `development` searched for in `src/` by hand before the commit, and
   what remains listed in the commit message.
