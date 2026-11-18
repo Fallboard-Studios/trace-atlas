@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { Toggle } from '@/components/ui/controls/Toggle';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
@@ -123,6 +123,9 @@ export const CompositionRhythmMelodySection = memo(function CompositionRhythmMel
   const pitchRepeatDisabled = disabled || value.rhythmicMotifLength === 0;
   // Journey does nothing while Max Intensity is 0: dimmed, its value kept (§1.10).
   const journeyDisabled = disabled || value.journeyMaxIntensity === 0;
+  // RadioButton hands back a string; JOURNEY_SCHEMA's options are the three settings. Memoised so an edit to another
+  // field does not hand the memoised radio a new onChange (LevelsSections' Audio Setting, the same way).
+  const handleJourneyChange = useCallback((v: string) => onJourneyChange(v as JourneySetting), [onJourneyChange]);
   return (
     <DirectionalPanel schema={RHYTHM_MELODY_P1_SCHEMA}>
       <DirectionalPanel schema={RHYTHM_MELODY_P1_R1_SCHEMA}>
@@ -147,7 +150,7 @@ export const CompositionRhythmMelodySection = memo(function CompositionRhythmMel
         <RadioButton
           schema={JOURNEY_SCHEMA}
           value={value.journey}
-          onChange={onJourneyChange as (value: string) => void}
+          onChange={handleJourneyChange}
           disabled={journeyDisabled}
         />
       </DirectionalPanel>
