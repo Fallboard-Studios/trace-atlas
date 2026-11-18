@@ -3,7 +3,16 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { JOURNEY_TIME_MAX, MAX_POLYPHONY, MIN_LEAD, MIN_SOUNDING_SECONDS, STATION_FADE_RECOVER_SECONDS } from '../constants';
+import {
+  JOURNEY_BUSY_ACCENT_GAIN,
+  JOURNEY_BUSY_LENGTH_CUT,
+  JOURNEY_CALM_VELOCITY_CUT,
+  JOURNEY_TIME_MAX,
+  MAX_POLYPHONY,
+  MIN_LEAD,
+  MIN_SOUNDING_SECONDS,
+  STATION_FADE_RECOVER_SECONDS,
+} from '../constants';
 
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testLocale') }));
 
@@ -7921,13 +7930,24 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         `${step}|${note}|${typeof duration === 'number' ? duration.toFixed(4) : String(duration)}`;
       /** What the engine plays for plain events (no rest, mark or accent): pitch through the palette step, length
        *  from sixteenths at the pretend tempo. */
-      const expected = (events: Array<Record<string, any>>, range: [number, number] = RANGE) =>
+      const expected = (
+        events: Array<Record<string, any>>,
+        range: [number, number] = RANGE,
+        perf: { level: number; floor: number } = { level: 0, floor: 1 },
+      ) =>
         events
           .map((e) => {
             const n = e.pitchStep
               ? harmony.stepInPalette(PALETTE, e.noteIndex, e.octave, e.pitchStep, range)
               : { note: PALETTE[e.noteIndex], octave: e.octave };
-            return fmt(e.startStep, `${n.note}${n.octave}`, e.sixteenths !== undefined ? e.sixteenths * SECONDS['16n'] : e.length);
+            // The busy cut (journey dynamics): a busy level shortens the note, never under the floor.
+            const written = e.sixteenths !== undefined ? e.sixteenths * SECONDS['16n'] : SECONDS[e.length] ?? 1;
+            const cut =
+              perf.level > 0
+                ? Math.max(Math.min(written, perf.floor * SECONDS['16n']), written * (1 - JOURNEY_BUSY_LENGTH_CUT * perf.level))
+                : written;
+            const duration = cut < written ? cut : e.sixteenths !== undefined ? written : e.length;
+            return fmt(e.startStep, `${n.note}${n.octave}`, duration);
           })
           .sort();
       /** The robot's position at `measure` on its stored bounds, with the calm limit of `home`. */
@@ -7943,11 +7963,19 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         const bounds = { maxIntensity: j.maxIntensity, maxTime: j.maxTime, calmLimit: real.calmLimit(home as never) };
         return { ...j, variation: { key: j.key, trip: journey.journeyAt(j.key, bounds, measure).trip } };
       };
+      /** The journey's level for the robot at `measure` (journeyAt), and the robot's floor: what its performance
+       *  follows (journey dynamics). */
+      const perfOf = (robot: Journeyed, measure: number, home = HOME) => {
+        const j = journey.robotJourney(robot as never, WORLD_KEY, bpmTop);
+        const bounds = { maxIntensity: j.maxIntensity, maxTime: j.maxTime, calmLimit: real.calmLimit(home as never) };
+        return { level: journey.journeyAt(j.key, bounds, measure).level, floor: j.floor };
+      };
       /** The robot's melody at `measure`, by the real journey and the real changes. */
       const oracle = (robot: Journeyed, measure: number, home = HOME) =>
         expected(
           real.developMelody(home as never, positionOf(robot, measure, home), optionsOf(robot, measure, home)) as never,
           robot.octaveRange as [number, number],
+          perfOf(robot, measure, home),
         );
       /** Whether the trip at `measure` happens to take the changes in the order they are written in (the worked
        *  examples below are in that order): the rhythm with the trip's order equals the rhythm without it. */
@@ -7968,7 +7996,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         }
         return out.sort();
       };
-      return { ...ctx, development, positionOf, optionsOf, asWritten, oracle, played, expected, journey, real, bpmTop };
+      return { ...ctx, development, positionOf, optionsOf, perfOf, asWritten, oracle, played, expected, journey, real, bpmTop };
     }
 
     afterEach(() => {
@@ -8090,7 +8118,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     it('a robot plays the position at its max intensity and the journey max time of 16, whatever max time it carries', async () => {
       const plain = developing('plain', { journeyMaxIntensity: 8 });
       const stray = developing('stray', { journeyMaxIntensity: 8, journeyMaxTime: 2, compositionSeed: 0.8125 });
-      const { AudioEngine, played, expected, optionsOf, journey, real, bpmTop } = await setupJourney([plain, stray]);
+      const { AudioEngine, played, expected, optionsOf, perfOf, journey, real, bpmTop } = await setupJourney([plain, stray]);
       AudioEngine.registerRobotMelody('plain', HOME as never);
       AudioEngine.registerRobotMelody('stray', HOME as never);
       for (const [id, robot] of [['plain', plain], ['stray', stray]] as const) {
@@ -8100,7 +8128,9 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         for (let m = 0; m <= 96; m++) {
           const position = journey.journeyPosition(j.key, bounds, m);
           if (position !== 0) moved++;
-          expect(played(id, m), `${id} m${m}`).toEqual(expected(real.developMelody(HOME as never, position, optionsOf(robot, m)) as never));
+          expect(played(id, m), `${id} m${m}`).toEqual(
+            expected(real.developMelody(HOME as never, position, optionsOf(robot, m)) as never, RANGE, perfOf(robot, m)),
+          );
         }
         expect(moved, id).toBeGreaterThan(0);
       }
@@ -8115,7 +8145,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         journeyMaxTime: 2, // a leftover from an old save: never read
         compositionSeed: 0.9,
       });
-      const { AudioEngine, played, expected, optionsOf, journey, real, bpmTop } = await setupJourney([deep, shallow]);
+      const { AudioEngine, played, expected, optionsOf, perfOf, journey, real, bpmTop } = await setupJourney([deep, shallow]);
       AudioEngine.registerRobotMelody('deep', HOME as never);
       AudioEngine.registerRobotMelody('shallow', HOME as never);
       const key = journey.robotJourney(deep as never, WORLD_KEY, bpmTop).key;
@@ -8131,7 +8161,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         turns++;
         for (const [id, robot, pairs] of robots) {
           expect(played(id, turn), `${id} pair ${i} at ${turn}`).toEqual(
-            expected(real.developMelody(HOME as never, pairs[i].intensity, optionsOf(robot, turn)) as never),
+            expected(real.developMelody(HOME as never, pairs[i].intensity, optionsOf(robot, turn)) as never, RANGE, perfOf(robot, turn)),
           );
         }
       }
@@ -8239,40 +8269,165 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         });
         expect(seed).toBeDefined();
         const r = developing('r', { compositionSeed: seed, rhythmicMotifLength: motif });
-        const { AudioEngine, stepNotes, positionOf, asWritten } = await setupJourney([r]);
+        const { AudioEngine, stepNotes, positionOf, perfOf, asWritten } = await setupJourney([r]);
         AudioEngine.registerRobotMelody('r', marked as never);
         const m = firstMeasure((k) => positionOf(r, k) === 3 && asWritten(r, k, marked as never));
         const read = (step: number) => at(stepNotes(atStep(step, m), 0), 'r');
+        // A busy measure: the level deepens each accent's lift and shortens each note, never under the floor (one
+        // sixteenth here, 0.075 s).
+        const { level, floor } = perfOf(r, m, marked as never);
+        expect(level).toBeGreaterThan(0);
+        expect(floor).toBe(1);
+        const lifted = (accent: number) => 1 + (accent - 1) * (1 + JOURNEY_BUSY_ACCENT_GAIN * level);
+        const cut = (seconds: number) => Math.max(Math.min(seconds, 0.075), seconds * (1 - JOURNEY_BUSY_LENGTH_CUT * level));
 
         const [a] = read(1);
-        expect(a.accentMultiplier).toBe(1.25);
-        expect(a.duration).toBeCloseTo(6 * 0.075 * 0.5, 10);
+        expect(a.accentMultiplier).toBeCloseTo(lifted(1.25), 10);
+        expect(a.duration).toBeCloseTo(cut(6 * 0.075 * 0.5), 10);
         expect(a.release).toBe(0.03);
         const [b] = read(9);
-        expect(b.accentMultiplier).toBe(1.2);
+        expect(b.accentMultiplier).toBeCloseTo(lifted(1.2), 10);
         expect(b.duration).toBeCloseTo(0.075, 10);
         for (const [step, sixteenths] of [[7, 2], [10, 1], [11, 2]]) {
           const [added] = read(step);
           expect(added.accentMultiplier).toBeUndefined();
-          expect(added.duration).toBeCloseTo(sixteenths * 0.075, 10);
+          expect(added.duration).toBeCloseTo(cut(sixteenths * 0.075), 10);
           expect('release' in added).toBe(false);
         }
         const [c] = read(13);
         expect(c.accentMultiplier).toBeUndefined();
-        expect(c.duration).toBe('8n');
+        expect(c.duration).toBeCloseTo(cut(0.15), 10);
+        expect('release' in c).toBe(false);
       });
 
       it('calmer: a tied-away accented note takes its accent with it; the note before keeps its own', async () => {
         // Motif windows of 4 accent A (window 0), B (window 2) and C (window 3). Position -1 ties C into B.
         const r = developing('r', { rhythmicMotifLength: { active: true, value: 4 } });
-        const { AudioEngine, stepNotes, positionOf, asWritten } = await setupJourney([r]);
+        const { AudioEngine, stepNotes, positionOf, perfOf, asWritten } = await setupJourney([r]);
         AudioEngine.registerRobotMelody('r', HOME as never);
         const m = firstMeasure((k) => positionOf(r, k) === -1 && asWritten(r, k));
+        // A calm measure: every note is quieter by the level's share of the calm cut, the accent still on top.
+        const { level } = perfOf(r, m);
+        expect(level).toBeLessThan(0);
+        const quiet = 1 + JOURNEY_CALM_VELOCITY_CUT * level;
         expect(at(stepNotes(atStep(13, m), 0), 'r')).toEqual([]);
         const [b] = at(stepNotes(atStep(9, m), 0), 'r');
-        expect(b.accentMultiplier).toBe(1.25);
+        expect(b.accentMultiplier).toBeCloseTo(1.25 * quiet, 10);
         expect(b.duration).toBeCloseTo(6 * 0.075, 10);
-        expect(at(stepNotes(atStep(1, m), 0), 'r')[0].accentMultiplier).toBe(1.25);
+        expect(at(stepNotes(atStep(1, m), 0), 'r')[0].accentMultiplier).toBeCloseTo(1.25 * quiet, 10);
+      });
+    });
+
+    // Journey dynamics (2026-11-18): the performance follows the journey's level, which moves every measure. Calm is
+    // quieter; busy is shorter, with deeper accents. Nothing is louder than home but an accent.
+    describe('the performance follows the level', () => {
+      const at = <T extends { robotId: string }>(notes: T[], id: string) => notes.filter((n) => n.robotId === id);
+      /** HOME as the engine reads it at `m`, by its home ids' steps: A at 1, B at 9, C at 13. */
+      const homeNotes = (stepNotes: (at: ReturnType<typeof atStep>, time: number) => any[], m: number) =>
+        [1, 9, 13].map((step) => at(stepNotes(atStep(step, m), 0), 'r')[0]);
+
+      it('calm: each note is quieter by the level share of the calm cut, at its written length, while the robot is still at home', async () => {
+        const r = developing('r');
+        const { AudioEngine, stepNotes, positionOf, perfOf } = await setupJourney([r]);
+        AudioEngine.registerRobotMelody('r', HOME as never);
+        // The level moves before the first whole change does.
+        const m = firstMeasure((k) => positionOf(r, k) === 0 && perfOf(r, k).level < -0.03);
+        const { level } = perfOf(r, m);
+        const [a, b, c] = homeNotes(stepNotes, m);
+        for (const n of [a, b, c]) expect(n.accentMultiplier).toBeCloseTo(1 + JOURNEY_CALM_VELOCITY_CUT * level, 10);
+        expect(a.accentMultiplier).toBeLessThan(1);
+        expect([a.duration, b.duration, c.duration]).toEqual(['2n', '4n', '8n']);
+        for (const n of [a, b, c]) expect('release' in n).toBe(false);
+      });
+
+      it('busy: each note sounds shorter by the level share of the busy cut, with its own release and no change in level', async () => {
+        const r = developing('r');
+        const { AudioEngine, stepNotes, positionOf, perfOf } = await setupJourney([r]);
+        AudioEngine.registerRobotMelody('r', HOME as never);
+        const m = firstMeasure((k) => positionOf(r, k) === 0 && perfOf(r, k).level > 0.03);
+        const { level } = perfOf(r, m);
+        const [a, b, c] = homeNotes(stepNotes, m);
+        // The pretend tempo: a half note is 1 s, a quarter 0.3 s, an eighth 0.15 s.
+        expect(a.duration).toBeCloseTo(1 * (1 - JOURNEY_BUSY_LENGTH_CUT * level), 10);
+        expect(b.duration).toBeCloseTo(0.3 * (1 - JOURNEY_BUSY_LENGTH_CUT * level), 10);
+        expect(c.duration).toBeCloseTo(0.15 * (1 - JOURNEY_BUSY_LENGTH_CUT * level), 10);
+        for (const n of [a, b, c]) {
+          expect('release' in n).toBe(false);
+          expect(n.accentMultiplier).toBeUndefined();
+        }
+      });
+
+      it('busy: an accent lifts further, by the level share of the accent gain', async () => {
+        const r = developing('r', { rhythmicMotifLength: { active: true, value: 16 } });
+        const { AudioEngine, stepNotes, positionOf, perfOf } = await setupJourney([r]);
+        AudioEngine.registerRobotMelody('r', HOME as never);
+        const m = firstMeasure((k) => positionOf(r, k) === 0 && perfOf(r, k).level > 0.03);
+        const { level } = perfOf(r, m);
+        const [a, b] = homeNotes(stepNotes, m);
+        expect(a.accentMultiplier).toBeCloseTo(1 + 0.25 * (1 + JOURNEY_BUSY_ACCENT_GAIN * level), 10);
+        expect(a.accentMultiplier).toBeGreaterThan(1.25);
+        expect(b.accentMultiplier).toBeUndefined();
+      });
+
+      it('busy: a note is never cut under the robot floor, and a note at or under it keeps its written length', async () => {
+        const r = developing('r', {
+          journeyMaxIntensity: 16,
+          audioAttributes: { adsr: { ...TEST_ADSR, attack: 1.14 }, waveform: 'sine', filterFreq: 100 },
+        });
+        const { AudioEngine, stepNotes, perfOf } = await setupJourney([r]);
+        // A full bar of 6, 6 and 4 sixteenths against a floor of 4: no note is two floors long and there is no gap,
+        // so no busy change touches the rhythm, and each note sounds on its home step at every busy position.
+        const LONG = [
+          eventFixture({ id: 'A', startStep: 1, length: '4n', sixteenths: 6, noteIndex: 0 }),
+          eventFixture({ id: 'B', startStep: 7, length: '4n', sixteenths: 6, noteIndex: 2 }),
+          eventFixture({ id: 'C', startStep: 13, length: '4n', sixteenths: 4, noteIndex: 4 }),
+        ];
+        AudioEngine.registerRobotMelody('r', LONG as never);
+        expect(perfOf(r, 1, LONG as never).floor).toBe(4); // precondition: the 4-long note is at the floor
+        const read = (m: number) => [1, 7, 13].map((step) => at(stepNotes(atStep(step, m), 0), 'r')[0]);
+
+        // A mild busy level: the two long notes are cut by its share, still over the floor.
+        const mild = firstMeasure((k) => perfOf(r, k, LONG as never).level > 0.2 && perfOf(r, k, LONG as never).level < 0.5);
+        const mildLevel = perfOf(r, mild, LONG as never).level;
+        const [a, b, c] = read(mild);
+        expect(a.duration).toBeCloseTo(6 * 0.075 * (1 - JOURNEY_BUSY_LENGTH_CUT * mildLevel), 10);
+        expect(b.duration).toBeCloseTo(6 * 0.075 * (1 - JOURNEY_BUSY_LENGTH_CUT * mildLevel), 10);
+        expect(a.duration).toBeGreaterThan(4 * 0.075);
+        expect(c.duration).toBeCloseTo(4 * 0.075, 10);
+
+        // A deep one: the cut would take them under the floor (6 x 0.66 is under 4), so they stop at it.
+        const deep = firstMeasure((k) => perfOf(r, k, LONG as never).level > 0.85);
+        const [a2, b2, c2] = read(deep);
+        expect(a2.duration).toBeCloseTo(4 * 0.075, 10);
+        expect(b2.duration).toBeCloseTo(4 * 0.075, 10);
+        expect(c2.duration).toBeCloseTo(4 * 0.075, 10);
+      });
+
+      it('moves every measure of a ramp, where the whole-change position waits', async () => {
+        const r = developing('r');
+        const { AudioEngine, stepNotes, positionOf, perfOf } = await setupJourney([r]);
+        AudioEngine.registerRobotMelody('r', HOME as never);
+        // Two measures running at home with the level going down: the second is quieter than the first.
+        const m = firstMeasure((k) => positionOf(r, k) === 0 && positionOf(r, k + 1) === 0 && perfOf(r, k + 1).level < perfOf(r, k).level && perfOf(r, k).level < 0);
+        const first = homeNotes(stepNotes, m)[0].accentMultiplier;
+        const second = homeNotes(stepNotes, m + 1)[0].accentMultiplier;
+        expect(second).toBeLessThan(first);
+      });
+
+      it('leaves a robot at a max intensity of 0, and a Click Track robot, as written', async () => {
+        const zero = developing('r', { journeyMaxIntensity: 0, rhythmicMotifLength: { active: true, value: 16 } });
+        const ctx = await setupJourney([zero]);
+        ctx.AudioEngine.registerRobotMelody('r', HOME as never);
+        for (let m = 0; m <= 64; m++) {
+          const [a, b, c] = homeNotes(ctx.stepNotes, m);
+          expect([a.accentMultiplier, b.accentMultiplier, c.accentMultiplier]).toEqual([1.25, undefined, undefined]);
+          expect([a.duration, b.duration, c.duration]).toEqual(['2n', '4n', '8n']);
+        }
+        const click = developing('r', { journeyMaxIntensity: 16, clickTrackActive: true });
+        const clicks = await setupJourney([click]);
+        clicks.AudioEngine.registerRobotMelody('r', HOME as never);
+        const first = at(clicks.stepNotes(atStep(1, 0), 0), 'r');
+        for (let m = 0; m <= 64; m++) expect(at(clicks.stepNotes(atStep(1, m), 0), 'r')).toEqual(first.map((n) => ({ ...n, position: m * 16 })));
       });
     });
   });

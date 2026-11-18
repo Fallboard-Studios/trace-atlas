@@ -7,7 +7,7 @@
 import type { MelodyEvent, Robot } from '../../types/Robot';
 import type { MusicPosition } from '../beatClock';
 import { buildClickTrackMelody } from '../clickTrack';
-import { journeyAt, robotJourney } from '../melodyJourney';
+import { journeyAt, robotJourney, type RobotJourney } from '../melodyJourney';
 import { calmLimit, developMelody } from '../melodyDevelopment';
 
 /** One event a robot plays on a step, as stepNotes reads it. */
@@ -20,6 +20,12 @@ export interface MelodyEventEntry {
   /** True when this entry belongs to the substituted click-track melody (registerMelody): a tempo reference
    * is never humanized. */
   clickTrack?: boolean;
+  /** The robot's journey level at the step's measure (journeyAt), −1 to 1, for the performance to follow (stepNotes).
+   *  Absent at a level of 0: a robot at home, off its journey, or on the click track. */
+  level?: number;
+  /** The robot's floor in sixteenths (developmentFloor), which a busy level's shorter note is never cut under. Set
+   *  with `level`. */
+  floor?: number;
 }
 
 /** One robot's registration (melody journey Tasks 13, 14): the melody it registered (the click track's while that is
@@ -113,7 +119,8 @@ export function registeredEvents(robotId: string): MelodyEvent[] {
  * robot for the DEVELOPED_KEPT positions it read most recently and rebuilt only when the position, the trip or an
  * input (the floor, the seed, the octave range, the journey) changes. A robot the store does not
  * hold, a Click Track robot, and a robot at position 0 play what is registered. The accent stays on the home event
- * that had it (by id); a note a change adds is never accented.
+ * that had it (by id); a note a change adds is never accented. Away from a level of 0 each entry handed back is a copy
+ * carrying the level and the robot's floor, for the performance to follow (stepNotes).
  */
 function entriesOnStep(
   robotId: string,
@@ -126,8 +133,23 @@ function entriesOnStep(
   if (registered.clickTrack || !robot) return registered.byStep.get(at.step);
   const journey = robotJourney(robot, worldKey, bpmTop);
   const bounds = { maxIntensity: journey.maxIntensity, maxTime: journey.maxTime, calmLimit: calmLimit(registered.melody) };
-  const { position, trip } = journeyAt(journey.key, bounds, at.measure);
-  if (position === 0) return registered.byStep.get(at.step);
+  const { position, trip, level } = journeyAt(journey.key, bounds, at.measure);
+  const onStep = position === 0 ? registered.byStep.get(at.step) : developedOnStep(robotId, registered, journey, position, trip, at.step);
+  // The level moves every measure, so it rides on a copy of each entry; the kept entries stay as they were built.
+  if (!onStep || level === 0) return onStep;
+  return onStep.map((entry) => ({ ...entry, level, floor: journey.floor }));
+}
+
+/** One robot's entries on `step` at a position other than home, on `trip`'s path: built by developMelody and kept
+ *  (entriesOnStep). */
+function developedOnStep(
+  robotId: string,
+  registered: RegisteredRobot,
+  journey: RobotJourney,
+  position: number,
+  trip: number,
+  step: number,
+): MelodyEventEntry[] | undefined {
   // The changes take a different path each trip, so the trip (and the journey it is counted on) is part of what a
   // developed melody is.
   const kept = `${position}:${journey.floor}:${journey.seed}:${journey.octaveRange?.join('-') ?? ''}:${trip}:${journey.key}`;
@@ -147,7 +169,7 @@ function entriesOnStep(
     if (registered.developed.size >= DEVELOPED_KEPT) registered.developed.delete(registered.developed.keys().next().value!);
   }
   registered.developed.set(kept, byStep);
-  return byStep.get(at.step);
+  return byStep.get(step);
 }
 
 /**

@@ -14,7 +14,7 @@ import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
 import { paletteForMeasure, stepInPalette } from './harmonySystem';
 import { resetBeatClock, initBeatClock, positionAt, getTickSeconds, type MusicPosition } from './beatClock';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS, STATION_FADE_RECOVER_SECONDS } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS, STATION_FADE_RECOVER_SECONDS, JOURNEY_BUSY_ACCENT_GAIN, JOURNEY_BUSY_LENGTH_CUT, JOURNEY_CALM_VELOCITY_CUT } from '../constants';
 import { emitRobotNote, getNotePreviewSeconds, hasRobotNoteListener } from './noteEvents';
 import { readContextSeconds } from './nativeContext';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
@@ -91,7 +91,8 @@ export interface NoteParams {
   time?: number;
   velocity?: number;
   /** Multiplies the resolved velocity (before clamping to 1). Used for the
-   * motif-group accent — see GROUP_ACCENT_MULTIPLIER. */
+   * motif-group accent — see GROUP_ACCENT_MULTIPLIER — the marks' velocities, and the journey's level: a deeper accent
+   * on the busy side, a quieter note on the calm side (stepNotes). */
   accentMultiplier?: number;
   /** The roll position the velocity roll keys off, together with the robot's compositionSeed: the sixteenths since the
    * transport's tick 0 at the note's step (processMelodyStep's MusicPosition, docs/specs/ONE_MUSIC_CLOCK.md §4.4), so a
@@ -847,6 +848,8 @@ function humanizeOffsetFor(position: number, roster: readonly Robot[]): (robotId
  *   (floored at MIN_SOUNDING_SECONDS, never longer than written) with a short release (docs/specs/
  *   ROBOT_PERFORMANCE.md §1.3; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b);
  * - accent: the motif-group accent times the mark's velocity, absent when 1;
+ * - the journey's level (the entry's `level`, journeyAt): on the busy side the note sounds shorter, never under the
+ *   robot's floor, and an accent lifts further; on the calm side the note is quieter (journey dynamics);
  * - start: `time + MIN_LEAD` plus the Humanize roll at `at.sixteenth` (none for a Click Track entry);
  * - position: `at.sixteenth`, the roll position the velocity roll keys off (docs/specs/ONE_MUSIC_CLOCK.md §4.4).
  *
@@ -868,7 +871,7 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
   const humanizeOffset = humanizeOffsetFor(position, roster);
   const out: NoteParams[] = [];
 
-  events.forEach(({ robotId, event, isGroupAccent, clickTrack }) => {
+  events.forEach(({ robotId, event, isGroupAccent, clickTrack, level = 0, floor = 1 }) => {
     // Each event is isolated: one robot's bad event must not cost the rest of the step.
     try {
       const noteName = notes[event.noteIndex];
@@ -897,7 +900,20 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
         const ownRelease = robotOf(robotId)?.audioAttributes?.adsr?.release;
         release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
       }
-      const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
+      // The performance follows the journey's level (journey dynamics). Busy: the note sounds shorter by the level's
+      // share of the busy cut, never under the robot's floor (its attack would not climb) and on its own release, so
+      // nothing but the length moves. A note already at or under the floor is left as it is.
+      if (level > 0) {
+        const soundingSeconds = typeof duration === 'number' ? duration : Tone.Time(duration).toSeconds();
+        const floorSeconds = Math.max(MIN_SOUNDING_SECONDS, Tone.Time('16n').toSeconds() * floor);
+        const cut = Math.max(Math.min(soundingSeconds, floorSeconds), soundingSeconds * (1 - JOURNEY_BUSY_LENGTH_CUT * level));
+        if (cut < soundingSeconds) duration = cut;
+      }
+      // Busy: an accent's lift over an unaccented note grows by the level's share of the accent gain. Calm: every note
+      // is quieter by the level's share of the calm cut. Nothing but an accent is louder than home.
+      const accent = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
+      const lifted = level > 0 ? 1 + (accent - 1) * (1 + JOURNEY_BUSY_ACCENT_GAIN * level) : accent;
+      const accentMultiplier = level < 0 ? lifted * (1 + JOURNEY_CALM_VELOCITY_CUT * level) : lifted;
 
       out.push({
         robotId,
