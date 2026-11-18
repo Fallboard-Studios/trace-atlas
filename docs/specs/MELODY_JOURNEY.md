@@ -639,7 +639,8 @@ Phases 1 to 5 of the plan were built on `feature/melody-journey` before the revi
 
 - The changes: `src/engine/melodyDevelopment.ts`, with its sweep over the 121 worlds.
 - The event's two fields (`sixteenths`, `pitchStep`), the palette step, and the engine's read of a measure's melody
-  with its per-robot cache (`entriesOnStep`, `src/engine/AudioEngine.ts`). The cache is keyed on the position, so it
+  with its per-robot cache (`entriesOnStep`, `src/engine/audioEngine/melodyRegistry.ts`, moved out of
+  `AudioEngine.ts` after review; the least recently read position goes first). The cache is keyed on the position, so it
   does not care how the position was reached.
 - The removal of docking pitch drift.
 - `Robot.journey`, its three scopes and their keys (`journeyKey`), its radio control, its broadcast, its place in
@@ -705,7 +706,7 @@ Phase 10):
 | The band | `'robot.journeyMaxIntensity': { min: 1, max: 16, lit: 0.7 }`, a Melody family key; no theme or aspect column names it | `src/data/bands/classic.ts` |
 | The floor | `ceil(ATTACK_REACH_SHARE` (0.5) `× attack ÷ a sixteenth at the top of the bpm band)`, never under 1 | `developmentFloor` |
 | A direction | up when the `${compositionSeed}:development` draw is under 0.5 | `melodyDevelopment.ts` |
-| Positions kept per robot | `DEVELOPED_KEPT` 4 | `src/engine/AudioEngine.ts` |
+| Positions kept per robot | `DEVELOPED_KEPT` 4, the least recently read going first | `src/engine/audioEngine/melodyRegistry.ts` |
 | Link keys | `ji` (max intensity), `jy` (Journey); `dv` ignored | `worldDiffCodec.ts` |
 | The changes | A1 to A11 of §7.1 as written; B1 to B10 and B15 of §7.3 as written | `melodyDevelopment.ts`, `melodyJourney.ts` |
 

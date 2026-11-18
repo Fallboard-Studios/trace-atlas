@@ -639,13 +639,16 @@ alike, so both read the same measure's melody by construction.
 
 - **One store read per step.** It reads the active locale once: the stored robots, the world key (`worldKeyOf` of the
   coordinates) and `getBand('bpm').max`, the top of the theme's tempo band, for the floor.
-- **The measure's melody.** `entriesOnStep` gives each registered robot's entries on `at.step`. Registration carries
+- **The measure's melody.** The melody registry (`src/engine/audioEngine/melodyRegistry.ts`, its own module state;
+  `AudioEngine` hands it the stored robots, the world key and the bpm top) gives each registered robot's entries on
+  `at.step` through `entriesForStep`, robot by robot in registration order (`entriesOnStep`). Registration carries
   the home melody only (`registerRobotMelody`, entries by step built once, as before); the engine reads the robot's
   settings when it plays. `robotJourney(robot, worldKey, bpmTop)` gives the journey's key, the robot's max intensity,
   the journey's max time and the floor and seed; `calmLimit` of the registered melody completes the bounds; and
   `journeyPosition(key, bounds, at.measure)` gives the position. At 0 the robot plays its registered entries. Otherwise
-  `developMelody(home, position, journey)` builds the developed events by step, kept per robot for the last
-  `DEVELOPED_KEPT` (4) positions under a key of the position, floor and seed, so nothing is rebuilt per sixteenth and
+  `developMelody(home, position, journey)` builds the developed events by step, kept per robot for the
+  `DEVELOPED_KEPT` (4) positions it read most recently (a read renews a position; the least recently read goes) under
+  a key of the position, floor and seed, so nothing is rebuilt per sixteenth and
   the reads either side of a bar line find what they need. So a settings edit, a company move, a loaded save and the
   deal need no engine call: the next note reads what the store holds. A Click Track robot, and a robot the store does
   not hold, play what is registered.
