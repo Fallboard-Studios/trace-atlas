@@ -22,9 +22,11 @@ the item's own measure-first check runs, and the item archives if the check find
 ## Stage 3 — Audio refinement
 
 - Roadmap [92](roadmap.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer)
-  **The melody journey** — in build (Crawford, 2026-11-17). Phases 1 to 5 built, then the journey revised the same
-  day (intensity and time pairs in place of the walk and the Development slider); the revised plan's Phases 6 to 9
-  await his approval. A robot's melody gets busier and calmer on a seeded journey; docking pitch drift goes.
+  **The melody journey** — built and passed 2026-11-17 on `feature/melody-journey`, for Crawford's PR. A robot's
+  melody gets busier and calmer on a seeded journey; docking pitch drift goes.
+- Roadmap [93](roadmap.md#93-journey-dynamics-a-melody-journey-you-can-hear) **Journey dynamics** — built and passed
+  2026-11-19 on `feature/journey-dynamics`, on top of 92: its PR follows 92's merge. The journey made audible: the
+  calm side spread, freelancers on Fleet, octave jumps, a path per trip, the playing following the level.
 
 ## Stage 4 — Visual refinement
 

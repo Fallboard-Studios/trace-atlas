@@ -671,4 +671,41 @@ edit; the editor is out of this piece (Crawford, 2026-11-17) and needs its own i
 - After the merge: the plan's Task 23 moves this entry to the archive.
 - It changes every world's sound, so it lands before backlog
   [45](backlog.md#45-off-screen-crawfords-three-preset-links).
+- Roadmap [93](#93-journey-dynamics-a-melody-journey-you-can-hear) builds on it: merge 92 first.
+
+## 93. Journey Dynamics: A Melody Journey You Can Hear
+
+Raised by Crawford on 2026-11-18, after hearing roadmap
+[92](#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer)'s journey: "not quite
+as dynamic as i'd hoped". Six changes, proposed from measurements and taken with his notes the same day. Intent: the
+"Journey dynamics" section of [melody-journey.md](../intent/melody-journey.md#journey-dynamics-roadmap-93); spec:
+[MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md#10-journey-dynamics-roadmap-93) §10, which supersedes §1 to §9 where
+they differ. No task file: built straight from the conversation, one commit a change.
+
+### About
+
+The journey changed little that a listener could hear. The busy side was mostly pitch shifts that undid each other,
+the calm side sat on its floor, the freelancers' journeys of their own cancelled out across the fleet, and nothing in
+the playing moved with it. Now:
+
+- the calm side is spread over the calm changes a robot has, instead of clamped to them;
+- the freelancers, and a robot on Company with no company, travel on Fleet, so they rise and fall together;
+- a shifted note keeps the way it first went;
+- octave jumps are a busy change, up from octave 1, 4 or 5 and down from any other (Crawford's octaves);
+- each trip away from home takes its own path, drawn from the journey and never the robot, so a company keeps one
+  rhythm;
+- the playing follows the journey's level: quieter on the calm side, shorter with deeper accents on the busy side,
+  the same swing at every max intensity.
+
+### Open
+
+- **Built 2026-11-18 and 2026-11-19** on `feature/journey-dynamics` (branched from `feature/melody-journey`),
+  unpushed, for Crawford's PR after 92's: what each change does and its commit, every new number and what is mine
+  rather than his are the spec's §10. Reviewed (two missing tests found by mutation and added); suite 14,807 passed,
+  0 failed.
+- **Passed on his listen** (2026-11-19, "ok i'm happy with my listen"); the three performance numbers ship as first
+  cut.
+- **Perf check passed** ([PERFORMANCE.md](../PERFORMANCE.md#journey-dynamics-roadmap-93-2026-11-19)): about 4 µs a
+  step on the main thread, the audio thread unchanged. Not heard on a phone.
+- After the merge: this entry moves to the archive with 92's.
 

@@ -4,6 +4,11 @@ Source spec: [docs/specs/MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md). Source 
 [docs/intent/melody-journey.md](../intent/melody-journey.md). Roadmap
 [92](../todo/roadmap.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer).
 
+> **After this plan:** roadmap 93, journey dynamics (2026-11-18 and 2026-11-19), changed parts of what it built,
+> without a task file of its own: the spec's [§10](../specs/MELODY_JOURNEY.md#10-journey-dynamics-roadmap-93) lists
+> every change with its commit. This plan is left as the record of 92's build; where it names `journeyPosition`, read
+> `journeyAt(...).position`.
+
 **Status:** plan written 2026-11-17; Crawford asked for Phase 1 the same day. Phase 1 built on `feature/melody-journey`
 (Tasks 1–7, ab4c5bbc..8ca7100e). Checkpoint A's suite, mutation checks and path lengths done (Results); its review
 with Crawford is next. Phase 2 built the same day (Tasks 8–9, 5fb21a7b, 4d088fb0); Checkpoint B's suite and probe
