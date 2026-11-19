@@ -580,12 +580,12 @@ describe('journeyAt: the position and the trip', () => {
       }
     });
 
-    it('scales with max intensity: at 8 it is half what it is at 16, and at 4 a quarter', () => {
+    it('does not read max intensity (Crawford, 2026-11-19): at 8, 4 and 1 it is what it is at 16; at 0 it is 0', () => {
       for (const key of KEYS) {
         for (let m = 0; m <= 400; m++) {
           const full = journeyAt(key, b(16, 15), m).level;
-          expect(journeyAt(key, b(8, 15), m).level).toBeCloseTo(full / 2, 10);
-          expect(journeyAt(key, b(4, 15), m).level).toBeCloseTo(full / 4, 10);
+          for (const max of [8, 4, 1]) expect(journeyAt(key, b(max, 15), m).level, `${key} m${m} at ${max}`).toBe(full);
+          expect(journeyAt(key, b(0, 15), m).level).toBe(0);
         }
       }
     });
