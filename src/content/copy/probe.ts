@@ -282,7 +282,7 @@ export const probe = {
   'probe.composition.journeyMaxIntensity': {
     human: 'Max Intensity',
     lore: 'Drift Reach',
-    help: { human: 'How far this probe’s melody may wander from its home tune: busier, with notes split and gaps filled, or calmer, with notes tied together. It travels there and back on its journey, sometimes dropping straight back on a bar line. The number is how many changes from home it may go; 0 always plays the home tune.' },
+    help: { human: 'How far this probe’s melody may wander from its home tune: busier, with notes split, gaps filled and some notes leaping an octave, played shorter with sharper accents; or calmer, with notes tied together and played softer. It travels there and back on its journey, by a different path each time, sometimes dropping straight back on a bar line. The number is how many changes from home it may go; 0 always plays the home tune.' },
   },
   'probe.composition.journey': {
     human: 'Journey',
