@@ -5,7 +5,6 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   journeyAt,
   journeyKey,
-  journeyPosition,
   journeyShares,
   positionInPairs,
   robotJourney,
@@ -28,6 +27,8 @@ import {
 // HELPERS
 // ========================================
 const WORLD = '21:-188';
+/** A robot's position on `key`'s journey at `measure` (journeyAt). */
+const positionOn = (key: string, b: JourneyBounds, measure: number) => journeyAt(key, b, measure).position;
 const OWN = journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 });
 
 // ========================================
@@ -59,7 +60,7 @@ describe('journeyKey (spec §1.3)', () => {
 
 // The engine's read of a robot's journey (spec §1.3, §1.7; roadmap 92 Task 28): a key, two bounds and a calm limit
 // give a position at any measure. The oracle is the three pure pieces of Tasks 24 to 26, read over enough shares.
-describe('journeyPosition (spec §1.3)', () => {
+describe('journeyAt: the position (spec §1.3)', () => {
   const RUN = 2000;
   const KEYS = [OWN, 'x:journey', 'y:journey', journeyKey(WORLD, { kind: 'fleet' })];
   const bounds = (maxIntensity: number, maxTime: number, calmLimit: number): JourneyBounds => ({
@@ -88,23 +89,23 @@ describe('journeyPosition (spec §1.3)', () => {
     return out;
   };
   const positions = (key: string, b: JourneyBounds, measures = RUN) =>
-    Array.from({ length: measures + 1 }, (_, m) => journeyPosition(key, b, m));
+    Array.from({ length: measures + 1 }, (_, m) => positionOn(key, b, m));
 
   it('is 0 at measure 0 for any key and bounds', () => {
-    for (const b of CASES) for (const key of [...KEYS, 'a', '']) expect(journeyPosition(key, b, 0)).toBe(0);
+    for (const b of CASES) for (const key of [...KEYS, 'a', '']) expect(positionOn(key, b, 0)).toBe(0);
   });
 
   it('is 0 at every measure at a max intensity of 0, whatever the max time and calm limit', () => {
     for (const key of KEYS) {
       for (const b of [bounds(0, 16, 15), bounds(0, 2, 0), bounds(0, 8, 3)]) {
-        for (let m = 0; m <= 500; m++) expect(journeyPosition(key, b, m)).toBe(0);
+        for (let m = 0; m <= 500; m++) expect(positionOn(key, b, m)).toBe(0);
       }
     }
   });
 
   it('is 0 at a negative or non-finite measure', () => {
     const b = bounds(16, 16, 15);
-    for (const m of [-1, -5, Number.NaN, Infinity, -Infinity]) expect(journeyPosition(OWN, b, m)).toBe(0);
+    for (const m of [-1, -5, Number.NaN, Infinity, -Infinity]) expect(positionOn(OWN, b, m)).toBe(0);
   });
 
   it('is the position inside the robot pairs at every measure of a long run, for every key and bounds', () => {
@@ -114,7 +115,7 @@ describe('journeyPosition (spec §1.3)', () => {
         const pairs = pairsOf(key, b);
         for (let m = 0; m <= RUN; m++) {
           const want = positionInPairs(pairs, m);
-          if (journeyPosition(key, b, m) !== want) misses.push(`${key} ${JSON.stringify(b)} m${m}`);
+          if (positionOn(key, b, m) !== want) misses.push(`${key} ${JSON.stringify(b)} m${m}`);
         }
       }
     }
@@ -142,7 +143,7 @@ describe('journeyPosition (spec §1.3)', () => {
         const pairs = pairsOf(key, b);
         turningMeasures(pairs).forEach((at, i) => {
           const where = `${key} ${JSON.stringify(b)} pair ${i} at ${at}`;
-          if (journeyPosition(key, b, at) !== pairs[i].intensity) misses.push(`${where}: not there`);
+          if (positionOn(key, b, at) !== pairs[i].intensity) misses.push(`${where}: not there`);
           const beforeDrop = shares[i + 1].drop;
           if (beforeDrop) drops++;
           if (beforeDrop ? at % 2 !== 1 : at % 2 !== 0) misses.push(`${where}: ${beforeDrop ? 'even before a drop' : 'odd'}`);
@@ -159,11 +160,11 @@ describe('journeyPosition (spec §1.3)', () => {
     vi.resetModules();
     const fresh = await import('./melodyJourney');
     const backwards: number[] = [];
-    for (let m = 600; m >= 0; m--) backwards[m] = fresh.journeyPosition('order:journey', b, m);
+    for (let m = 600; m >= 0; m--) backwards[m] = fresh.journeyAt('order:journey', b, m).position;
     expect(backwards).toEqual(inOrder);
     vi.resetModules();
     const jumping = await import('./melodyJourney');
-    for (const m of [600, 3, 451, 0, 99, 600, 17]) expect(jumping.journeyPosition('order:journey', b, m)).toBe(inOrder[m]);
+    for (const m of [600, 3, 451, 0, 99, 600, 17]) expect(jumping.journeyAt('order:journey', b, m).position).toBe(inOrder[m]);
   });
 
   it('reads one key at several max times in turn, each its own: no max time borrows another turning measures', () => {
@@ -171,7 +172,7 @@ describe('journeyPosition (spec §1.3)', () => {
     for (const t of [16, 2, 8, 16, 4, 2]) {
       const b = bounds(16, t, 15);
       const pairs = pairsOf(key, b, 400);
-      for (let m = 0; m <= 400; m++) expect(journeyPosition(key, b, m), `max time ${t} m${m}`).toBe(positionInPairs(pairs, m));
+      for (let m = 0; m <= 400; m++) expect(positionOn(key, b, m), `max time ${t} m${m}`).toBe(positionInPairs(pairs, m));
     }
   });
 
@@ -185,14 +186,14 @@ describe('journeyPosition (spec §1.3)', () => {
       expect(turningMeasures(pairsOf(key, long))).not.toEqual(turns);
       // Each arrives at its own depth on those measures.
       pairsOf(key, shallow).slice(0, turns.length).forEach((pair, i) => {
-        expect(journeyPosition(key, shallow, turns[i])).toBe(pair.intensity);
+        expect(positionOn(key, shallow, turns[i])).toBe(pair.intensity);
       });
     }
   });
 
   it('reads measure 10,000 straight off, and as the run up to it would', () => {
     const b = bounds(16, 16, 15);
-    const far = journeyPosition('far:journey', b, 10_000);
+    const far = positionOn('far:journey', b, 10_000);
     expect(far).toBe(positionInPairs(robotPairs(journeyShares('far:journey', 10_002), b), 10_000));
   });
 });
@@ -527,13 +528,6 @@ describe('journeyAt: the position and the trip', () => {
   const b = (maxIntensity: number, calmLimit: number): JourneyBounds => ({ maxIntensity, maxTime: 16, calmLimit });
   const CASES = [b(16, 15), b(16, 4), b(3, 2), b(8, 0)];
 
-  it('reads the position journeyPosition reads, at every measure', () => {
-    for (const key of KEYS) {
-      for (const bounds of CASES) {
-        for (let m = 0; m <= 400; m++) expect(journeyAt(key, bounds, m).position).toBe(journeyPosition(key, bounds, m));
-      }
-    }
-  });
 
   it('is trip 0 at measure 0 and through the first pair', () => {
     for (const key of KEYS) {

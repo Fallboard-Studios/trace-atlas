@@ -7893,8 +7893,8 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
   });
 
   // The melody journey's contract (docs/specs/MELODY_JOURNEY.md §1.7; roadmap 92 Tasks 14 and 28): a robot's events on
-  // a step are the events of its melody for that step's measure, developMelody(home, journeyPosition(key, bounds,
-  // measure)), read from the stored robot when it plays; the calm limit is the registered home melody's. The oracle
+  // a step are the events of its melody for that step's measure, developMelody(home, journeyAt(key, bounds,
+  // measure).position), read from the stored robot when it plays; the calm limit is the registered home melody's. The oracle
   // below is the real journey and the real changes.
   describe('a note reads its own measure melody (melody journey Tasks 14 and 28)', () => {
     const WORLD = { x: 21, y: -188 };
@@ -7954,7 +7954,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const positionOf = (robot: Journeyed, measure: number, home = HOME) => {
         const j = journey.robotJourney(robot as never, WORLD_KEY, bpmTop);
         const bounds = { maxIntensity: j.maxIntensity, maxTime: j.maxTime, calmLimit: real.calmLimit(home as never) };
-        return journey.journeyPosition(j.key, bounds, measure);
+        return journey.journeyAt(j.key, bounds, measure).position;
       };
       /** What the changes read for the robot at `measure` (developMelody's options): its journey's floor, seed and
        *  octave range, and the trip it is on there (journey dynamics: a different path each trip). */
@@ -8126,7 +8126,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
         const bounds = { maxIntensity: 8, maxTime: JOURNEY_TIME_MAX, calmLimit: real.calmLimit(HOME as never) };
         let moved = 0;
         for (let m = 0; m <= 96; m++) {
-          const position = journey.journeyPosition(j.key, bounds, m);
+          const position = journey.journeyAt(j.key, bounds, m).position;
           if (position !== 0) moved++;
           expect(played(id, m), `${id} m${m}`).toEqual(
             expected(real.developMelody(HOME as never, position, optionsOf(robot, m)) as never, RANGE, perfOf(robot, m)),

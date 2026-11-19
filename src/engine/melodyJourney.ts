@@ -235,16 +235,7 @@ function pairAt(key: string, maxTime: number, measure: number): { i: number; end
   return { i: lo, ends };
 }
 
-/**
- * How many changes from home a robot is at `measure` on `key`'s journey, scaled by its bounds (§1.3, §1.7):
- * positionInPairs over robotPairs, read without walking there. 0 at a max intensity of 0, at measure 0 and at a
- * negative or non-finite measure, so every world starts at home. Pure.
- */
-export function journeyPosition(key: string, bounds: JourneyBounds, measure: number): number {
-  return journeyAt(key, bounds, measure).position;
-}
-
-/** Where a robot is on its journey at one measure: its position (journeyPosition) and its trip. */
+/** Where a robot is on its journey at one measure: its position, its trip and its level. */
 export interface JourneyRead {
   /** Whole changes from home: busier above 0, calmer below it. */
   position: number;
