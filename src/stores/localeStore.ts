@@ -24,7 +24,9 @@ import {
   PERFORMANCE_MAX,
   PAN_MIN,
   PAN_MAX,
+  JOURNEY_INTENSITY_MAX,
 } from '../constants';
+import { JOURNEY_SETTINGS } from '../types/Robot';
 import { clampSend } from '../utils/clampSend';
 import { ROBOT_SEND_FIELDS } from '../data/robotSends';
 import { swallow } from '../utils/helpers';
@@ -188,6 +190,18 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
       }
       if (typeof normalized.pitchRepeat === 'number') {
         normalized.pitchRepeat = Math.max(PITCH_REPEAT_MIN, Math.min(PITCH_REPEAT_MAX, Math.trunc(normalized.pitchRepeat)));
+      }
+      // A robot's journey bound (docs/specs/MELODY_JOURNEY.md §1.9): max intensity a whole number from 0 to 16; NaN is dropped and the stored value
+      // kept.
+      if (typeof normalized.journeyMaxIntensity === 'number') {
+        if (Number.isNaN(normalized.journeyMaxIntensity)) {
+          delete normalized.journeyMaxIntensity;
+        } else {
+          normalized.journeyMaxIntensity = Math.max(0, Math.min(JOURNEY_INTENSITY_MAX, Math.round(normalized.journeyMaxIntensity)));
+        }
+      }
+      if ('journey' in normalized && !(JOURNEY_SETTINGS as readonly unknown[]).includes(normalized.journey)) {
+        delete normalized.journey;
       }
       for (const performanceKey of ['dynamics', 'rests', 'accents'] as const) {
         const value = normalized[performanceKey];

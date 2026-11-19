@@ -53,7 +53,7 @@ import { useAudioStore } from '../stores/audioStore';
 import type { Robot } from '../types/Robot';
 import type { SessionPayload, RobotAudioOverrideDiff } from '../types/session';
 import { SWELL_ROBOT_ATTRIBUTE_IDS } from '../types/audioSwell';
-import { companyFounders, generateCompanyMembership, generateRobotSends, spawnInitialRoster, reRegisterAllRobotsAudio } from './spawnSystem';
+import { companyFounders, generateCompanyMembership, generateRobotSends, spawnInitialCompanies, spawnInitialRoster, reRegisterAllRobotsAudio } from './spawnSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from './audioSwells';
 import { buildSessionPayload, applySessionPayload } from '../utils/sessionDiff';
@@ -312,6 +312,9 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
     it('a share link decoded and restored primes the same way, all five carried sends last', () => {
       const localeId = setupWorld('share-restore');
       spawnInitialRoster(localeId);
+      // Its seeded companies too, as every real world has them: robot 7 is a member, which the baseline puts on Company
+      // (docs/tasks/MELODY_JOURNEY.md Task 20), so without them its save would carry a journey key.
+      spawnInitialCompanies(localeId);
       const target = currentRobots()[7];
       useLocaleStore.getState().updateRobot(localeId, target.id, HAND_SET);
       const payload = buildSessionPayload();

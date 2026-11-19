@@ -288,6 +288,82 @@ describe('localeStore', () => {
       });
     });
 
+    // The melody journey's setting (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Task 12).
+    describe('journey normalisation', () => {
+      const stored = () => useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0];
+      const update = (updates: Record<string, unknown>) =>
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', updates as never);
+
+      it('stores each known journey', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (const journey of ['own', 'company', 'fleet']) {
+          update({ journey });
+          expect(stored().journey).toBe(journey);
+        }
+      });
+
+      it('drops an unknown journey, keeping the stored value and the rest of the update', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ journey: 'fleet' });
+        update({ journey: 'galaxy', masterVolume: 0.4 });
+        expect(stored().journey).toBe('fleet');
+        expect(stored().masterVolume).toBe(0.4);
+        update({ journey: 7 });
+        expect(stored().journey).toBe('fleet');
+      });
+
+      it('keeps the field absent on a robot updated without it', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ masterVolume: 0.4 });
+        expect('journey' in stored()).toBe(false);
+      });
+    });
+
+    // A robot's journey bound (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Tasks 27 and 38).
+    describe('journey max intensity normalisation', () => {
+      const stored = () => useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0];
+      const update = (updates: Record<string, unknown>) =>
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', updates as never);
+
+      it('rounds max intensity to a whole number and clamps it to 0-16: 7.4 as 7, 20 as 16, -1 as 0, Infinity as 16', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ journeyMaxIntensity: 7.4 });
+        expect(stored().journeyMaxIntensity).toBe(7);
+        update({ journeyMaxIntensity: 7.6 });
+        expect(stored().journeyMaxIntensity).toBe(8);
+        update({ journeyMaxIntensity: 20 });
+        expect(stored().journeyMaxIntensity).toBe(16);
+        update({ journeyMaxIntensity: -1 });
+        expect(stored().journeyMaxIntensity).toBe(0);
+        update({ journeyMaxIntensity: Infinity });
+        expect(stored().journeyMaxIntensity).toBe(16);
+        update({ journeyMaxIntensity: -Infinity });
+        expect(stored().journeyMaxIntensity).toBe(0);
+      });
+
+      it('passes every whole max intensity from 0 to 16 through', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (let v = 0; v <= 16; v++) {
+          update({ journeyMaxIntensity: v });
+          expect(stored().journeyMaxIntensity).toBe(v);
+        }
+      });
+
+      it('drops a NaN max intensity, keeping the stored value and the rest of the update', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ journeyMaxIntensity: 9 });
+        update({ journeyMaxIntensity: NaN, masterVolume: 0.4 });
+        expect(stored().journeyMaxIntensity).toBe(9);
+        expect(stored().masterVolume).toBe(0.4);
+      });
+
+      it('keeps max intensity absent on a robot updated without it', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ masterVolume: 0.4 });
+        expect('journeyMaxIntensity' in stored()).toBe(false);
+      });
+    });
+
     describe('performance clamping (dynamics, rests, accents: 0-100 integers, docs/specs/ROBOT_PERFORMANCE.md §1.1)', () => {
       const PERFORMANCE_KEYS = ['dynamics', 'rests', 'accents'] as const;
       const stored = (key: (typeof PERFORMANCE_KEYS)[number]) =>

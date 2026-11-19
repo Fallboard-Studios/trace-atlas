@@ -19,6 +19,7 @@ import {
 } from '@/engine/melodyGenerator';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
 import { recordByField } from '@/data/robotSends';
+import { DEFAULT_JOURNEY_MAX_INTENSITY, DEFAULT_JOURNEY } from '@/constants';
 import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
@@ -62,6 +63,9 @@ export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot 
     dynamics: firstMember.dynamics ?? DEFAULT_DYNAMICS,
     rests: firstMember.rests ?? DEFAULT_RESTS,
     accents: firstMember.accents ?? DEFAULT_ACCENTS,
+    // The melody journey: the first member's own settings, else home (max intensity 0), travelling alone.
+    journeyMaxIntensity: firstMember.journeyMaxIntensity ?? DEFAULT_JOURNEY_MAX_INTENSITY,
+    journey: firstMember.journey ?? DEFAULT_JOURNEY,
   };
   return { ...fromRobot, ...lastEditedOptions };
 }

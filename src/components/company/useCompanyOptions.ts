@@ -12,16 +12,16 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto, applySend,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyDynamics, applyRests, applyAccents, applyClickTrackActive,
+  applyDynamics, applyRests, applyAccents, applyClickTrackActive, applyJourneyMaxIntensity, applyJourney,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags, useSendSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import type { RobotSendField } from '@/data/robotSends';
-import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
+import { DEFAULT_JOURNEY_MAX_INTENSITY, DEFAULT_JOURNEY, PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
 import { clampSend } from '@/utils/clampSend';
 import { BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
-import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
+import type { ADSREnvelope, JourneySetting, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import type { Company, CompanyOptionsSnapshot } from '@/types/Company';
 import type { RobotLfoTargetId } from '@/types/lfo';
@@ -55,6 +55,8 @@ const DISABLED_PING_CONTROLS: PingControlsValue = {
   accents: 0,
   octaveRange: [1, 7],
   clickTrackActive: false,
+  journeyMaxIntensity: DEFAULT_JOURNEY_MAX_INTENSITY,
+  journey: DEFAULT_JOURNEY,
 };
 
 const DISABLED_ADSR: ADSREnvelope = { attack: 0, decay: 0, sustain: 0, release: 0 };
@@ -123,6 +125,9 @@ export interface CompanyOptions {
   /** 0..100 for whichever send row moved, broadcast to every member (docs/specs/ROBOT_SEND_TABLE.md §1.4). */
   onSendChange: (field: RobotSendField, pct: number) => void;
   onDynamicsChange: (value: number) => void;
+  /** The melody journey's two settings, broadcast to every member (docs/specs/MELODY_JOURNEY.md §1.9). */
+  onJourneyMaxIntensityChange: (value: number) => void;
+  onJourneyChange: (value: JourneySetting) => void;
   onRestsChange: (value: number) => void;
   onAccentsChange: (value: number) => void;
   onDensityChange: (v: number) => void;
@@ -266,6 +271,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const resolvedClickTrackActive = resolved?.clickTrackActive;
   const resolvedRests = resolved?.rests;
   const resolvedAccents = resolved?.accents;
+  const resolvedJourneyMaxIntensity = resolved?.journeyMaxIntensity;
+  const resolvedJourney = resolved?.journey;
   const pingControlsValue: PingControlsValue = useMemo(() => (
     active
       ? {
@@ -277,11 +284,13 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
         accents: resolvedAccents!,
         octaveRange: resolvedOctaveRange!,
         clickTrackActive: resolvedClickTrackActive!,
+        journeyMaxIntensity: resolvedJourneyMaxIntensity!,
+        journey: resolvedJourney!,
       }
       : DISABLED_PING_CONTROLS
   ), [
     active, resolvedRhythmicDensity, resolvedRhythmicMotifLength, resolvedNoteVariance, resolvedPitchRepeat,
-    resolvedOctaveRange, resolvedClickTrackActive, resolvedRests, resolvedAccents,
+    resolvedOctaveRange, resolvedClickTrackActive, resolvedRests, resolvedAccents, resolvedJourneyMaxIntensity, resolvedJourney,
   ]);
 
   const resolvedAdsr = resolved?.adsr;
@@ -434,6 +443,19 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     patchSnapshot({ dynamics: v });
   }, [localeId, patchSnapshot]);
 
+  // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): onDynamicsChange's shape. Each apply writes the member's field
+  // alone (the engine reads it when the next note plays), so nothing regenerates and nothing is cancelled. Broadcast, not
+  // link: a member edited on its own afterwards keeps its own value.
+  const onJourneyMaxIntensityChange = useCallback((v: number) => {
+    latest.current.members.forEach((m) => applyJourneyMaxIntensity(m, localeId, v));
+    patchSnapshot({ journeyMaxIntensity: v });
+  }, [localeId, patchSnapshot]);
+
+  const onJourneyChange = useCallback((v: JourneySetting) => {
+    latest.current.members.forEach((m) => applyJourney(m, localeId, v));
+    patchSnapshot({ journey: v });
+  }, [localeId, patchSnapshot]);
+
   const onRestsChange = useCallback((v: number) => {
     latest.current.members.forEach((m) => applyRests(m, localeId, v));
     patchSnapshot({ rests: v });
@@ -538,6 +560,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onPanAutoChange,
     onSendChange,
     onDynamicsChange,
+    onJourneyMaxIntensityChange,
+    onJourneyChange,
     onRestsChange,
     onAccentsChange,
     onDensityChange,
@@ -559,7 +583,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     heldOffSends, volumeSwelling, sendSwelling,
     adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
     onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
-    onDynamicsChange, onRestsChange, onAccentsChange,
+    onDynamicsChange, onJourneyMaxIntensityChange, onJourneyChange, onRestsChange, onAccentsChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onClickTrackActiveChange, onAdsrChange,
     onPortamentoChange, onBusFilterChange, onBusLinkChange,
     onLayerTypeChange, onLayerParamChange, onLayerLfoFieldChange,

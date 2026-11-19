@@ -23,9 +23,14 @@ function makeValue(overrides: Partial<PingControlsValue> = {}): PingControlsValu
     accents: 0,
     octaveRange: [3, 5],
     clickTrackActive: false,
+    journeyMaxIntensity: 0,
+    journey: 'own',
     ...overrides,
   };
 }
+
+/** The melody journey row's two handlers: Max Intensity's in Development's place since roadmap 92 Task 30. */
+const JOURNEY_HANDLERS = { onJourneyMaxIntensityChange: () => {}, onJourneyChange: () => {} };
 
 /** Stubs window.matchMedia for the viewport tiers ('640px' is the phone query; every other query reads `tablet`), the
  *  shape LevelsSections.test.tsx's stub has, since a 'responsive' row resolves through the same tier hooks. */
@@ -52,7 +57,7 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
   const boxes = (container: HTMLElement) => container.querySelectorAll('.sc-directional-panel-facade');
   const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
   const slider = (name: RegExp) => screen.getByRole('slider', { name });
-  const RHYTHM_HANDLERS = { onDensityChange: () => {}, onMotifLengthChange: () => {}, onPitchRepeatChange: () => {}, onNoteVarianceChange: () => {} };
+  const RHYTHM_HANDLERS = { onDensityChange: () => {}, onMotifLengthChange: () => {}, onPitchRepeatChange: () => {}, onNoteVarianceChange: () => {}, ...JOURNEY_HANDLERS };
   const DETAILS_HANDLERS = { onRestsChange: () => {}, onAccentsChange: () => {}, onOctaveMinChange: () => {}, onOctaveMaxChange: () => {} };
 
   beforeEach(() => {
@@ -60,7 +65,8 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
   });
 
   describe('Rhythm & Melody', () => {
-    it('is one box: Note Density beside Phrase Length, then Pitch Repeat Chance beside Note Variance', () => {
+    // The third row, Max Intensity beside Journey, since the melody journey (roadmap 92 Tasks 16, 17, 30).
+    it('is one box: Note Density beside Phrase Length, then Pitch Repeat Chance beside Note Variance, then Max Intensity', () => {
       stubMatchMedia(DESKTOP);
       const { container } = render(<CompositionRhythmMelodySection value={makeValue()} {...RHYTHM_HANDLERS} />);
       expect(boxes(container)).toHaveLength(1);
@@ -71,9 +77,9 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
       expect(p1.contains(r1) && p1.contains(r2)).toBe(true);
       expect(r1.contains(slider(/density/i)) && r1.contains(slider(/phrase length/i))).toBe(true);
       expect(r2.contains(slider(/pitch repeat/i)) && r2.contains(slider(/note variance/i))).toBe(true);
-      const order = [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i].map(slider);
+      const order = [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i, /max intensity/i].map(slider);
       for (let i = 1; i < order.length; i++) expect(before(order[i - 1], order[i]), `slider ${i}`).toBe(true);
-      expect(screen.getAllByRole('slider')).toHaveLength(4);
+      expect(screen.getAllByRole('slider')).toHaveLength(5);
     });
 
     it.each([['desktop', 'row', DESKTOP], ['tablet', 'column', TABLET]] as const)('on %s, both rows are a %s', (_tier, expected, state) => {
@@ -149,6 +155,98 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
   });
 });
 
+// The melody journey's row (docs/specs/MELODY_JOURNEY.md §1.10, C1; roadmap 92 Tasks 16, 30): Max Intensity beside
+// Journey, the third row of Rhythm & Melody, in Development's place.
+describe('Rhythm & Melody: the Max Intensity and Journey row (melody journey Task 30)', () => {
+  const RHYTHM_HANDLERS = { onDensityChange: () => {}, onMotifLengthChange: () => {}, onPitchRepeatChange: () => {}, onNoteVarianceChange: () => {} };
+  const panel = (container: HTMLElement, id: string) => container.querySelector(`[data-panel-id="${id}"]`) as HTMLElement;
+  const maxIntensity = () => screen.getByRole('slider', { name: new RegExp(CONTENT['probe.composition.journeyMaxIntensity'].human, 'i') });
+  const journeyOption = (name: string) => screen.getByRole('radio', { name });
+  const OPTIONS = ['Own', 'Company', 'Fleet'];
+
+  function renderRow(overrides: Partial<PingControlsValue> = {}, extra: Record<string, unknown> = {}) {
+    const onJourneyMaxIntensityChange = vi.fn();
+    const onJourneyChange = vi.fn();
+    const result = render(
+      <CompositionRhythmMelodySection
+        value={makeValue({ journeyMaxIntensity: 5, journey: 'own', ...overrides })}
+        {...RHYTHM_HANDLERS}
+        onJourneyMaxIntensityChange={onJourneyMaxIntensityChange}
+        onJourneyChange={onJourneyChange}
+        {...extra}
+      />,
+    );
+    return { ...result, onJourneyMaxIntensityChange, onJourneyChange };
+  }
+
+  beforeEach(() => {
+    mockDevTuning = true;
+    stubMatchMedia({ mobile: false, tablet: false });
+  });
+
+  it('renders Max Intensity beside Journey in a third row, after Pitch Repeat and Note Variance, with their content labels', () => {
+    const { container } = renderRow();
+    const r3 = panel(container, 'robotOptions.rhythmMelody.p1.r3');
+    expect(r3).toBeTruthy();
+    expect(panel(container, 'robotOptions.rhythmMelody.p1').contains(r3)).toBe(true);
+    expect(r3.contains(maxIntensity())).toBe(true);
+    expect(screen.getByRole('group', { name: new RegExp(CONTENT['probe.composition.journey'].human, 'i') })).toBeTruthy();
+    for (const name of OPTIONS) expect(r3.contains(journeyOption(name))).toBe(true);
+    const noteVariance = screen.getByRole('slider', { name: /note variance/i });
+    expect(!!(noteVariance.compareDocumentPosition(maxIntensity()) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it('shows the stored values: Max Intensity 11 on a 0 to 16 slider, Journey Company', () => {
+    renderRow({ journeyMaxIntensity: 11, journey: 'company' });
+    expect(maxIntensity().getAttribute('aria-valuenow')).toBe('11');
+    expect(maxIntensity().getAttribute('aria-valuemin')).toBe('0');
+    expect(maxIntensity().getAttribute('aria-valuemax')).toBe('16');
+    expect(journeyOption('Company').getAttribute('aria-checked')).toBe('true');
+    expect(journeyOption('Own').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('a Max Intensity step calls its handler with the next whole change (5 to 6), and nothing else', () => {
+    const { onJourneyMaxIntensityChange, onJourneyChange } = renderRow({ journeyMaxIntensity: 5 });
+    fireEvent.keyDown(maxIntensity(), { key: 'ArrowRight' });
+    expect(onJourneyMaxIntensityChange).toHaveBeenCalledWith(6);
+    expect(onJourneyChange).not.toHaveBeenCalled();
+  });
+
+  it('a step down from 1 reaches 0, home', () => {
+    const { onJourneyMaxIntensityChange } = renderRow({ journeyMaxIntensity: 1 });
+    fireEvent.keyDown(maxIntensity(), { key: 'ArrowLeft' });
+    expect(onJourneyMaxIntensityChange).toHaveBeenCalledWith(0);
+  });
+
+  it('choosing Fleet calls onJourneyChange with fleet, and nothing else', () => {
+    const { onJourneyMaxIntensityChange, onJourneyChange } = renderRow({ journey: 'own' });
+    fireEvent.click(journeyOption('Fleet'));
+    expect(onJourneyChange).toHaveBeenCalledWith('fleet');
+    expect(onJourneyMaxIntensityChange).not.toHaveBeenCalled();
+  });
+
+  it('Journey is disabled at Max Intensity 0, its stored value still shown, and calls nothing', () => {
+    const { onJourneyChange } = renderRow({ journeyMaxIntensity: 0, journey: 'fleet' });
+    for (const name of OPTIONS) expect(journeyOption(name).getAttribute('data-disabled')).toBe('');
+    expect(journeyOption('Fleet').getAttribute('aria-checked')).toBe('true');
+    expect(maxIntensity().getAttribute('data-disabled')).toBeNull();
+    fireEvent.click(journeyOption('Own'));
+    expect(onJourneyChange).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 16])('Journey is enabled at Max Intensity %i', (journeyMaxIntensity) => {
+    renderRow({ journeyMaxIntensity });
+    for (const name of OPTIONS) expect(journeyOption(name).getAttribute('data-disabled')).toBeNull();
+  });
+
+  it('a section disabled disables both', () => {
+    renderRow({ journeyMaxIntensity: 8 }, { disabled: true });
+    expect(maxIntensity().getAttribute('data-disabled')).toBe('');
+    for (const name of OPTIONS) expect(journeyOption(name).getAttribute('data-disabled')).toBe('');
+  });
+
+});
+
 describe('Composition halves (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion', () => {
   beforeEach(() => {
     mockDevTuning = true;
@@ -166,6 +264,7 @@ describe('Composition halves (docs/reference/layout-updates.md) — merges Rhyth
         onMotifLengthChange={() => {}}
         onPitchRepeatChange={() => {}}
         onNoteVarianceChange={() => {}}
+        {...JOURNEY_HANDLERS}
         {...extra}
       />,
     );
@@ -222,6 +321,7 @@ describe('Composition halves (docs/reference/layout-updates.md) — merges Rhyth
         onMotifLengthChange={onMotifLengthChange}
         onPitchRepeatChange={onPitchRepeatChange}
         onNoteVarianceChange={onNoteVarianceChange}
+        {...JOURNEY_HANDLERS}
       />,
     );
 

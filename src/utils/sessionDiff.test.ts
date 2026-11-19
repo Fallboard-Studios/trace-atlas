@@ -113,6 +113,8 @@ function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBa
     rhythmicMotifLength: { active: true, value: 6 },
     noteVariance: { active: true, value: 2 },
     pitchRepeat: 65,
+    journeyMaxIntensity: 8,
+    journey: 'own',
     lfoLinks: makeDefaultLfoLinks(),
     reverbSend: 0.3,
     delaySend: 0.1,
@@ -141,6 +143,8 @@ function makeLiveRobot(baseline: RobotAudioBaseline, overrides: Partial<Robot> =
     rhythmicMotifLength: baseline.rhythmicMotifLength,
     noteVariance: baseline.noteVariance,
     pitchRepeat: baseline.pitchRepeat,
+    journeyMaxIntensity: baseline.journeyMaxIntensity,
+    journey: baseline.journey,
     reverbSend: baseline.reverbSend,
     delaySend: baseline.delaySend,
     gritSend: baseline.gritSend,
@@ -206,6 +210,36 @@ describe('computeRobotAudioOverrideDiff', () => {
     const baseline = makeBaseline();
     const live = makeLiveRobot(baseline, { pitchRepeat: 10 });
     expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ pitchRepeat: 10 });
+  });
+
+  // docs/tasks/MELODY_JOURNEY.md Tasks 20 and 35 (spec §1.9): the two settings, max intensity and Journey, diff like
+  // pitchRepeat.
+  describe('max intensity and journey (roadmap 92 Tasks 20 and 35)', () => {
+    it('diffs max intensity alone when only max intensity changed, a 0 and the top included', () => {
+      const baseline = makeBaseline();
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { journeyMaxIntensity: 3 }), baseline)).toEqual({ journeyMaxIntensity: 3 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { journeyMaxIntensity: 0 }), baseline)).toEqual({ journeyMaxIntensity: 0 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { journeyMaxIntensity: 16 }), baseline)).toEqual({ journeyMaxIntensity: 16 });
+    });
+
+    it('diffs journey alone when only journey changed', () => {
+      const baseline = makeBaseline();
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { journey: 'fleet' }), baseline)).toEqual({ journey: 'fleet' });
+    });
+
+    it('a robot at its seeded values writes neither key, a Company baseline at 0 included', () => {
+      const baseline = makeBaseline({ journeyMaxIntensity: 0, journey: 'company' });
+      const diff = computeRobotAudioOverrideDiff(makeLiveRobot(baseline), baseline);
+      expect(diff).toEqual({});
+    });
+
+    it('a live robot that carries neither field writes no key, never an undefined-valued one', () => {
+      const baseline = makeBaseline();
+      const { journeyMaxIntensity: _m, journey: _j, ...bare } = makeLiveRobot(baseline);
+      const diff = computeRobotAudioOverrideDiff(bare as Robot, baseline);
+      expect('journeyMaxIntensity' in diff).toBe(false);
+      expect('journey' in diff).toBe(false);
+    });
   });
 
   describe('pan (Robot Pan T11)', () => {
@@ -678,6 +712,7 @@ describe('buildSessionPayload', () => {
   it('includes only the one robot\'s changed lfoLinks target, keyed under lfoLinks', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId); // as every real world has them (roadmap 92 T20)
     const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
     const current = robot.lfoLinks!['layer0.detune'];
     const changedLink: LfoLink = { lane: current.lane === 'a' ? 'b' : 'a', depth: (current.depth + 20) % 101 };
@@ -724,9 +759,11 @@ describe('buildSessionPayload', () => {
     }
   });
 
+  // Both with the seeded companies, as every real world has them: the baseline puts their robots on Company (roadmap 92 T20).
   it('has no robotOverrides entries for an untouched roster', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
     const payload = buildSessionPayload();
     expect(Object.keys(payload.robotOverrides)).toEqual([]);
   });
@@ -734,6 +771,7 @@ describe('buildSessionPayload', () => {
   it('includes only the one robot that was edited, with only its changed field', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
     const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
     useLocaleStore.getState().updateRobot(localeId, robot.id, { rhythmicDensity: 7 });
 
@@ -1435,6 +1473,7 @@ describe('applySessionPayload', () => {
     function manualRobotPayload(pan: number) {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId); // as every real world has them (roadmap 92 T20)
       const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
       useLocaleStore.getState().updateRobot(localeId, robot.id, { panAuto: false, pan });
       return { localeId, robot, payload: buildSessionPayload() };
@@ -1528,6 +1567,8 @@ describe('applySessionPayload', () => {
     function seededWorld() {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
+      // Its seeded companies too, as every real world has them: the baseline puts their robots on Company (roadmap 92 T20).
+      spawnInitialCompanies(localeId);
       const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
       return { localeId, robot: robots[0], robots };
     }
@@ -1642,6 +1683,145 @@ describe('applySessionPayload', () => {
     });
   });
 
+  // docs/tasks/MELODY_JOURNEY.md Tasks 20 and 35 (spec §1.9): max intensity and Journey saved as overrides of the seeded
+  // baseline, restored by a write alone (the engine reads both as it plays).
+  describe('max intensity and journey across a session restore (roadmap 92 Tasks 20 and 35)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /** A world as initializeLocale builds one: the roster, its seeded companies and the deal. */
+    function seededWorld() {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      const { robots, companies } = useLocaleStore.getState().getLocaleById(localeId)!;
+      return { localeId, robots, companies };
+    }
+    const stored = (id: string) => currentLocale()!.robots.find((r) => r.id === id)!;
+    const shifted = (payload: SessionPayload): SessionPayload => ({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+    const settingsOf = (robots: readonly Robot[]) => Object.fromEntries(robots.map((r) => [r.id, [r.journeyMaxIntensity, r.journey]]));
+    /** A whole number of the slider no robot in `robots` holds, so an edit to it cannot coincide with a seeded value. */
+    const unheld = (robots: readonly Robot[]) => [13, 11, 7, 3].find((m) => robots.every((r) => r.journeyMaxIntensity !== m))!;
+
+    it('an untouched world, companies and all, saves neither key', () => {
+      const { robots, companies } = seededWorld();
+      expect(companies.length).toBeGreaterThan(0); // precondition: some robots seeded on Company
+      expect(robots.some((r) => r.journeyMaxIntensity! > 0)).toBe(true); // precondition: a seeded journey
+      const overrides = buildSessionPayload().robotOverrides;
+      for (const diff of Object.values(overrides)) {
+        expect(diff).not.toHaveProperty('journeyMaxIntensity');
+        expect(diff).not.toHaveProperty('journey');
+      }
+    });
+
+    it('save, edit, wipe and load brings back both settings on a robot', () => {
+      const { localeId, robots } = seededWorld();
+      const robot = robots[0];
+      const value = unheld(robots);
+      useLocaleStore.getState().updateRobot(localeId, robot.id, { journeyMaxIntensity: value, journey: 'fleet' });
+      const payload = buildSessionPayload();
+      expect(payload.robotOverrides[robot.id]).toEqual({ journeyMaxIntensity: value, journey: 'fleet' });
+
+      applySessionPayload(shifted(payload));
+      applySessionPayload(payload);
+
+      expect(stored(robot.id).journeyMaxIntensity).toBe(value);
+      expect(stored(robot.id).journey).toBe('fleet');
+    });
+
+    it('a max intensity of 0 on a seeded journeying robot is saved and comes back', () => {
+      const { localeId, robots } = seededWorld();
+      const robot = robots.find((r) => r.journeyMaxIntensity! > 0)!;
+      useLocaleStore.getState().updateRobot(localeId, robot.id, { journeyMaxIntensity: 0 });
+      const payload = buildSessionPayload();
+      expect(payload.robotOverrides[robot.id]).toEqual({ journeyMaxIntensity: 0 });
+
+      applySessionPayload(shifted(payload));
+      applySessionPayload(payload);
+
+      expect(stored(robot.id).journeyMaxIntensity).toBe(0);
+    });
+
+    it('a company-wide edit comes back on every member, and nowhere else', () => {
+      const { localeId, robots, companies } = seededWorld();
+      const company = companies[0];
+      const value = unheld(robots);
+      for (const id of company.robotIds) useLocaleStore.getState().updateRobot(localeId, id, { journeyMaxIntensity: value, journey: 'fleet' });
+      const others = settingsOf(robots.filter((r) => !company.robotIds.includes(r.id)));
+      const payload = buildSessionPayload();
+
+      applySessionPayload(shifted(payload));
+      applySessionPayload(payload);
+
+      for (const id of company.robotIds) expect([stored(id).journeyMaxIntensity, stored(id).journey], id).toEqual([value, 'fleet']);
+      expect(settingsOf(currentLocale()!.robots.filter((r) => !company.robotIds.includes(r.id)))).toEqual(others);
+    });
+
+    it('a payload saved before the fields existed loads, and its robots read the seeded values', () => {
+      const { localeId, robots } = seededWorld();
+      const seeded = settingsOf(robots);
+      useLocaleStore.getState().updateRobot(localeId, robots[0].id, { rhythmicDensity: 3 });
+      const payload = buildSessionPayload();
+      // As an older build wrote it: the robot entry carries no max intensity or journey key.
+      expect(payload.robotOverrides[robots[0].id]).toEqual({ rhythmicDensity: 3 });
+
+      applySessionPayload(shifted(payload));
+      applySessionPayload(payload);
+
+      expect(settingsOf(currentLocale()!.robots)).toEqual(seeded);
+    });
+
+    it('a development in an old save is ignored: nothing is restored from it, and the rest of the entry loads', () => {
+      const { robots } = seededWorld();
+      const robot = robots[0];
+      const payload = buildSessionPayload();
+      const old = { ...payload, robotOverrides: { [robot.id]: { development: 1.75, rhythmicDensity: 3 } } } as unknown as SessionPayload;
+
+      applySessionPayload(shifted(payload));
+      applySessionPayload(old);
+
+      expect(stored(robot.id).rhythmicDensity).toBe(3);
+      expect('development' in stored(robot.id)).toBe(false);
+      expect(stored(robot.id).journeyMaxIntensity).toBe(robot.journeyMaxIntensity);
+    });
+
+    it('drops a max intensity that is not a finite number and a journey that is not a setting, key by key', () => {
+      const { robots } = seededWorld();
+      const robot = robots[0];
+      const payload = buildSessionPayload();
+      for (const badValue of ['x', Number.NaN, Number.POSITIVE_INFINITY, null]) {
+        const bad = { ...payload, robotOverrides: { [robot.id]: { journeyMaxIntensity: badValue, journey: 'solo', rhythmicDensity: 3 } } } as unknown as SessionPayload;
+
+        applySessionPayload(shifted(payload));
+        applySessionPayload(bad);
+
+        expect(stored(robot.id).rhythmicDensity, String(badValue)).toBe(3);
+        expect(stored(robot.id).journeyMaxIntensity, String(badValue)).toBe(robot.journeyMaxIntensity);
+        expect(stored(robot.id).journey, String(badValue)).toBe(robot.journey);
+      }
+    });
+
+    it('a restored edit makes no melody change of its own: the melody is the regenerated home melody either way', () => {
+      const { robots } = seededWorld();
+      const robot = robots[0];
+      const payload = buildSessionPayload();
+      applySessionPayload(shifted(payload));
+      applySessionPayload(payload);
+      const home = stored(robot.id).melody.map(({ id: _id, ...e }) => e);
+
+      const value = unheld(robots);
+      useLocaleStore.getState().updateRobot(currentLocale()!.id, robot.id, { journeyMaxIntensity: value });
+      const edited = buildSessionPayload();
+      applySessionPayload(shifted(edited));
+      applySessionPayload(edited);
+
+      expect(stored(robot.id).journeyMaxIntensity).toBe(value); // precondition: the edit was restored
+      expect(stored(robot.id).melody.map(({ id: _id, ...e }) => e)).toEqual(home);
+    });
+  });
+
   // docs/tasks/ROBOT_PERFORMANCE.md Task 15: humanize is captured beside swellDuration and restored through
   // audioStore.setHumanize, which is the one path that pushes it to the engine.
   describe('humanize across a session restore (Robot Performance T15)', () => {
@@ -1693,6 +1873,8 @@ describe('applySessionPayload', () => {
     function seededWorld() {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
+      // Its seeded companies too, as every real world has them: the baseline puts their robots on Company (roadmap 92 T20).
+      spawnInitialCompanies(localeId);
       const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
       return { localeId, robot: robots[0], robots };
     }
@@ -2059,6 +2241,7 @@ describe('applySessionPayload', () => {
     function articulatedWorld() {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId); // as every real world has them (roadmap 92 T20)
       const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
       const seeded = robot.audioAttributes;
       useLocaleStore.getState().updateRobot(localeId, robot.id, {

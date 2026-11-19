@@ -142,7 +142,7 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
 
       const sim = buildSimRoster(simNoiseMap(x, y));
-      const fields = (s: RobotLifecycleSnapshot | Robot) => ({ docking: s.docking, batteryLevel: s.batteryLevel, noteVariance: s.noteVariance, batterySize: s.batterySize });
+      const fields = (s: RobotLifecycleSnapshot | Robot) => ({ docking: s.docking, batteryLevel: s.batteryLevel, batterySize: s.batterySize });
       expect(sim.map(fields)).toEqual(real.map(fields));
 
       // Guard against a coincidental pass on defaults: this seed must actually vary, and carry real sizes.
@@ -205,7 +205,7 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
           expect(r.batterySize).toBeGreaterThanOrEqual(0.67);
           expect(r.batterySize).toBeLessThan(1.5);
         });
-        // The band changes the sizes only: docking, battery and note variance are the default roster's.
+        // The band changes the sizes only: docking and battery are the default roster's.
         const strip = ({ batterySize: _size, ...rest }: RobotLifecycleSnapshot) => rest;
         expect(banded.map(strip)).toEqual(buildSimRoster(noiseMap).map(strip));
       }
@@ -244,7 +244,7 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
   describe('activeCountsOverTime', () => {
     it('returns one Active count per measure, never above the roster', () => {
       const noiseMap = simNoiseMap(-40, 80);
-      const counts = activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, flatDrain(6), 300);
+      const counts = activeCountsOverTime(buildSimRoster(noiseMap), flatDrain(6), 300);
       expect(counts).toHaveLength(300);
       for (const n of counts) {
         expect(n).toBeGreaterThanOrEqual(0);
@@ -256,8 +256,7 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
     // drain and band, the Active count never reaches zero — in 100 of 121 worlds it did before the rule.
     it('over every world of the grid at SIM_MEASURES, the Active count never reaches zero (case 7)', () => {
       const zeroWorlds = SIM_SEED_COORDS.filter(({ x, y }) => {
-        const noiseMap = simNoiseMap(x, y);
-        return activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, activeDrain, SIM_MEASURES).some((n) => n === 0);
+        return activeCountsOverTime(buildSimRoster(simNoiseMap(x, y)), activeDrain, SIM_MEASURES).some((n) => n === 0);
       });
       expect(zeroWorlds).toEqual([]);
     }, 60_000);
@@ -265,14 +264,13 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
     it('a heavier drain keeps fewer robots Active on average', () => {
       const noiseMap = simNoiseMap(-40, 80);
       const mean = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
-      const light = mean(activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, flatDrain(3), 600));
-      const heavy = mean(activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, flatDrain(9), 600));
+      const light = mean(activeCountsOverTime(buildSimRoster(noiseMap), flatDrain(3), 600));
+      const heavy = mean(activeCountsOverTime(buildSimRoster(noiseMap), flatDrain(9), 600));
       expect(heavy).toBeLessThan(light);
     });
 
     it('zero measures is an empty series', () => {
-      const noiseMap = simNoiseMap(0, 0);
-      expect(activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, flatDrain(6), 0)).toEqual([]);
+      expect(activeCountsOverTime(buildSimRoster(simNoiseMap(0, 0)), flatDrain(6), 0)).toEqual([]);
     });
   });
 
@@ -576,15 +574,14 @@ describe('runCoverSim (no-silence Task 2)', () => {
     const SOUNDING = new Set<DockingState>([DockingState.Active, DockingState.Recalled]);
     let stayWorlds = 0;
     for (const { x, y } of SIM_SEED_COORDS) {
-      const noiseMap = simNoiseMap(x, y);
-      let roster = buildSimRoster(noiseMap);
+      let roster = buildSimRoster(simNoiseMap(x, y));
       let silent = 0;
       let soundingTotal = 0;
       let stays = 0;
       let stayMeasures = 0;
       let inStay = new Set<string>();
       for (let measure = 1; measure <= 300; measure++) {
-        roster = stepRobotLifecycle(roster, measure, noiseMap);
+        roster = stepRobotLifecycle(roster, measure);
         const sounding = roster.filter((r) => SOUNDING.has(r.docking)).length;
         soundingTotal += sounding;
         if (sounding === 0) silent++;
@@ -717,7 +714,7 @@ const station = (id: string, x: number, y: number, capacity = 6): Station => ({ 
 
 /** A lifecycle snapshot stub. */
 function snap(id: string, docking: DockingState): RobotLifecycleSnapshot {
-  return { id, docking, batteryLevel: docking === DockingState.Active ? 100 : 50, melody: [], dockCycleCount: 0 };
+  return { id, docking, batteryLevel: docking === DockingState.Active ? 100 : 50 };
 }
 
 /** A lifecycle that only changes docking where the script says, at that measure. */

@@ -155,12 +155,14 @@ const compositionStub = vi.hoisted(() => {
 });
 vi.mock('@/components/robot/CompositionSections', () => ({
   CompositionRhythmMelodySection: memo((props: {
-    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; clickTrackActive: boolean };
+    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; clickTrackActive: boolean; journeyMaxIntensity?: number; journey?: string };
     onClickTrackActiveChange?: (active: boolean) => void;
     onDensityChange: (v: number) => void;
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
+    onJourneyMaxIntensityChange?: (v: number) => void;
+    onJourneyChange?: (v: 'own' | 'company' | 'fleet') => void;
   }) => {
     compositionStub.record({ onDensityChange: props.onDensityChange });
     return (
@@ -170,7 +172,11 @@ vi.mock('@/components/robot/CompositionSections', () => ({
         data-density={props.value.rhythmicDensity}
         data-pitch-repeat={props.value.pitchRepeat}
         data-click-track={String(props.value.clickTrackActive)}
+        data-journey-max-intensity={String(props.value.journeyMaxIntensity)}
+        data-journey={String(props.value.journey)}
       >
+        {props.onJourneyMaxIntensityChange && <button onClick={() => props.onJourneyMaxIntensityChange!(11)}>probe-journey-max-intensity</button>}
+        {props.onJourneyChange && <button onClick={() => props.onJourneyChange!('fleet')}>probe-journey</button>}
         {props.onClickTrackActiveChange && <button onClick={() => props.onClickTrackActiveChange!(true)}>probe-click-track</button>}
         <button onClick={() => props.onDensityChange(77)}>probe-density</button>
         <button onClick={() => props.onMotifLengthChange(6)}>probe-motif-length</button>
@@ -1519,6 +1525,64 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       render(<RobotScreen />);
       fireEvent.click(screen.getByText(button));
       expect(spy).toHaveBeenCalledWith(robot, localeId, value);
+    });
+
+    // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9, §1.10; roadmap 92 Tasks 16, 30): Max
+    // Intensity in Development's place beside Journey.
+    describe('Max Intensity and Journey', () => {
+      const stubAttr = (name: string) => screen.getByTestId('composition-stub').getAttribute(name);
+      const stored = () => useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+
+      it("passes the robot's own max intensity and journey", () => {
+        selectRobot(makeRobot('r1', { journeyMaxIntensity: 9, journey: 'company' }), 'melody');
+        render(<RobotScreen />);
+        expect(stubAttr('data-journey-max-intensity')).toBe('9');
+        expect(stubAttr('data-journey')).toBe('company');
+      });
+
+      it('passes 0 and own for a robot with neither field', () => {
+        selectRobot(makeRobot('r1'), 'melody');
+        render(<RobotScreen />);
+        expect(stubAttr('data-journey-max-intensity')).toBe('0');
+        expect(stubAttr('data-journey')).toBe('own');
+      });
+
+      it('moving Max Intensity writes robot.journeyMaxIntensity, and regenerates nothing', () => {
+        selectRobot(makeRobot('r1', { journeyMaxIntensity: 0 }), 'melody');
+        const melodyBefore = stored().melody;
+        const engine = vi.spyOn(AudioEngine, 'registerRobotMelody');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-journey-max-intensity'));
+        expect(stored().journeyMaxIntensity).toBe(11);
+        expect(stored().melody).toBe(melodyBefore);
+        expect(engine).not.toHaveBeenCalled();
+        expect(stubAttr('data-journey-max-intensity')).toBe('11');
+      });
+
+      it('choosing Fleet still writes robot.journey, and regenerates nothing', () => {
+        selectRobot(makeRobot('r1', { journeyMaxIntensity: 4, journey: 'own' }), 'melody');
+        const engine = vi.spyOn(AudioEngine, 'registerRobotMelody');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-journey'));
+        expect(stored().journey).toBe('fleet');
+        expect(engine).not.toHaveBeenCalled();
+        expect(stubAttr('data-journey')).toBe('fleet');
+      });
+
+      it('each handler calls its own apply with the latest robot', () => {
+        selectRobot(makeRobot('r1', { journeyMaxIntensity: 3 }), 'melody');
+        const maxIntensity = vi.spyOn(robotOptionsActions, 'applyJourneyMaxIntensity').mockImplementation(() => {});
+        const journey = vi.spyOn(robotOptionsActions, 'applyJourney').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { pitchRepeat: 12 }));
+        fireEvent.click(screen.getByText('probe-journey-max-intensity'));
+        fireEvent.click(screen.getByText('probe-journey'));
+        expect(maxIntensity).toHaveBeenCalledTimes(1);
+        expect(maxIntensity.mock.calls[0][0]).toMatchObject({ id: 'r1', pitchRepeat: 12 });
+        expect(maxIntensity.mock.calls[0].slice(1)).toEqual([localeId, 11]);
+        expect(journey).toHaveBeenCalledTimes(1);
+        expect(journey.mock.calls[0].slice(1)).toEqual([localeId, 'fleet']);
+      });
     });
 
     // The dev-only Click Track, back on the robot screen (one music clock, Task 10a).

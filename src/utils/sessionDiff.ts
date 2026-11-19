@@ -260,6 +260,12 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   if (!deepEqual(live.rhythmicMotifLength, baseline.rhythmicMotifLength)) diff.rhythmicMotifLength = live.rhythmicMotifLength;
   if (!deepEqual(live.noteVariance, baseline.noteVariance)) diff.noteVariance = live.noteVariance;
   if (!deepEqual(live.pitchRepeat, baseline.pitchRepeat)) diff.pitchRepeat = live.pitchRepeat;
+  // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): both diff like pitchRepeat; a robot carrying neither writes
+  // no key.
+  if (live.journeyMaxIntensity !== undefined && live.journeyMaxIntensity !== baseline.journeyMaxIntensity) {
+    diff.journeyMaxIntensity = live.journeyMaxIntensity;
+  }
+  if (live.journey !== undefined && live.journey !== baseline.journey) diff.journey = live.journey;
   // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.7): the three fields diff like pitchRepeat, key by key. A live
   // robot that carries no value for one writes no key (never an undefined-valued one), as the articulation fields do.
   if (live.dynamics !== undefined && !deepEqual(live.dynamics, baseline.dynamics)) diff.dynamics = live.dynamics;
@@ -400,6 +406,14 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (diff.rhythmicMotifLength !== undefined) updates.rhythmicMotifLength = diff.rhythmicMotifLength;
   if (diff.noteVariance !== undefined) updates.noteVariance = diff.noteVariance;
   if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
+  // The melody journey: a finite max intensity, or the key is ignored whole (a payload is untrusted here; updateRobot
+  // rounds and clamps a number but would store a string, and clamp an Infinity to the top). A journey goes to
+  // updateRobot as it is, which drops one that is not a setting. Neither needs the regenerateMelody below: the engine
+  // reads both from the store as it plays. A `development` left in an old save is not read.
+  if (typeof diff.journeyMaxIntensity === 'number' && Number.isFinite(diff.journeyMaxIntensity)) {
+    updates.journeyMaxIntensity = diff.journeyMaxIntensity;
+  }
+  if (diff.journey !== undefined) updates.journey = diff.journey;
   // Robot Performance: a finite number or the key is ignored whole, key by key (a payload is untrusted here). updateRobot
   // clamps the value; regenerateMelody below re-stamps rests / accents from the stored robot.
   for (const field of ['dynamics', 'rests', 'accents'] as const) {

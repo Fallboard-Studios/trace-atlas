@@ -5,7 +5,7 @@ import {
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
   applyPitchRepeat, applyDynamics, applyRests, applyAccents, applyPortamento, applyBusFilter,
-  applySend, applySendValue,
+  applySend, applySendValue, applyJourney, applyJourneyMaxIntensity,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -551,6 +551,65 @@ describe('robotOptionsActions', () => {
       applyDynamics(robot, localeId, 140);
 
       expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].dynamics).toBe(100);
+    });
+  });
+
+  // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Tasks 15, 29): read by the engine
+  // when it plays, so each apply writes its field and nothing else.
+  describe('applyJourney and applyJourneyMaxIntensity', () => {
+    const cases = [
+      { name: 'applyJourney', apply: (r: Robot) => applyJourney(r, localeId, 'fleet'), field: 'journey', value: 'fleet' },
+      // Roadmap 92 Task 29: max intensity, the bound that replaces Development (spec §1.9).
+      { name: 'applyJourneyMaxIntensity', apply: (r: Robot) => applyJourneyMaxIntensity(r, localeId, 11), field: 'journeyMaxIntensity', value: 11 },
+    ] as const;
+
+    it.each(cases)('$name writes its field to the store and touches neither the melody nor any engine method', ({ apply, field, value }) => {
+      const melody = [{ id: 'h1', startStep: 1, length: '8n', noteIndex: 0, octave: 3 }] as MelodyEvent[];
+      const robot = makeRobot({ melody });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const genSpy = vi.spyOn(melodyGen, 'generateMelodyForRobot');
+      const engineSpies = (Object.keys(AudioEngine) as (keyof typeof AudioEngine)[])
+        .filter((key) => typeof AudioEngine[key] === 'function' && key !== 'registerRobotMelody' && key !== 'unregisterRobotMelody')
+        .map((key) => vi.spyOn(AudioEngine, key as never));
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      apply(robot);
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { [field]: value });
+      const stored = useLocaleStore.getState().getLocaleById(localeId)?.robots[0];
+      expect(stored?.[field]).toBe(value);
+      expect(stored?.melody).toBe(melody); // the same array: no regeneration
+      expect(genSpy).not.toHaveBeenCalled();
+      expect(registerSpy).not.toHaveBeenCalled();
+      for (const spy of engineSpies) expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('applyJourneyMaxIntensity stores the store-normalised value: whole, from 0 to 16', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const stored = () => useLocaleStore.getState().getLocaleById(localeId)?.robots[0].journeyMaxIntensity;
+      applyJourneyMaxIntensity(robot, localeId, 16);
+      expect(stored()).toBe(16);
+      applyJourneyMaxIntensity(robot, localeId, 0);
+      expect(stored()).toBe(0);
+      applyJourneyMaxIntensity(robot, localeId, 7.4);
+      expect(stored()).toBe(7);
+      applyJourneyMaxIntensity(robot, localeId, 20);
+      expect(stored()).toBe(16);
+      applyJourneyMaxIntensity(robot, localeId, -1);
+      expect(stored()).toBe(0);
+    });
+
+    it('applyJourney writes each of the three settings', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      for (const journey of ['company', 'own', 'fleet'] as const) {
+        applyJourney(robot, localeId, journey);
+        expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].journey).toBe(journey);
+      }
     });
   });
 

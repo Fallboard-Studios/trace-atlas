@@ -227,8 +227,28 @@ export const BATTERY_CRITICAL_THRESHOLD = 10;
 /** Docked robot at or above this battery level begins Undocking (redeploy-eligible). */
 export const BATTERY_FULL_THRESHOLD = 100;
 
-/** Fraction of a robot's melody events whose pitch (noteIndex only) re-rolls each time it lands on Docked. */
-export const DOCKED_PITCH_DRIFT_RATIO = 0.25;
+// ========================================
+// THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)
+// ========================================
+/** What an absent `Robot.journey` reads as (§1.9): travelling alone. */
+export const DEFAULT_JOURNEY = 'own';
+/** The journey's shares (§1.3's table; B2-B7, first cuts, Crawford's to move at Gate A). A pair heads home when its
+ *  home roll is under HOME_ODDS × how far out it starts, and only from MIN_MOVE out; otherwise it moves at least
+ *  MIN_MOVE. TIME_LEAN is the share of a pair's time set by how far out it heads (near home = longer), the rest drawn.
+ *  A pair is a drop DROP_ODDS of the time when it moves DROP_MIN_MOVE or more. All in shares of the robot's bounds. */
+export const JOURNEY_HOME_ODDS = 0.5;
+export const JOURNEY_MIN_MOVE = 0.125;
+export const JOURNEY_TIME_LEAN = 0.5;
+export const JOURNEY_DROP_ODDS = 0.3;
+export const JOURNEY_DROP_MIN_MOVE = 0.5;
+/** A robot's bound on its journey (§1.9): max intensity in whole changes from home, 0 to 16 (the sixteen notes a
+ *  measure can hold). Absent reads as 0, so a robot built by hand plays its home melody. */
+export const JOURNEY_INTENSITY_MAX = 16;
+export const DEFAULT_JOURNEY_MAX_INTENSITY = 0;
+/** Every journey's max time, in measures (§7.4): not a robot setting, so robots on one journey turn together. A pair's
+ *  time is its share of this, rounded to an even number from 2 (Crawford, 2026-11-17: "one max journey time of 16 for
+ *  now"). */
+export const JOURNEY_TIME_MAX = 16;
 
 /**
  * Whether background-depth buildings host work sites (jobHosts.ts's isWorkSiteEligible). True

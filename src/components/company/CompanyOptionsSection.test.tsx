@@ -85,12 +85,14 @@ vi.mock('@/components/robot/LevelsSections', () => ({
 }));
 vi.mock('@/components/robot/CompositionSections', () => ({
   CompositionRhythmMelodySection: memo((props: {
-    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number };
+    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; journeyMaxIntensity?: number };
     onDensityChange: (v: number) => void;
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
     onClickTrackActiveChange?: (active: boolean) => void;
+    onJourneyMaxIntensityChange?: (v: number) => void;
+    onJourneyChange?: (v: 'own' | 'company' | 'fleet') => void;
     disabled?: boolean;
   }) => {
     renderCounts.composition();
@@ -101,6 +103,7 @@ vi.mock('@/components/robot/CompositionSections', () => ({
         data-motif-length={props.value.rhythmicMotifLength}
         data-pitch-repeat={props.value.pitchRepeat}
         data-note-variance={props.value.noteVariance}
+        data-journey-max-intensity={String(props.value.journeyMaxIntensity)}
         data-disabled={props.disabled ? '' : undefined}
       >
         <button onClick={() => props.onDensityChange(77)}>probe-density</button>
@@ -108,6 +111,8 @@ vi.mock('@/components/robot/CompositionSections', () => ({
         <button onClick={() => props.onPitchRepeatChange(90)}>probe-pitch-repeat</button>
         <button onClick={() => props.onNoteVarianceChange(33)}>probe-note-variance</button>
         {props.onClickTrackActiveChange && <button onClick={() => props.onClickTrackActiveChange!(true)}>probe-click-track</button>}
+        {props.onJourneyMaxIntensityChange && <button onClick={() => props.onJourneyMaxIntensityChange!(12)}>probe-journey-max-intensity</button>}
+        {props.onJourneyChange && <button onClick={() => props.onJourneyChange!('fleet')}>probe-journey</button>}
       </div>
     );
   }),
@@ -520,6 +525,33 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       render(<Sections target="c1" ids={['rhythmMelody', 'details']} />);
       click(probe);
       expect(ids(spy)).toEqual(['r1', 'r2']);
+    });
+
+    // The melody journey's row (roadmap 92 Tasks 17, 31): the section passes both handlers on the company screens too,
+    // Max Intensity's in Development's place.
+    it.each([
+      ['probe-journey-max-intensity', 'applyJourneyMaxIntensity', 12, { journeyMaxIntensity: 12 }],
+      ['probe-journey', 'applyJourney', 'fleet', { journey: 'fleet' }],
+    ] as const)('Composition: %s calls %s once per member with the value, and is recorded', (probe, action, value, recorded) => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+      render(<Sections target="c1" ids={['rhythmMelody', 'details']} />);
+      click(probe);
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls.map((c) => c[2])).toEqual([value, value]);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual(recorded);
+    });
+
+    it('Composition: for \'all\', Max Intensity reaches every robot, across companies and Freelance, and is shown', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', journeyMaxIntensity: 3 }));
+      addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+      addCompany('c1', ['r1']);
+      const spy = vi.spyOn(robotOptionsActions, 'applyJourneyMaxIntensity');
+      render(<Sections target="all" ids={['rhythmMelody', 'details']} />);
+      expect(screen.getByTestId('composition-rhythm-melody-stub').getAttribute('data-journey-max-intensity')).toBe('3');
+      click('probe-journey-max-intensity');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(screen.getByTestId('composition-rhythm-melody-stub').getAttribute('data-journey-max-intensity')).toBe('12');
     });
 
     // docs/tasks/ONE_MUSIC_CLOCK.md Task 10b: the dev-only Click Track on the company and All Probes screens.

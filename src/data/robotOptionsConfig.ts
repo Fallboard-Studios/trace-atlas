@@ -50,6 +50,7 @@ import {
   PORTAMENTO_MAX,
   ROBOT_BUS_FILTER_FREQ_RANGE,
   ROBOT_BUS_FILTER_Q_RANGE,
+  JOURNEY_INTENSITY_MAX,
 } from '@/constants';
 
 // ========================================
@@ -271,6 +272,28 @@ export const OCTAVE_RANGE_MAX_SCHEMA: SliderLinearSchema = {
   max: OCTAVE_RANGE_MAX,
   step: 1,
   orientation: 'horizontal',
+};
+
+/**
+ * The bound on a robot's journey (docs/specs/MELODY_JOURNEY.md §1.9, §1.10): how many changes from home it may travel,
+ * busier or calmer (Robot.journeyMaxIntensity), in whole changes; 0 always plays the home melody.
+ */
+export const JOURNEY_MAX_INTENSITY_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.journeyMaxIntensity',
+  type: 'sliderLinear',
+  ...labels('probe.composition.journeyMaxIntensity'),
+  min: 0,
+  max: JOURNEY_INTENSITY_MAX,
+  step: 1,
+  orientation: 'horizontal',
+};
+
+/** Whose journey the melody travels (Robot.journey): Own, Company or Fleet. Inert while Max Intensity is 0. */
+export const JOURNEY_SCHEMA: RadioButtonSchema = {
+  id: 'robotOptions.journey',
+  type: 'radio',
+  ...labels('probe.composition.journey'),
+  options: options('probe.composition.journey'),
 };
 
 export const NOTE_VARIANCE_SCHEMA: SliderLinearSchema = {

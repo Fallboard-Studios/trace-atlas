@@ -170,6 +170,17 @@ describe('rederiveLoading: every widened robot key is compared and pushed (theme
     expect(result.dropped).toEqual([]);
   });
 
+  // docs/tasks/MELODY_JOURNEY.md Task 34 (spec §1.9): a robot's max intensity needs no push, so the write is all: no
+  // engine call, no melody regenerated.
+  it('robot.journeyMaxIntensity: the field alone, re-derived in place, no engine call and no melody regenerated', () => {
+    const result = changeTheme({ 'robot.journeyMaxIntensity': { min: 14, max: 16, lit: 1 } });
+    expectFieldAlone(result, (r) => r.journeyMaxIntensity, (_, f) => ({ journeyMaxIntensity: f.journeyMaxIntensity }));
+    for (const spy of Object.values(result.spies)) expect(spy).not.toHaveBeenCalled();
+    result.after.forEach((robot, i) => expect(robot.melody, robot.id).toBe(result.before[i].melody));
+    for (const robot of result.after) expect(robot.journeyMaxIntensity, robot.id).toBeGreaterThanOrEqual(14);
+    expect(result.dropped).toEqual([]);
+  });
+
   it('robot.accents: the field and the melody it bakes in, regenerated once per moved robot, as the Accents edit', () => {
     const result = changeTheme({ 'robot.accents': { min: 95, max: 100 } });
     const moved = expectFieldAlone(result, (r) => r.accents, (_, f) => ({ accents: f.accents, melody: f.melody }));

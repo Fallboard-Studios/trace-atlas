@@ -514,7 +514,7 @@ describe('audioBudgetSystem', () => {
       startAudioBudget();
       expect(engineStandBy).toHaveBeenLastCalledWith([]);
 
-      landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+      landOnDocked(DEFAULT_LOCALE_ID, 'r4');
       expect(engineStandBy).toHaveBeenLastCalledWith([]); // still swimming home (backlog 84)
       update('r4', { activity: 'charging' }); // the work loop puts it in its station
 
@@ -525,7 +525,7 @@ describe('audioBudgetSystem', () => {
     it('undocking takes it off the list and admits it to the sounding set', () => {
       setRoster(roster(12));
       startAudioBudget();
-      landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+      landOnDocked(DEFAULT_LOCALE_ID, 'r4');
       update('r4', { activity: 'charging' }); // in its station (backlog 84)
       engineSet.mockClear();
 
@@ -599,7 +599,7 @@ describe('audioBudgetSystem', () => {
       startAudioBudget();
       update('r4', { audioMode: 'solo' });
 
-      landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+      landOnDocked(DEFAULT_LOCALE_ID, 'r4');
       expect(sounding()).toEqual(['r4']);
 
       landOnActive(DEFAULT_LOCALE_ID, 'r4');
@@ -612,7 +612,7 @@ describe('audioBudgetSystem', () => {
       startAudioBudget();
       update('r4', { audioMode: 'mute' });
 
-      landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+      landOnDocked(DEFAULT_LOCALE_ID, 'r4');
       landOnActive(DEFAULT_LOCALE_ID, 'r4');
 
       expect(engineStandBy).toHaveBeenLastCalledWith(['r4']);

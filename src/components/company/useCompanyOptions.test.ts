@@ -1410,6 +1410,141 @@ describe('useCompanyOptions', () => {
     });
   });
 
+  // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Tasks 17, 31): Max Intensity and
+  // Journey, broadcast, not link, through the real applies (each writes its field only, so nothing reaches the engine).
+  describe('Max Intensity and Journey (melody journey Tasks 17, 31)', () => {
+    const member = (id: string) => useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === id)!;
+    const snapshot = () => useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions;
+
+    describe('the value', () => {
+      it('is the first member own max intensity and journey, until an edit is recorded', () => {
+        twoDistinctMembers({ journeyMaxIntensity: 7, journey: 'fleet' });
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(7);
+        expect(result.current.options.pingControlsValue.journey).toBe('fleet');
+      });
+
+      it('is 0 and own for a first member with neither field', () => {
+        twoDistinctMembers();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(0);
+        expect(result.current.options.pingControlsValue.journey).toBe('own');
+      });
+
+      it('is 0 and own with no members', () => {
+        addCompany('c1', []);
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.active).toBe(false);
+        expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(0);
+        expect(result.current.options.pingControlsValue.journey).toBe('own');
+      });
+
+      it('is the recorded max intensity once an edit is recorded, over the first member own', () => {
+        twoDistinctMembers({ journeyMaxIntensity: 7 });
+        useLocaleStore.getState().updateCompany(localeId, 'c1', { lastEditedOptions: { journeyMaxIntensity: 12 } });
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(12);
+      });
+    });
+
+    it('a Max Intensity edit writes every member max intensity and records { journeyMaxIntensity } alone', () => {
+      twoDistinctMembers({ journeyMaxIntensity: 2 });
+      const engine = vi.spyOn(AudioEngine, 'registerRobotMelody');
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onJourneyMaxIntensityChange(13));
+      expect(member('r1').journeyMaxIntensity).toBe(13);
+      expect(member('r2').journeyMaxIntensity).toBe(13);
+      expect(snapshot()).toEqual({ journeyMaxIntensity: 13 });
+      expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(13);
+      expect(engine).not.toHaveBeenCalled();
+    });
+
+    it('a Max Intensity edit of 0 is recorded and reaches every member (home is a real value)', () => {
+      twoDistinctMembers({ journeyMaxIntensity: 9 });
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onJourneyMaxIntensityChange(0));
+      expect(member('r1').journeyMaxIntensity).toBe(0);
+      expect(member('r2').journeyMaxIntensity).toBe(0);
+      expect(snapshot()).toEqual({ journeyMaxIntensity: 0 });
+      expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(0);
+    });
+
+    it('a Journey edit writes every member journey and records { journey } alone', () => {
+      twoDistinctMembers();
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onJourneyChange('company'));
+      expect(member('r1').journey).toBe('company');
+      expect(member('r2').journey).toBe('company');
+      expect(snapshot()).toEqual({ journey: 'company' });
+      expect(result.current.options.pingControlsValue.journey).toBe('company');
+    });
+
+    it('each edit goes through its apply once per member', () => {
+      twoDistinctMembers();
+      const maxIntensity = vi.spyOn(robotOptionsActions, 'applyJourneyMaxIntensity');
+      const journey = vi.spyOn(robotOptionsActions, 'applyJourney');
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onJourneyMaxIntensityChange(6));
+      act(() => result.current.options.onJourneyChange('fleet'));
+      expect(maxIntensity.mock.calls.map((c) => [c[0].id, c[2]])).toEqual([['r1', 6], ['r2', 6]]);
+      expect(journey.mock.calls.map((c) => [c[0].id, c[2]])).toEqual([['r1', 'fleet'], ['r2', 'fleet']]);
+    });
+
+    it('a robot outside the company is untouched', () => {
+      twoDistinctMembers();
+      addRobot(makeRobot({ id: 'r3', companyId: undefined, journeyMaxIntensity: 3 }));
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onJourneyMaxIntensityChange(16));
+      act(() => result.current.options.onJourneyChange('fleet'));
+      expect(member('r3').journeyMaxIntensity).toBe(3);
+      expect(member('r3').journey).toBeUndefined();
+    });
+
+    it('broadcast, not link: a member edited on its own afterwards keeps its own value', () => {
+      twoDistinctMembers();
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onJourneyMaxIntensityChange(10));
+      act(() => result.current.options.onJourneyChange('company'));
+      act(() => {
+        robotOptionsActions.applyJourneyMaxIntensity(member('r2'), localeId, 4);
+        robotOptionsActions.applyJourney(member('r2'), localeId, 'own');
+      });
+      expect(member('r2').journeyMaxIntensity).toBe(4);
+      expect(member('r2').journey).toBe('own');
+      expect(member('r1').journeyMaxIntensity).toBe(10);
+      expect(member('r1').journey).toBe('company');
+      expect(snapshot()).toEqual({ journeyMaxIntensity: 10, journey: 'company' });
+    });
+
+    it('All Probes: an edit reaches every robot, Freelance included, and records in allRobotsLastEditedOptions', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c2' }));
+      addRobot(makeRobot({ id: 'r3', companyId: undefined }));
+      addCompany('c1', ['r1']);
+      addCompany('c2', ['r2']);
+      const { result } = renderHook(() => useCompanyOptions('all'));
+      act(() => result.current.options.onJourneyMaxIntensityChange(14));
+      act(() => result.current.options.onJourneyChange('fleet'));
+      for (const id of ['r1', 'r2', 'r3']) {
+        expect(member(id).journeyMaxIntensity).toBe(14);
+        expect(member(id).journey).toBe('fleet');
+      }
+      const all = useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions;
+      expect(all?.journeyMaxIntensity).toBe(14);
+      expect(all?.journey).toBe('fleet');
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toBeUndefined();
+    });
+
+    it('the two handlers keep their identity across an edit', () => {
+      twoDistinctMembers();
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      const first = result.current.options;
+      act(() => result.current.options.onJourneyMaxIntensityChange(1));
+      expect(result.current.options.onJourneyMaxIntensityChange).toBe(first.onJourneyMaxIntensityChange);
+      expect(result.current.options.onJourneyChange).toBe(first.onJourneyChange);
+    });
+  });
+
   describe('Envelope: the diff-one-field rule', () => {
     it('editing Attack broadcasts only attack — each member keeps its own Decay / Sustain / Release', () => {
       twoDistinctMembers();

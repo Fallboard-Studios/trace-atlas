@@ -24,7 +24,7 @@ import {
 |---|---|
 | `BEATS_PER_MEASURE` | `4` (4/4 time) |
 
-Measures count **music and the fleet's lifecycle** (battery, docking, pitch drift, the harmony palette) — never a day. The in-world day is wall-clock: a fixed `DAY_DURATION_MS` (6 real minutes, `src/constants/time.ts`) from each locale's own `dayStartTimestamp`, read through `computeLocaleHour`. Tempo cannot shorten or stretch it, and nothing here derives an hour.
+Measures count **music and the fleet's lifecycle** (battery, docking, the harmony palette, the melody journey) — never a day. The in-world day is wall-clock: a fixed `DAY_DURATION_MS` (6 real minutes, `src/constants/time.ts`) from each locale's own `dayStartTimestamp`, read through `computeLocaleHour`. Tempo cannot shorten or stretch it, and nothing here derives an hour.
 
 ## The music position
 

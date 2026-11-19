@@ -8,6 +8,9 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { ROBOT_SEND_FIELDS } from '../data/robotSends';
 import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { SIM_SEED_COORDS, simNoiseMap } from './lifecycleSim';
+import { getBand } from '../data/bands/loadingContext';
+import { journeyPosition, robotJourney } from '../engine/melodyJourney';
+import { calmLimit, developMelody, eventSixteenths } from '../engine/melodyDevelopment';
 import {
   generateBatterySize,
   generateCompanyMembership,
@@ -214,6 +217,79 @@ describe('a seeded company is a family at spawn (Company Families Task 5)', () =
       withEngineStubbed(() => spawnRobot(localeId, { founderIndex: 5 }));
       const [robot] = useLocaleStore.getState().getLocaleById(localeId)!.robots;
       expect(robot.lineage).toBeUndefined();
+    });
+  });
+
+  // docs/tasks/MELODY_JOURNEY.md Tasks 19 and 34 (spec §1.8, §1.9, success criterion 3): a family develops as a section.
+  describe('the melody journey over the grid (roadmap 92 Tasks 19 and 34)', () => {
+    const MEASURES = 100;
+    const bpmTop = getBand('bpm').max;
+    const WORLDS = SIM_SEED_COORDS.map(({ x, y }) => {
+      const { localeId } = spawnWorld(x, y);
+      spawnInitialCompanies(localeId);
+      const { robots, companies } = useLocaleStore.getState().getLocaleById(localeId)!;
+      return { key: `${x}:${y}`, x, y, robots, companies };
+    });
+    /** Each member's starts and lengths, measure by measure, as the engine plays them. */
+    const rhythmByMeasure = (robot: Robot, worldKey: string) => {
+      const journey = robotJourney(robot, worldKey, bpmTop);
+      const bounds = { maxIntensity: journey.maxIntensity, maxTime: journey.maxTime, calmLimit: calmLimit(robot.melody) };
+      return Array.from({ length: MEASURES }, (_, measure) =>
+        developMelody(robot.melody, journeyPosition(journey.key, bounds, measure), journey).map((e) => `${e.startStep}:${eventSixteenths(e)}`).join(' '),
+      );
+    };
+    it('every robot of a seeded company, founder included, is on Company; every freelancer on Own', () => {
+      for (const { key, robots, companies } of WORLDS) {
+        const members = new Set(companies.flatMap((c) => c.robotIds));
+        for (const robot of robots) expect(robot.journey, `${key} ${robot.id}`).toBe(members.has(robot.id) ? 'company' : 'own');
+      }
+    });
+
+    it('a member\'s max intensity is its founder\'s', () => {
+      let members = 0;
+      for (const { key, robots } of WORLDS) {
+        for (const robot of robots) {
+          if (!robot.lineage) continue;
+          members++;
+          expect(robot.journeyMaxIntensity, `${key} ${robot.id}`).toBe(robots[robot.lineage.founderIndex].journeyMaxIntensity);
+        }
+      }
+      expect(members).toBeGreaterThan(100); // precondition
+    });
+
+    it('a spawned roster equals its baseline in both settings', () => {
+      for (const { key, x, y, robots } of WORLDS) {
+        const baselines = generateRobotRosterBaseline(simNoiseMap(x, y), robots.length);
+        expect(robots.map((r) => [r.journeyMaxIntensity, r.journey]), key).toEqual(baselines.map((b) => [b.journeyMaxIntensity, b.journey]));
+      }
+    });
+
+    it('the share of robots that are not members and load above 0 is the band lit share, within five points', () => {
+      const originals = WORLDS.flatMap(({ robots }) => robots.filter((r) => !r.lineage));
+      const lit = originals.filter((r) => r.journeyMaxIntensity! > 0).length / originals.length;
+      const band = getBand('robot.journeyMaxIntensity');
+      expect(lit).toBeGreaterThanOrEqual(band.lit - 0.05);
+      expect(lit).toBeLessThanOrEqual(band.lit + 0.05);
+    });
+
+    it('the members of a company share one journey key and one seeded max intensity, and play the same starts and lengths at every measure of a 100-measure run', () => {
+      let moved = 0;
+      let home = 0;
+      for (const { key, robots, companies } of WORLDS) {
+        for (const company of companies) {
+          const members = company.robotIds.map((id) => robots.find((r) => r.id === id)!);
+          expect(new Set(members.map((r) => r.journeyMaxIntensity)).size, `${key} ${company.id} max intensity`).toBe(1);
+          const journeys = members.map((robot) => robotJourney(robot, key, bpmTop));
+          expect(new Set(journeys.map((j) => j.key)).size, `${key} ${company.id} key`).toBe(1);
+          const [first, ...rest] = members.map((robot) => rhythmByMeasure(robot, key));
+          for (const other of rest) expect(other, `${key} ${company.id}`).toEqual(first);
+          if (first.some((rhythm) => rhythm !== first[0])) moved++;
+          else home++;
+        }
+      }
+      // Precondition: the run holds companies that move and companies at home.
+      expect(moved).toBeGreaterThan(50);
+      expect(home).toBeGreaterThan(10);
     });
   });
 

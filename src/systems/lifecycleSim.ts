@@ -8,7 +8,7 @@ import { DockingState, type JobType, type RobotActivity } from '../types/Robot';
 import type { Actor } from '../types/Actor';
 import type { Vec2 } from '../types/Vec2';
 import { getUniformSeededVal } from '../utils/getSeededVal';
-import { generateBatterySize, generateRobotRosterBaseline } from './spawnSystem';
+import { generateBatterySize } from './spawnSystem';
 import { stepRobotLifecycle } from './robotSystems';
 import type { DrainRule, RobotLifecycleSnapshot } from './robotSystems';
 import { isWorkSiteEligible } from './jobHosts';
@@ -70,24 +70,20 @@ export type SimBand = readonly [min: number, max: number] | 'flat';
 
 /**
  * The roster a fresh locale on this noise map starts with, as lifecycle snapshots: spawnInitialRoster's
- * seeded Active count and Docked batteries, with generateRobotRosterBaseline's note variance. Melody
- * is empty — it only feeds pitch drift, which never touches battery or docking. Each robot's battery
- * size is spawn's own generateBatterySize at its spawn count, on the shipped band unless `band` names
- * another; 'flat' sets no size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, §1.5).
+ * seeded Active count and Docked batteries. Each robot's battery size is spawn's own generateBatterySize
+ * at its spawn count, on the shipped band unless `band` names another; 'flat' sets no size
+ * (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, §1.5).
  */
 export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): RobotLifecycleSnapshot[] {
   const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
     getUniformSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1),
   );
-  return generateRobotRosterBaseline(noiseMap, MAX_ROBOTS).map((b, i) => {
+  return Array.from({ length: MAX_ROBOTS }, (_, i) => {
     const active = i < activeCount;
     return {
       id: `sim-${i}`,
       docking: active ? DockingState.Active : DockingState.Docked,
       batteryLevel: active ? 100 : Math.floor(getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)),
-      melody: [],
-      dockCycleCount: 0,
-      noteVariance: b.noteVariance,
       ...(band === 'flat' ? {} : { batterySize: band ? generateBatterySize(noiseMap, i, band[0], band[1]) : generateBatterySize(noiseMap, i) }),
     };
   });
@@ -120,11 +116,11 @@ export const DRAIN_CANDIDATES: readonly DrainCandidate[] = [
 
 /** Active-robot count after each of measures 1..`measures` (stepRobotLifecycle, the step
  *  replayLifecycle loops over, run one measure at a time so every count is observed). */
-export function activeCountsOverTime(roster: RobotLifecycleSnapshot[], noiseMap: NoiseFunction2D, drain: DrainRule, measures: number): number[] {
+export function activeCountsOverTime(roster: RobotLifecycleSnapshot[], drain: DrainRule, measures: number): number[] {
   const counts: number[] = [];
   let working = roster;
   for (let measure = 1; measure <= measures; measure++) {
-    working = stepRobotLifecycle(working, measure, noiseMap, drain);
+    working = stepRobotLifecycle(working, measure, drain);
     counts.push(working.filter((r) => r.docking === DockingState.Active).length);
   }
   return counts;
@@ -153,15 +149,12 @@ export function runDrainSim(options: {
   candidates?: readonly DrainCandidate[];
 } = {}): DrainSimRow[] {
   const { coords = SIM_SEED_COORDS, measures = SIM_MEASURES, candidates = DRAIN_CANDIDATES } = options;
-  const seeds = coords.map(({ x, y }) => {
-    const noiseMap = simNoiseMap(x, y);
-    return { noiseMap, roster: buildSimRoster(noiseMap) };
-  });
+  const rosters = coords.map(({ x, y }) => buildSimRoster(simNoiseMap(x, y)));
 
   return candidates.map(({ label, drain }) => {
     const samples: number[] = [];
-    for (const { noiseMap, roster } of seeds) {
-      for (const n of activeCountsOverTime(roster, noiseMap, drain, measures)) samples.push(n);
+    for (const roster of rosters) {
+      for (const n of activeCountsOverTime(roster, drain, measures)) samples.push(n);
     }
     const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
     return { label, mean, p10: percentile(samples, 10), p90: percentile(samples, 90) };
@@ -359,11 +352,10 @@ function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: 
   let worldsWithStay = 0;
 
   for (const { x, y } of coords) {
-    const noiseMap = simNoiseMap(x, y);
-    let roster = buildSimRoster(noiseMap, band);
+    let roster = buildSimRoster(simNoiseMap(x, y), band);
     const tally = createCoverTally(roster);
     for (let measure = 1; measure <= measures; measure++) {
-      roster = stepRobotLifecycle(roster, measure, noiseMap);
+      roster = stepRobotLifecycle(roster, measure);
       tally.observe(roster);
     }
     const t = tally.result();
@@ -873,7 +865,7 @@ export function runReadinessSim(options: {
   const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES, band } = options;
   const prepared = worlds.map(({ x, y, actors }) => {
     const noiseMap = simNoiseMap(x, y);
-    return { x, y, noiseMap, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap, band) };
+    return { x, y, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap, band) };
   });
 
   const rows: ReadinessRow[] = [];
@@ -894,7 +886,7 @@ export function runReadinessSim(options: {
           bpm,
           seconds,
           rand: alea(`loop-sim:${w.x}:${w.y}:${bpm}`),
-          step: (roster, measure) => stepRobotLifecycle(roster, measure, w.noiseMap),
+          step: (roster, measure) => stepRobotLifecycle(roster, measure),
           cooldown,
         });
         const share = r.activeSeconds > 0 ? r.waitingSeconds / r.activeSeconds : 0;

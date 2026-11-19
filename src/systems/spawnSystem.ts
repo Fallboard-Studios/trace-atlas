@@ -4,7 +4,7 @@
 import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 import type { Vec2 } from '../types/Vec2';
-import type { AudioAttributes, Robot, RobotFilterType } from '../types/Robot';
+import type { AudioAttributes, JourneySetting, Robot, RobotFilterType } from '../types/Robot';
 import { DockingState } from '../types/Robot';
 import {
   DEFAULT_RHYTHMIC_DENSITY,
@@ -23,7 +23,7 @@ import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, FREELANCERS_MIN,
-  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX,
+  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, DEFAULT_JOURNEY_MAX_INTENSITY,
 } from '../constants';
 import { recordByField, robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
@@ -48,6 +48,7 @@ import {
   derivePortamento,
   deriveSendFields,
   deriveVoiceFields,
+  seedJourneyMaxIntensity,
   seedToggleValue,
 } from './robotFieldDerivation';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
@@ -384,6 +385,12 @@ export interface RobotAudioBaseline {
   rhythmicMotifLength: ToggleValue;
   noteVariance: ToggleValue;
   pitchRepeat: number;
+  /** The journey's max intensity (docs/specs/MELODY_JOURNEY.md §1.9): seeded, a member's from its founder like
+   *  pitchRepeat. */
+  journeyMaxIntensity: number;
+  /** Whose journey it travels (§1.9): 'company' for every index of a seeded company's membership, founder included,
+   *  'own' for a freelancer - what spawnRobot and spawnInitialCompanies write between them. */
+  journey: JourneySetting;
   /** Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): seeded, 0-100 integers, a member's from its founder like pitchRepeat. */
   dynamics: number;
   rests: number;
@@ -424,14 +431,14 @@ export function generateRobotAudioBaseline(
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
-  const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands(), audioAttributes.adsr.attack);
+  const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, journeyMaxIntensity } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands(), audioAttributes.adsr.attack);
   const { dynamics, rests, accents } = derivePerformanceFields(noiseMap, spawnCount, currentPerformanceBands());
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
   const masterVolume = seedMasterVolume(noiseMap, spawnCount, octaveRange);
 
-  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, journeyMaxIntensity, journey: 'own', dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
 }
 
 /** A company member's baseline at `spawnCount` (Company Families §1.11): its founder's, every field inherited — the
@@ -465,12 +472,16 @@ export function companyFounders(membership: readonly (readonly number[])[]): Map
  * seed alone, to diff a live roster against.
  */
 export function generateRobotRosterBaseline(noiseMap: NoiseFunction2D, count: number): RobotAudioBaseline[] {
-  const founders = companyFounders(generateCompanyMembership(noiseMap, count));
+  const membership = generateCompanyMembership(noiseMap, count);
+  const founders = companyFounders(membership);
   const baselines: RobotAudioBaseline[] = [];
   for (let i = 0; i < count; i++) {
     const founder = founders.get(i);
     baselines.push(founder === undefined ? generateRobotAudioBaseline(noiseMap, i, baselines) : memberBaseline(noiseMap, i, baselines[founder]));
   }
+  // spawnInitialCompanies' Journey write (docs/specs/MELODY_JOURNEY.md §1.9): every index of a seeded company, the
+  // founder too, travels on its company's journey.
+  for (const index of membership.flat()) baselines[index] = { ...baselines[index], journey: 'company' };
   return baselines;
 }
 
@@ -577,6 +588,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   let spawnRhythmicMotifLength: ToggleValue;
   let spawnNoteVariance: ToggleValue;
   let spawnPitchRepeat: number;
+  let spawnJourneyMaxIntensity: number;
   let spawnDynamics: number;
   let spawnRests: number;
   let spawnAccents: number;
@@ -595,6 +607,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     spawnRhythmicMotifLength = founder.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
     spawnNoteVariance = founder.noteVariance ?? DEFAULT_NOTE_VARIANCE;
     spawnPitchRepeat = founder.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
+    spawnJourneyMaxIntensity = founder.journeyMaxIntensity ?? DEFAULT_JOURNEY_MAX_INTENSITY;
     spawnDynamics = founder.dynamics ?? DEFAULT_DYNAMICS;
     spawnRests = founder.rests ?? DEFAULT_RESTS;
     spawnAccents = founder.accents ?? DEFAULT_ACCENTS;
@@ -619,6 +632,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
         rhythmicMotifLength: spawnRhythmicMotifLength,
         noteVariance: spawnNoteVariance,
         pitchRepeat: spawnPitchRepeat,
+        journeyMaxIntensity: spawnJourneyMaxIntensity,
       } = deriveMelodyFields(noiseMap, spawnCount, melodyBands, audioAttributes.adsr.attack));
     } else {
       const density = audibleDensityBand(melodyBands['robot.rhythmicDensity'], audioAttributes.adsr.attack, melodyBands.bpm);
@@ -627,6 +641,11 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       spawnNoteVariance = seedToggleValue(alea(`${localeId}:${spawnCount}:nvActive`)(), melodyBands['robot.noteVariance']);
       const repeat = melodyBands['robot.pitchRepeat'];
       spawnPitchRepeat = Math.round(repeat.min + alea(`${localeId}:${spawnCount}:pitchRepeat`)() * (repeat.max - repeat.min));
+      spawnJourneyMaxIntensity = seedJourneyMaxIntensity(
+        alea(`${localeId}:${spawnCount}:journeyMaxIntensityLit`)(),
+        alea(`${localeId}:${spawnCount}:journeyMaxIntensity`)(),
+        melodyBands['robot.journeyMaxIntensity'],
+      );
     }
 
     // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): the three performance sliders through the family's
@@ -686,6 +705,10 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     rhythmicMotifLength: spawnRhythmicMotifLength,
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
+    // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): max intensity seeded, a member's its founder's; every
+    // robot spawns on its own journey, and spawnInitialCompanies moves a seeded company's robots onto theirs.
+    journeyMaxIntensity: spawnJourneyMaxIntensity,
+    journey: 'own',
     dynamics: spawnDynamics,
     rests: spawnRests,
     accents: spawnAccents,
@@ -841,7 +864,8 @@ export function spawnInitialCompanies(localeId: string): void {
     const usedColors = (useLocaleStore.getState().getLocaleById(localeId)?.companies ?? []).map((existing) => existing.color);
     const company: Company = { id, name, color: generateCompanyIdentityColor(noiseMap, c, usedColors), robotIds };
     useLocaleStore.getState().addCompany(localeId, company);
-    robotIds.forEach((robotId) => useLocaleStore.getState().updateRobot(localeId, robotId, { companyId: company.id }));
+    // A seeded company travels as a section (docs/specs/MELODY_JOURNEY.md §1.9): every member, the founder too, on Company.
+    robotIds.forEach((robotId) => useLocaleStore.getState().updateRobot(localeId, robotId, { companyId: company.id, journey: 'company' }));
   });
 }
 

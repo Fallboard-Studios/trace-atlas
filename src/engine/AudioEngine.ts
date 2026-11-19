@@ -12,14 +12,16 @@ import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, Robo
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
-import { paletteForMeasure } from './harmonySystem';
+import { paletteForMeasure, stepInPalette } from './harmonySystem';
 import { resetBeatClock, initBeatClock, positionAt, getTickSeconds, type MusicPosition } from './beatClock';
-import { buildClickTrackMelody } from './clickTrack';
 import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS, STATION_FADE_RECOVER_SECONDS } from '../constants';
 import { emitRobotNote, getNotePreviewSeconds, hasRobotNoteListener } from './noteEvents';
 import { readContextSeconds } from './nativeContext';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
 import { resolveArticulation } from './articulation';
+import { worldKeyOf } from './melodyJourney';
+import { entriesForStep, hasRegisteredMelodies, registerMelody, registeredEvents, unregisterMelody } from './audioEngine/melodyRegistry';
+import { getBand } from '../data/bands/loadingContext';
 
 import { getRef } from '../utils/refs';
 import { precomputeDataX } from '../utils/getSeededVal';
@@ -99,17 +101,6 @@ export interface NoteParams {
   /** This note's release in seconds, in place of the robot's for this note alone (a cut note's, from
    * processMelodyStep). Absent: the robot's own. docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b. */
   release?: number;
-}
-
-interface MelodyEventEntry {
-  robotId: string;
-  event: MelodyEvent;
-  /** True when this event is the earliest `startStep` within its motif-tiling
-   * repeat window (computed once at registration — see registerRobotMelody). */
-  isGroupAccent?: boolean;
-  /** True when this entry belongs to the substituted click-track melody (registerRobotMelody): a tempo reference
-   * is never humanized. */
-  clickTrack?: boolean;
 }
 
 // ========================================
@@ -202,8 +193,8 @@ let humanizeMs = 0;
 // Global FX chain (compressor, reverb/delay/limiter/EQ/filters, master
 // gain) lives in src/engine/audioEngine/globalFx.ts as its own module state.
 
-// Step registry: Map<stepNumber (1-16), events at that step>
-const stepRegistry = new Map<number, MelodyEventEntry[]>();
+// The melody registry (what each robot plays, its developed positions kept) lives in
+// src/engine/audioEngine/melodyRegistry.ts as its own module state.
 
 let scheduledTickId: number | null = null;
 
@@ -825,18 +816,17 @@ export function computeNoteVelocitySeeded(robotId?: string, position?: number, r
 
 /**
  * Humanize (docs/specs/ROBOT_PERFORMANCE.md assumption 9): a function from a robot id to how many seconds early or
- * late its note lands this tick, within ± humanizeMs. The roster is fetched ONCE here, per processMelodyStep call,
- * not once per note; the per-robot work is a find over the roster and one `performanceRoll(seed, 'humanize',
- * position)` draw (T20), uniform and independent across robots and ticks, so a unison smears rather than shifting
- * together, and a replay repeats. The locale noise map is only checked for presence (no active locale, no offset).
- * Returns a constant 0 (and fetches nothing) when Humanize is off or there is no noise map. MIN_LEAD less the
- * largest offset still leaves 80 ms of lead, inside CLAUDE.md's 50-100 ms rule.
+ * late its note lands this tick, within ± humanizeMs. The roster is the one stepNotes read for the step, not one read
+ * per note; the per-robot work is a find over the roster and one `performanceRoll(seed, 'humanize', position)` draw
+ * (T20), uniform and independent across robots and ticks, so a unison smears rather than shifting together, and a
+ * replay repeats. The locale noise map is only checked for presence (no active locale, no offset). Returns a constant 0
+ * when Humanize is off or there is no noise map. MIN_LEAD less the largest offset still leaves 80 ms of lead, inside
+ * CLAUDE.md's 50-100 ms rule.
  */
-function humanizeOffsetFor(position: number): (robotId: string) => number {
+function humanizeOffsetFor(position: number, roster: readonly Robot[]): (robotId: string) => number {
   if (humanizeMs <= 0) return () => 0;
   const noiseMap = tryGetLocaleNoiseMap(getActiveLocaleId());
   if (!noiseMap) return () => 0;
-  const roster = getActiveLocaleRobots();
   const range = humanizeMs / 1000;
   return (robotId) => {
     const seed = roster.find((r) => r.id === robotId)?.compositionSeed ?? 0;
@@ -845,13 +835,16 @@ function humanizeOffsetFor(position: number): (robotId: string) => number {
 }
 
 /**
- * A step's notes (note cloud spec §1.9; plan Task 32): every registered event on `at.step`, read as it will sound.
+ * A step's notes (note cloud spec §1.9; plan Task 32): every registered robot's events on `at.step`, from its melody
+ * for `at.measure` (entriesOnStep, melody journey §1.7), read as it will sound.
  * The one place that turns a step into notes, so the trigger (processMelodyStep) and an early announcement read the
  * same thing and cannot drift. Pure as far as the audio goes: it schedules nothing and counts no voice.
  *
- * - pitch: `paletteForMeasure(at.measure)` at the event's note index, with its octave (4 if none);
- * - length: the written NoteDuration, or, for a rested or clipped note, its sounding length in seconds at the live
- *   tempo (floored at MIN_SOUNDING_SECONDS, never longer than written) with a short release (docs/specs/
+ * - pitch: `paletteForMeasure(at.measure)` at the event's note index, with its octave (4 if none), moved `pitchStep`
+ *   palette steps when the event has one (stepInPalette, inside the stored robot's octave range; melody journey §1.7);
+ * - length: the written NoteDuration, or `sixteenths` sixteenths in seconds at the live tempo when the event has one
+ *   (melody journey §1.4), or, for a rested or clipped note, its sounding length in seconds at the live tempo
+ *   (floored at MIN_SOUNDING_SECONDS, never longer than written) with a short release (docs/specs/
  *   ROBOT_PERFORMANCE.md §1.3; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b);
  * - accent: the motif-group accent times the mark's velocity, absent when 1;
  * - start: `time + MIN_LEAD` plus the Humanize roll at `at.sixteenth` (none for a Click Track entry);
@@ -860,11 +853,19 @@ function humanizeOffsetFor(position: number): (robotId: string) => number {
  * A bad note index is skipped with a dev warning; an event that throws while it is read is skipped alone.
  */
 export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
-  const events = stepRegistry.get(at.step) || [];
+  if (!hasRegisteredMelodies()) return [];
+  // One store read per step (melody journey §1.7): the robots' settings, the world key and the Humanize seeds.
+  const localeId = getActiveLocaleId();
+  const locale = useLocaleStore.getState().locales?.[localeId];
+  const roster = locale?.robots ?? [];
+  const robotOf = (robotId: string) => roster.find((r) => r.id === robotId);
+  const worldKey = locale?.coordinates ? worldKeyOf(locale.coordinates) : localeId;
+  const bpmTop = getBand('bpm').max;
+  const events = entriesForStep(robotOf, worldKey, bpmTop, at);
   if (events.length === 0) return [];
   const notes = paletteForMeasure(at.measure);
   const position = at.sixteenth;
-  const humanizeOffset = humanizeOffsetFor(position);
+  const humanizeOffset = humanizeOffsetFor(position, roster);
   const out: NoteParams[] = [];
 
   events.forEach(({ robotId, event, isGroupAccent, clickTrack }) => {
@@ -875,22 +876,32 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
         devWarn(`[AudioEngine] Invalid note index ${event.noteIndex} for robot ${robotId}`);
         return;
       }
-      const octave = event.octave ?? 4;
+      let octave = event.octave ?? 4;
+      let pitchName = noteName;
+      // A neighbour (melody journey §1.4, §1.7): palette steps from the event's own note, in this measure's palette,
+      // turned back at the stored robot's octave range (no range for a robot the store does not hold).
+      if (event.pitchStep) {
+        const stepped = stepInPalette(notes, event.noteIndex, octave, event.pitchStep, robotOf(robotId)?.octaveRange);
+        pitchName = stepped.note;
+        octave = stepped.octave;
+      }
 
       const art = resolveArticulation(event);
-      let duration: NoteDuration | number = event.length;
+      // A length in sixteenths (melody journey §1.4) sounds for that many sixteenths at the live tempo, in seconds.
+      let duration: NoteDuration | number =
+        event.sixteenths !== undefined ? Tone.Time('16n').toSeconds() * event.sixteenths : event.length;
       let release: number | undefined;
       if (art.length < 1) {
-        const writtenSeconds = Tone.Time(event.length).toSeconds();
+        const writtenSeconds = typeof duration === 'number' ? duration : Tone.Time(event.length).toSeconds();
         duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
-        const ownRelease = findActiveRobot(robotId)?.audioAttributes?.adsr?.release;
+        const ownRelease = robotOf(robotId)?.audioAttributes?.adsr?.release;
         release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
       }
       const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
 
       out.push({
         robotId,
-        note: `${noteName}${octave}`,
+        note: `${pitchName}${octave}`,
         duration,
         time: time + MIN_LEAD + (clickTrack ? 0 : humanizeOffset(robotId)),
         accentMultiplier: accentMultiplier === 1 ? undefined : accentMultiplier,
@@ -1522,17 +1533,18 @@ export const AudioEngine = {
    * Register or replace a robot's melody used by the engine's playback scheduler.
    *
    * Behavior:
-   * - Replaces any previously-registered events for `robotId` in the internal
-   *   `stepRegistry` so subsequent scheduler ticks will use the new melody.
+   * - Replaces any previous registration for `robotId` in the internal
+   *   `melodyRegistry` so subsequent scheduler ticks will use the new melody; the robot
+   *   moves to the end of the registry's order.
    * - This method is safe to call from the main thread; it mutates module-scoped
    *   registry data but does not touch the Tone.Transport scheduling directly.
-   * - The scheduler reads `stepRegistry` on the transport tick; callers should
+   * - The scheduler reads `melodyRegistry` on the transport tick; callers should
    *   expect the new melody to take effect on the next scheduled tick after
    *   registration.
    * - When the robot's own `clickTrackActive` flag (Robot.ts) is true, `melody` is ignored
    *   entirely and the fixed click-track pattern (src/engine/clickTrack.ts) is registered
    *   instead — enforced *here*, the one funnel every melody-registration call site shares
-   *   (spawn, Reset Melody, Density/Motif/Note Variance edits, docking's pitch-drift reroll,
+   *   (spawn, Reset Melody, Density/Motif/Note Variance edits,
    *   this file's own per-loop rhythmic/tonal variance), rather than trusting each call site to
    *   remember to check the flag itself. See docs/MELODY_SYSTEM.md's Click Track note.
    *
@@ -1545,77 +1557,20 @@ export const AudioEngine = {
    *   (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5).
    */
   registerRobotMelody(robotId: string, melody: MelodyEvent[], given?: Robot): void {
-    // Purge any existing entries for this robot before adding new ones so this
-    // method is idempotent regardless of call site — prevents duplicate triggers.
-    stepRegistry.forEach((entries, step) => {
-      const filtered = entries.filter((e) => e.robotId !== robotId);
-      if (filtered.length !== entries.length) {
-        if (filtered.length > 0) {
-          stepRegistry.set(step, filtered);
-        } else {
-          stepRegistry.delete(step);
-        }
-      }
-    });
-
-    const robot = given ?? findActiveRobot(robotId);
-    const effectiveMelody = robot?.clickTrackActive
-      ? buildClickTrackMelody(robot.octaveRange[0])
-      : melody;
-
-    // Motif-group accent: computed once here (not per-tick) so it stays off the
-    // scheduling hot path. Only meaningful when the robot's Motif Length toggle
-    // is active — scatter mode has no repeat windows to accent. Skipped entirely for the
-    // click track — it's a flat, unaccented test pulse, not the robot's own motif structure.
-    const motif = robot?.rhythmicMotifLength;
-    const accentedStartSteps = new Set<number>();
-    if (motif?.active && !robot?.clickTrackActive) {
-      const windowLength = Math.max(1, motif.value);
-      const earliestInWindow = new Map<number, number>(); // window index -> earliest startStep
-      effectiveMelody.forEach((event) => {
-        const windowIndex = Math.floor((event.startStep - 1) / windowLength);
-        const current = earliestInWindow.get(windowIndex);
-        if (current === undefined || event.startStep < current) {
-          earliestInWindow.set(windowIndex, event.startStep);
-        }
-      });
-      earliestInWindow.forEach((step) => accentedStartSteps.add(step));
-    }
-
-    const clickTrack = robot?.clickTrackActive === true;
-    effectiveMelody.forEach((event) => {
-      const entries = stepRegistry.get(event.startStep) || [];
-      entries.push({ robotId, event, isGroupAccent: accentedStartSteps.has(event.startStep), ...(clickTrack ? { clickTrack: true } : {}) });
-      stepRegistry.set(event.startStep, entries);
-    });
+    registerMelody(robotId, melody, given ?? findActiveRobot(robotId));
   },
 
   unregisterRobotMelody(robotId: string): void {
     robotNoteIndex.delete(robotId);
-
-    stepRegistry.forEach((entries, step) => {
-      const filtered = entries.filter((e) => e.robotId !== robotId);
-
-      if (filtered.length > 0) {
-        stepRegistry.set(step, filtered);
-      } else {
-        stepRegistry.delete(step);
-      }
-    });
+    unregisterMelody(robotId);
   },
 
   /**
-   * Test helper: return the currently registered melody events for a robot.
-   * This exposes a read-only snapshot of the internal `stepRegistry` for tests.
+   * Test helper: return the currently registered melody events for a robot, grouped by step in the order the steps
+   * first appear in its melody. A read-only snapshot of the internal registry for tests.
    */
   getRegisteredMelody(robotId: string): MelodyEvent[] {
-    const out: MelodyEvent[] = [];
-    stepRegistry.forEach((entries) => {
-      entries.forEach((e) => {
-        if (e.robotId === robotId) out.push(e.event);
-      });
-    });
-    return out;
+    return registeredEvents(robotId);
   },
 
   /**

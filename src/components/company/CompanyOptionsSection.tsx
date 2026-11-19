@@ -91,6 +91,8 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onPitchRepeatChange={options.onPitchRepeatChange}
             onNoteVarianceChange={options.onNoteVarianceChange}
             onClickTrackActiveChange={options.onClickTrackActiveChange}
+            onJourneyMaxIntensityChange={options.onJourneyMaxIntensityChange}
+            onJourneyChange={options.onJourneyChange}
           />
         );
       case 'details':

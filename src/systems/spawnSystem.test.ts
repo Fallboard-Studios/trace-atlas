@@ -8,7 +8,7 @@ import type { AudioAttributes, Robot } from '../types/Robot';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
 import { generateBatterySize, generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, generateCompanyMembership, companyFounders, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
-import { audibleDensityBand, deriveEnvelopeFields, deriveRhythmicDensity, deriveSendFields, deriveVoiceFields } from './robotFieldDerivation';
+import { audibleDensityBand, deriveEnvelopeFields, deriveMelodyFields, deriveRhythmicDensity, deriveSendFields, deriveVoiceFields } from './robotFieldDerivation';
 import { generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, rederiveLoading } from './aspectDeal';
 import { resolveBands } from '../data/bands/resolveBands';
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from '../stores/loadingStore';
@@ -3700,7 +3700,7 @@ describe('spawnSystem', () => {
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 1, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 78, rests: 5, accents: 16,
+        octaveRange: [5, 7], rhythmicDensity: 1, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, journeyMaxIntensity: 12, journey: 'own', dynamics: 78, rests: 5, accents: 16,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.37, delaySend: 0.02, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.7,
       },
@@ -3712,7 +3712,7 @@ describe('spawnSystem', () => {
           octaveRange: [2, 4], filterFreq: 3606.9838404655457, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 186, detune: 2, pulseWidth: 0.6713095553684979,
           layers: [{ type: 'sawtooth', gain: 0.71, detune: 0, phase: 342 }, { type: 'sawtooth', gain: 0, detune: 0, phase: 298 }, { type: 'triangle', gain: 0.79, detune: 0, phase: 27 }],
         } as AudioAttributes,
-        octaveRange: [2, 4], rhythmicDensity: 25, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 67, dynamics: 77, rests: 1, accents: 8,
+        octaveRange: [2, 4], rhythmicDensity: 25, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 67, journeyMaxIntensity: 16, journey: 'own', dynamics: 77, rests: 1, accents: 8,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'a', depth: 52 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.51, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.78,
       },
@@ -3722,7 +3722,7 @@ describe('spawnSystem', () => {
           octaveRange: [2, 4], filterFreq: 2273.244400974363, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 68, detune: -1, pulseWidth: 0.6791183213936165,
           layers: [{ type: 'triangle', gain: 0.52, detune: 0, phase: 298 }, { type: 'pulse', gain: 0, detune: 0, phase: 302 }, { type: 'triangle', gain: 0, detune: 1, phase: 342 }],
         } as AudioAttributes,
-        octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 64, rests: 7, accents: 4,
+        octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, journeyMaxIntensity: 0, journey: 'own', dynamics: 64, rests: 7, accents: 4,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'c', depth: 3 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 27 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.33, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.83,
       },
@@ -3754,7 +3754,7 @@ describe('spawnSystem', () => {
           octaveRange: [5, 7], filterFreq: 7744.446364231408, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 150, detune: 2, pulseWidth: 0.7164525624131783,
           layers: [{ type: 'square', gain: 0.92, detune: -2, phase: 51 }, { type: 'triangle', gain: 0, detune: 0, phase: 178 }, { type: 'square', gain: 0, detune: 0, phase: 46 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 96, rhythmicMotifLength: { active: true, value: 3 }, noteVariance: { active: false, value: 0 }, pitchRepeat: 95, dynamics: 65, rests: 2, accents: 5,
+        octaveRange: [5, 7], rhythmicDensity: 96, rhythmicMotifLength: { active: true, value: 3 }, noteVariance: { active: false, value: 0 }, pitchRepeat: 95, journeyMaxIntensity: 0, journey: 'own', dynamics: 65, rests: 2, accents: 5,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'a', depth: 1 }, 'layer2.gain': { lane: 'b', depth: 33 }, 'layer2.detune': { lane: 'c', depth: 6 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.39, delaySend: 0, gritSend: 0, shimmerSend: 0.33, doubleSend: 0, masterVolume: 0.65,
       },
@@ -3764,7 +3764,7 @@ describe('spawnSystem', () => {
           octaveRange: [4, 6], filterFreq: 1671.2479102658108, filterQ: 7.8, filterType: 'lowpass', portamento: 0, waveform: 'square', phase: 309, detune: 2, pulseWidth: 0.7197142589138821,
           layers: [{ type: 'square', gain: 1.11, detune: 0, phase: 154 }, { type: 'sawtooth', gain: 1.02, detune: 0, phase: 34 }, { type: 'triangle', gain: 0, detune: 1, phase: 7 }],
         } as AudioAttributes,
-        octaveRange: [4, 6], rhythmicDensity: 5, rhythmicMotifLength: { active: true, value: 3 }, noteVariance: { active: true, value: 5 }, pitchRepeat: 10, dynamics: 64, rests: 7, accents: 24,
+        octaveRange: [4, 6], rhythmicDensity: 5, rhythmicMotifLength: { active: true, value: 3 }, noteVariance: { active: true, value: 5 }, pitchRepeat: 10, journeyMaxIntensity: 0, journey: 'own', dynamics: 64, rests: 7, accents: 24,
         lfoLinks: { 'layer0.gain': { lane: 'a', depth: 32 }, 'layer0.detune': { lane: 'c', depth: 2 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'b', depth: 3 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.35, delaySend: 0, gritSend: 0.41, shimmerSend: 0, doubleSend: 0, masterVolume: 0.76,
       },
@@ -3774,7 +3774,7 @@ describe('spawnSystem', () => {
           octaveRange: [5, 7], filterFreq: 4020.2904902398586, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'pulse', phase: 124, detune: -2, pulseWidth: 0.4857038651360198,
           layers: [{ type: 'square', gain: 0.69, detune: 1, phase: 119 }, { type: 'square', gain: 0, detune: 0, phase: 222 }, { type: 'sine', gain: 0.33, detune: 1, phase: 37 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 32, rhythmicMotifLength: { active: true, value: 2 }, noteVariance: { active: true, value: 5 }, pitchRepeat: 8, dynamics: 67, rests: 4, accents: 16,
+        octaveRange: [5, 7], rhythmicDensity: 32, rhythmicMotifLength: { active: true, value: 2 }, noteVariance: { active: true, value: 5 }, pitchRepeat: 8, journeyMaxIntensity: 6, journey: 'own', dynamics: 67, rests: 4, accents: 16,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'c', depth: 3 }, 'layer1.gain': { lane: 'a', depth: 14 }, 'layer1.detune': { lane: 'a', depth: 1 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'd', depth: 5 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.46, delaySend: 0, gritSend: 0.71, shimmerSend: 0, doubleSend: 0, masterVolume: 0.73,
       },
@@ -3784,7 +3784,7 @@ describe('spawnSystem', () => {
           octaveRange: [1, 3], filterFreq: 1528.405042621307, filterQ: 3.3, filterType: 'bandpass', portamento: 0, waveform: 'pulse', phase: 220, detune: 1, pulseWidth: 0.4464993801200762,
           layers: [{ type: 'sawtooth', gain: 0.75, detune: 0, phase: 95 }, { type: 'triangle', gain: 0.31, detune: -2, phase: 341 }, { type: 'square', gain: 0.42, detune: 1, phase: 275 }],
         } as AudioAttributes,
-        octaveRange: [1, 3], rhythmicDensity: 10, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 97, dynamics: 61, rests: 9, accents: 16,
+        octaveRange: [1, 3], rhythmicDensity: 10, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 97, journeyMaxIntensity: 9, journey: 'own', dynamics: 61, rests: 9, accents: 16,
         lfoLinks: { 'layer0.gain': { lane: 'c', depth: 19 }, 'layer0.detune': { lane: 'b', depth: 6 }, 'layer1.gain': { lane: 'a', depth: 23 }, 'layer1.detune': { lane: 'c', depth: 5 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'b', depth: 31 } },
         reverbSend: 0.59, delaySend: 0.14, gritSend: 0, shimmerSend: 0, doubleSend: 0.45, masterVolume: 0.89,
       },
@@ -3794,7 +3794,7 @@ describe('spawnSystem', () => {
           octaveRange: [1, 3], filterFreq: 3511.334517970681, filterQ: 1, filterType: 'lowpass', portamento: 0.15, waveform: 'sine', phase: 49, detune: 0, pulseWidth: 0.7137682390632107,
           layers: [{ type: 'sawtooth', gain: 0.45, detune: 0, phase: 104 }, { type: 'sawtooth', gain: 0.27, detune: 1, phase: 180 }, { type: 'pulse', gain: 0.69, detune: -1, phase: 123 }],
         } as AudioAttributes,
-        octaveRange: [1, 3], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 1 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 92, dynamics: 62, rests: 5, accents: 7,
+        octaveRange: [1, 3], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 1 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 92, journeyMaxIntensity: 0, journey: 'own', dynamics: 62, rests: 5, accents: 7,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 14 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'b', depth: 47 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.45, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.78,
       },
@@ -4775,6 +4775,109 @@ describe('spawnSystem', () => {
         expect(seeded(fresh)).not.toEqual(seeded(before)); // precondition
         expect(seeded(robotOf())).toEqual(seeded(fresh));
       });
+    });
+  });
+});
+
+// docs/tasks/MELODY_JOURNEY.md Tasks 19 and 34 (spec §1.9): the two settings at spawn, max intensity and Journey.
+describe('spawnRobot: the melody journey settings (roadmap 92 Tasks 19 and 34)', () => {
+  let locales = 0;
+  const freshLocale = (coordinates: { x: number; y: number }) => {
+    const localeId = `journey-t19-${locales++}`;
+    useLocaleStore.setState((state) => ({
+      locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates, robots: [], companies: [] } },
+    }));
+    return localeId;
+  };
+  const robotsOf = (localeId: string) => useLocaleStore.getState().getLocaleById(localeId)!.robots;
+
+  it('an original writes its own Melody draw as its max intensity, and travels on Own', () => {
+    const localeId = freshLocale({ x: 31, y: -17 });
+    for (let i = 0; i < 12; i++) spawnRobot(localeId);
+    const noiseMap = getLocaleNoiseMap(localeId, 31, -17);
+    const robots = robotsOf(localeId);
+    robots.forEach((robot, i) => {
+      const drawn = deriveMelodyFields(noiseMap, i, CLASSIC, robot.audioAttributes.adsr.attack).journeyMaxIntensity;
+      expect(robot.journeyMaxIntensity, robot.id).toBe(drawn);
+      expect(robot.journey, robot.id).toBe('own');
+    });
+    // Precondition: the plot holds robots on both sides of the lit share.
+    expect(robots.some((r) => r.journeyMaxIntensity! > 0)).toBe(true);
+    expect(robots.some((r) => r.journeyMaxIntensity === 0)).toBe(true);
+  });
+
+  it('a member takes its founder\'s max intensity, even one its own draw does not give, and travels on Own until its company is made', () => {
+    const localeId = freshLocale({ x: 31, y: -17 });
+    spawnRobot(localeId);
+    const [founder] = robotsOf(localeId);
+    const noiseMap = getLocaleNoiseMap(localeId, 31, -17);
+    const handValue = founder.journeyMaxIntensity === 13 ? 14 : 13;
+    useLocaleStore.getState().updateRobot(localeId, founder.id, { journeyMaxIntensity: handValue });
+    spawnRobot(localeId, { founderIndex: 0 });
+    const member = robotsOf(localeId)[1];
+    expect(member.lineage).toEqual({ founderIndex: 0 });
+    // Precondition: the member's own draw would give something else.
+    expect(deriveMelodyFields(noiseMap, 1, CLASSIC, member.audioAttributes.adsr.attack).journeyMaxIntensity).not.toBe(handValue);
+    expect(member.journeyMaxIntensity).toBe(handValue);
+    expect(member.journey).toBe('own');
+  });
+
+  it('a founder with no max intensity stored hands on 0', () => {
+    const localeId = freshLocale({ x: 31, y: -17 });
+    spawnRobot(localeId);
+    const [founder] = robotsOf(localeId);
+    const { journeyMaxIntensity: _journeyMaxIntensity, ...bare } = founder;
+    useLocaleStore.getState().setLocaleData(localeId, { robots: [bare] });
+    spawnRobot(localeId, { founderIndex: 0 });
+    expect(robotsOf(localeId)[1].journeyMaxIntensity).toBe(0);
+  });
+
+  it('with no locale (no noise map), the alea fallback lands on 0 or a whole number of the band, both turning up, every robot on Own', () => {
+    const added: Robot[] = [];
+    const realAddRobot = useLocaleStore.getState().addRobot;
+    useLocaleStore.setState({ addRobot: (_localeId, robot) => { added.push(robot); } });
+    try {
+      for (let i = 0; i < 40; i++) spawnRobot(`journey-t19-no-locale-${i}`);
+    } finally {
+      useLocaleStore.setState({ addRobot: realAddRobot });
+    }
+    expect(added).toHaveLength(40);
+    for (const robot of added) {
+      expect(robot.journey, robot.id).toBe('own');
+      const m = robot.journeyMaxIntensity!;
+      if (m === 0) continue;
+      expect(Number.isInteger(m), `${robot.id} ${m}`).toBe(true);
+      expect(m).toBeGreaterThanOrEqual(1);
+      expect(m).toBeLessThanOrEqual(16);
+    }
+    expect(added.some((r) => r.journeyMaxIntensity === 0)).toBe(true);
+    expect(added.some((r) => r.journeyMaxIntensity! > 0)).toBe(true);
+  });
+
+  it('spawnInitialCompanies puts every robot of a seeded company on Company, founder included, and leaves every freelancer on Own', () => {
+    const localeId = freshLocale({ x: -200, y: 80 });
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    const { robots, companies } = useLocaleStore.getState().getLocaleById(localeId)!;
+    expect(companies.length).toBeGreaterThan(0); // precondition
+    for (const robot of robots) {
+      expect(robot.journey, robot.id).toBe(robot.companyId ? 'company' : 'own');
+    }
+    expect(robots.some((r) => r.companyId === undefined)).toBe(true); // precondition: a freelancer
+  });
+
+  it('generateRobotRosterBaseline mirrors both: a member\'s max intensity is its founder\'s, and every index of a seeded company is on Company', () => {
+    const noiseMap = createNoise2D(alea('journey-t19-baseline'));
+    const membership = generateCompanyMembership(noiseMap, 12);
+    const inCompany = new Set(membership.flat());
+    const founders = companyFounders(membership);
+    const baselines = generateRobotRosterBaseline(noiseMap, 12);
+    expect(inCompany.size).toBeGreaterThan(0); // precondition
+    expect(inCompany.size).toBeLessThan(12); // precondition: a freelancer
+    baselines.forEach((baseline, i) => {
+      expect(baseline.journey, `robot ${i}`).toBe(inCompany.has(i) ? 'company' : 'own');
+      const founder = founders.get(i);
+      if (founder !== undefined) expect(baseline.journeyMaxIntensity, `robot ${i}`).toBe(baselines[founder].journeyMaxIntensity);
     });
   });
 });

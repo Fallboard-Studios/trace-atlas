@@ -8,7 +8,7 @@
 // IMPORTS
 // ========================================
 import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
-import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES, type ADSREnvelope, type EnvelopeCurveName, type RobotFilterType } from '../types/Robot';
+import { ENVELOPE_CURVE_NAMES, JOURNEY_SETTINGS, ROBOT_FILTER_TYPES, type ADSREnvelope, type EnvelopeCurveName, type JourneySetting, type RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { withGlobalAudioDefaults, type GlobalAudioSettings } from '../types/globalAudio';
 import type { WorldDiff } from './seedBaseline';
@@ -99,6 +99,10 @@ interface CompactRobotOverrideDiff {
   rm?: CompactToggle;
   nv?: CompactToggle;
   pr?: number;
+  /** The journey's max intensity and Journey (RobotAudioOverrideDiff.journeyMaxIntensity / journey); a 0 is a real
+   *  value. `dv` (the retired Development) is not read: an old link's dv is dropped. */
+  ji?: number;
+  jy?: JourneySetting;
   /** A manual pan, −1…1; absent means Auto (RobotAudioOverrideDiff.pan's own contract). */
   p?: number;
   /** Reverb and Delay sends, 0…1 (RobotAudioOverrideDiff.reverbSend / delaySend); a 0 is a real value, the send switched off. */
@@ -151,6 +155,9 @@ function isFilterType(value: unknown): value is RobotFilterType {
 }
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
+}
+function isJourneySetting(value: unknown): value is JourneySetting {
+  return (JOURNEY_SETTINGS as readonly unknown[]).includes(value);
 }
 function isSendFraction(value: unknown): value is number {
   // The range comparison alone rejects NaN and +/-Infinity.
@@ -235,6 +242,8 @@ function toCompactRobotOverrideDiff(diff: RobotAudioOverrideDiff): CompactRobotO
   if (diff.rhythmicMotifLength !== undefined) compact.rm = toCompactToggle(diff.rhythmicMotifLength);
   if (diff.noteVariance !== undefined) compact.nv = toCompactToggle(diff.noteVariance);
   if (diff.pitchRepeat !== undefined) compact.pr = diff.pitchRepeat;
+  if (diff.journeyMaxIntensity !== undefined) compact.ji = diff.journeyMaxIntensity;
+  if (diff.journey !== undefined) compact.jy = diff.journey;
   if (diff.pan !== undefined) compact.p = diff.pan;
   // The five sends at this one position, in table order, so a link encodes to the same string (docs/specs/ROBOT_SEND_TABLE.md assumption 9).
   for (const spec of ROBOT_SENDS) if (diff[spec.field] !== undefined) compact[spec.shareCode] = diff[spec.field];
@@ -262,6 +271,10 @@ function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotA
   if (compact.rm !== undefined) diff.rhythmicMotifLength = fromCompactToggle(compact.rm);
   if (compact.nv !== undefined) diff.noteVariance = fromCompactToggle(compact.nv);
   if (compact.pr !== undefined) diff.pitchRepeat = compact.pr;
+  // The melody journey: a non-numeric or non-finite `ji` and an unlisted `jy` are dropped one by one, so the robot keeps
+  // its seeded setting; the store rounds and clamps the max intensity on restore.
+  if (isFiniteNumber(compact.ji)) diff.journeyMaxIntensity = compact.ji;
+  if (isJourneySetting(compact.jy)) diff.journey = compact.jy;
   // A non-numeric, non-finite or out-of-range `p` is dropped, so the robot stays Auto -- never
   // misread as a manual pan (the same rule the `ll` decoder follows for an unknown target).
   if (typeof compact.p === 'number' && Number.isFinite(compact.p) && compact.p >= PAN_MIN && compact.p <= PAN_MAX) diff.pan = compact.p;
