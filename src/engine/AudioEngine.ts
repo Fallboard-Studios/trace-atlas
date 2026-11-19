@@ -14,7 +14,7 @@ import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
 import { paletteForMeasure, stepInPalette } from './harmonySystem';
 import { resetBeatClock, initBeatClock, positionAt, getTickSeconds, type MusicPosition } from './beatClock';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS, STATION_FADE_RECOVER_SECONDS, JOURNEY_BUSY_ACCENT_GAIN, JOURNEY_BUSY_LENGTH_CUT, JOURNEY_CALM_VELOCITY_CUT } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS, STATION_FADE_RECOVER_SECONDS, DEFAULT_NOTE_OCTAVE, JOURNEY_BUSY_ACCENT_GAIN, JOURNEY_BUSY_LENGTH_CUT, JOURNEY_CALM_VELOCITY_CUT } from '../constants';
 import { emitRobotNote, getNotePreviewSeconds, hasRobotNoteListener } from './noteEvents';
 import { readContextSeconds } from './nativeContext';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
@@ -879,7 +879,7 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
         devWarn(`[AudioEngine] Invalid note index ${event.noteIndex} for robot ${robotId}`);
         return;
       }
-      let octave = event.octave ?? 4;
+      let octave = event.octave ?? DEFAULT_NOTE_OCTAVE;
       let pitchName = noteName;
       // A neighbour (melody journey §1.4, §1.7): palette steps from the event's own note, in this measure's palette,
       // turned back at the stored robot's octave range (no range for a robot the store does not hold).

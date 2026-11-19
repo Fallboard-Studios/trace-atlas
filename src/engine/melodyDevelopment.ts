@@ -4,7 +4,7 @@
 // The home melody at a position: busier changes above 0, calmer below it, home at 0. Pure: everything it reads is an
 // argument, as composeRobotMelody's is.
 import alea from 'alea';
-import { ATTACK_REACH_SHARE } from '../constants';
+import { ATTACK_REACH_SHARE, DEFAULT_NOTE_OCTAVE } from '../constants';
 import { DEFAULT_SUBDIVISIONS } from './melodyGenerator';
 import type { MelodyEvent, NoteDuration } from '../types/Robot';
 
@@ -87,9 +87,6 @@ function turned<T>(order: T[], draw: number): T[] {
   return r > 0 ? [...order.slice(r), ...order.slice(0, r)] : order;
 }
 
-/** The octave a note with none sounds in, as the engine reads it (stepNotes). */
-const DEFAULT_OCTAVE = 4;
-
 /** One note of the bar as the changes see it. `src` is the home event it came from, or, for a note a change added,
  *  the note it was made from (its slot and octave). `octaveJump` is the octaves an octave jump moved it, 0 for none. */
 interface Note {
@@ -148,7 +145,7 @@ function toEvents(notes: Note[]): MelodyEvent[] {
       : { ...n.src };
     if (!n.added && !homeLength) event.sixteenths = n.len;
     if (n.pitchStep !== 0) event.pitchStep = n.pitchStep;
-    if (n.octaveJump !== 0) event.octave = (n.src.octave ?? DEFAULT_OCTAVE) + n.octaveJump;
+    if (n.octaveJump !== 0) event.octave = (n.src.octave ?? DEFAULT_NOTE_OCTAVE) + n.octaveJump;
     return event;
   });
 }
@@ -259,12 +256,12 @@ const OCTAVES_THAT_JUMP_UP: ReadonlySet<number> = new Set([1, 4, 5]);
 function octaveJumps(octaveRange: readonly [number, number] | undefined, turn: number): Phase {
   let order: Note[] | null = null;
   let i = 0;
-  const jumpOf = (n: Note) => (OCTAVES_THAT_JUMP_UP.has(n.src.octave ?? DEFAULT_OCTAVE) ? 1 : -1);
+  const jumpOf = (n: Note) => (OCTAVES_THAT_JUMP_UP.has(n.src.octave ?? DEFAULT_NOTE_OCTAVE) ? 1 : -1);
   return (bar) => {
     if (!octaveRange) return false;
     if (!order) {
       const able = bar.filter((n) => {
-        const to = (n.src.octave ?? DEFAULT_OCTAVE) + jumpOf(n);
+        const to = (n.src.octave ?? DEFAULT_NOTE_OCTAVE) + jumpOf(n);
         return to >= octaveRange[0] && to <= octaveRange[1];
       });
       const round = turned(fromAlternatingEnds(able.sort(byLengthThenStart)), turn);

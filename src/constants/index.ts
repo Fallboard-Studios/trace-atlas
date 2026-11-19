@@ -144,6 +144,9 @@ export const NOTE_VARIANCE_MIN = 0;
 export const NOTE_VARIANCE_MAX = 8;
 export const OCTAVE_RANGE_MIN = 1;
 export const OCTAVE_RANGE_MAX = 7;
+/** The octave a melody event with none sounds in: the engine plays it there (stepNotes), and the journey's octave
+ *  jumps read it as their start (melodyDevelopment). */
+export const DEFAULT_NOTE_OCTAVE = 4;
 
 /**
  * `pitchRepeat` is a 0-100% lock strength (not a toggle) — same shape as `rhythmicDensity`. See
