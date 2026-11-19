@@ -870,6 +870,9 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
   const position = at.sixteenth;
   const humanizeOffset = humanizeOffsetFor(position, roster);
   const out: NoteParams[] = [];
+  // A sixteenth at the live tempo, in seconds: read once a step, by the first note that needs it (inside its own try).
+  let sixteenth: number | undefined;
+  const sixteenthSeconds = () => (sixteenth ??= Tone.Time('16n').toSeconds());
 
   events.forEach(({ robotId, event, isGroupAccent, clickTrack, level = 0, floor = 1 }) => {
     // Each event is isolated: one robot's bad event must not cost the rest of the step.
@@ -892,7 +895,7 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
       const art = resolveArticulation(event);
       // A length in sixteenths (melody journey §1.4) sounds for that many sixteenths at the live tempo, in seconds.
       let duration: NoteDuration | number =
-        event.sixteenths !== undefined ? Tone.Time('16n').toSeconds() * event.sixteenths : event.length;
+        event.sixteenths !== undefined ? sixteenthSeconds() * event.sixteenths : event.length;
       let release: number | undefined;
       if (art.length < 1) {
         const writtenSeconds = typeof duration === 'number' ? duration : Tone.Time(event.length).toSeconds();
@@ -905,7 +908,7 @@ export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
       // nothing but the length moves. A note already at or under the floor is left as it is.
       if (level > 0) {
         const soundingSeconds = typeof duration === 'number' ? duration : Tone.Time(duration).toSeconds();
-        const floorSeconds = Math.max(MIN_SOUNDING_SECONDS, Tone.Time('16n').toSeconds() * floor);
+        const floorSeconds = Math.max(MIN_SOUNDING_SECONDS, sixteenthSeconds() * floor);
         const cut = Math.max(Math.min(soundingSeconds, floorSeconds), soundingSeconds * (1 - JOURNEY_BUSY_LENGTH_CUT * level));
         if (cut < soundingSeconds) duration = cut;
       }
