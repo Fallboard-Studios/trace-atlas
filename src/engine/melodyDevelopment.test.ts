@@ -435,6 +435,14 @@ describe('developMelody: a different path each trip', () => {
     }
   });
 
+  it('starts the two thresholds on T and the longest on some trips, on the subdivision and the shortest on others', () => {
+    // A 4 and a 6 at floor 1: T = 4, the subdivision 2, and nothing is 8 long, so change 1 is the two thresholds'. As
+    // written it splits the shortest at 2; started on T, T has no candidate and hands its turn on, still the longest.
+    const pair = [ev(1, '4n'), ev(5, '4n', { sixteenths: 6 })];
+    const firsts = new Set(TRIPS.map((t) => bar(developMelody(pair, 1, vary(t)))));
+    expect([...firsts].sort()).toEqual(['1: 2, 3: 2, 5: 6', '1: 4, 5: 4, 9: 2']);
+  });
+
   it('draws the order from the key: another journey takes another order on some trip', () => {
     const paths = (key: string) => TRIPS.map((t) => bar(developMelody(melody, 1, vary(t, key)))).join(' / ');
     expect(new Set(['a:journey', 'b:journey', 'c:journey', 'd:journey'].map(paths)).size).toBeGreaterThan(1);
@@ -512,6 +520,8 @@ describe('developMelody: busier, the octave jumps', () => {
     const narrow = developMelody(full, 1, { ...FLOOR4, octaveRange: [4, 4] });
     expect(octaves(narrow)).toEqual([1, 2, 4, 6]);
     expect(narrow[0].pitchStep).toBeDefined(); // change 1 is already a shift
+    // Range 4 to 5: the octave-4 note may land on 5, the top of the range, and it is first in line.
+    expect(octaves(developMelody(full, 1, { ...FLOOR4, octaveRange: [4, 5] }))).toEqual([1, 2, 5, 6]);
   });
 
   it('makes no jump with no octave range handed in: the shifts follow the fills', () => {
