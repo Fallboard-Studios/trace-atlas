@@ -714,9 +714,9 @@ describe('robotJourney (spec §1.7, §1.9)', () => {
     expect(a).toBe(journeyKey(WORLD, { kind: 'fleet' }));
   });
 
-  it('a freelancer on Company gets the key it would have on Own', () => {
-    expect(keyOf({ journey: 'company' })).toBe(keyOf({ journey: 'own' }));
-    expect(keyOf({ journey: 'company' })).toBe(journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 }));
+  it('a freelancer on Company gets the key it would have on Fleet (Crawford, 2026-11-19)', () => {
+    expect(keyOf({ journey: 'company' })).toBe(keyOf({ journey: 'fleet' }));
+    expect(keyOf({ compositionSeed: 0.1, journey: 'company' })).toBe(journeyKey(WORLD, { kind: 'fleet' }));
   });
 
   it('a robot with none of the fields reads as max intensity 0, at the journey max time of 16, on its Own key', () => {

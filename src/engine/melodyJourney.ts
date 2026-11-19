@@ -304,19 +304,20 @@ export interface RobotJourney extends DevelopmentOptions {
 
 /**
  * The stored robot's journey (§1.7, §1.9): the key its Journey setting names (a robot on Company with no company
- * travels as Own), its max intensity, the journey's max time (JOURNEY_TIME_MAX for every robot, so robots on one
+ * travels on Fleet), its max intensity, the journey's max time (JOURNEY_TIME_MAX for every robot, so robots on one
  * journey turn together, §7.4), its attack's floor at `bpmTop` (the top of the theme's bpm band, handed in by the
  * caller), its composition seed and its octave range (absent when the robot has none). Absent settings read as
  * DEFAULT_JOURNEY_MAX_INTENSITY and DEFAULT_JOURNEY. Pure.
  */
 export function robotJourney(robot: RobotJourneyInputs, worldKey: string, bpmTop: number): RobotJourney {
   const setting = robot.journey ?? DEFAULT_JOURNEY;
+  // A robot on Company with no company travels with the fleet, where the freelancers spawn (Crawford, 2026-11-19).
   const scope: JourneyScope =
-    setting === 'fleet'
-      ? { kind: 'fleet' }
+    setting === 'own'
+      ? { kind: 'own', compositionSeed: robot.compositionSeed }
       : setting === 'company' && robot.companyId
         ? { kind: 'company', companyId: robot.companyId }
-        : { kind: 'own', compositionSeed: robot.compositionSeed };
+        : { kind: 'fleet' };
   return {
     key: journeyKey(worldKey, scope),
     maxIntensity: robot.journeyMaxIntensity ?? DEFAULT_JOURNEY_MAX_INTENSITY,
