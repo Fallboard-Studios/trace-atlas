@@ -53,7 +53,9 @@ Freelance robot is always an original: the 30 % roll that once let any robot cop
   (`journey: 'company'`, written with its `companyId`; the roster baseline does the same), so the whole company
   travels one journey, keyed on the company's id. Every journey has one max time, so the members turn on the same
   measures, and with the founder's max intensity they travel to the same depth; with the founder's rhythm they split,
-  tie and fill the same notes on the same measures, each with its own neighbour notes. Freelancers spawn on **Own**.
+  tie and fill the same notes on the same measures, each with its own neighbour notes; each trip takes a new path,
+  drawn from the journey and the trip and never a member's own seed, so they stay together on it (roadmap 93).
+  Freelancers spawn on **Fleet**, so they rise and fall together (roadmap 93; they spawned on Own until then).
   A founder that draws a max intensity of 0 (three in ten, the band's `lit` of 0.7) keeps its whole company at home:
   over the 121 grid worlds 206 of the 288 seeded companies move within 100 measures and 82 stay home
   ([docs/tasks/MELODY_JOURNEY.md](tasks/MELODY_JOURNEY.md), Checkpoint I).
@@ -70,8 +72,8 @@ sound as part of a section.
 
 **Joining a rhythm by hand.** Membership and rhythm are separate things. Moving a robot into a company changes none of
 its settings (broadcast-not-link, below). The one thing a move changes is the journey of a robot whose Journey is
-Company: it travels its new company's journey from the next note, as if it had always been on it, and as Own when it
-is made Freelance. Setting a robot's Density and Motif Length so they make a company's shape makes
+Company: it travels its new company's journey from the next note, as if it had always been on it, and on Fleet when
+it is made Freelance (as Own until roadmap 93). Setting a robot's Density and Motif Length so they make a company's shape makes
 it play that company's rhythm, family or not, and changing them takes it out again; a company-wide Density or Motif
 Length broadcast puts every member on one shape, so on one rhythm. The same holds by chance: in one world any two
 robots that draw the same shape play together, and before families 66 % of robots already shared a rhythm with

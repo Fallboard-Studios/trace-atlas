@@ -3135,6 +3135,62 @@ inside it.
   §1.6). Early notes keep a note on the roll about a fifth longer, and main-thread time did not move with them.
 - **Not measured:** Crawford's desktop at full screen, a phone, and twelve robots sounding at once.
 
+## Journey dynamics (roadmap 93, 2026-11-19)
+
+Roadmap 93 ([specs/MELODY_JOURNEY.md](specs/MELODY_JOURNEY.md#10-journey-dynamics-roadmap-93) §10) adds work to every
+step of every robot on a journey: the trip and the level beside the position (`journeyAt`), a developed melody per
+trip, the octave jumps, and the performance's arithmetic in `stepNotes`. It also puts the freelancers on one journey,
+so the fleet can get busy at once. Two measurements: the main thread directly, and the audio thread in the browser.
+
+### The main thread: the registry's read of a step
+
+**What was run.** A throwaway `vite-node` script (not committed) over one fixed fleet of twelve robots written to JSON
+once (melodies from `generateMelodyForRobot`, max intensity 0 for about three in ten and 1 to 16 for the rest, two
+companies of three, the freelancers on Fleet, attacks 0.005 to 0.4 s), registered with `registerMelody` and read with
+`entriesForStep` over measures 1 to 1,500, every step: a warm-up run, then seven timed runs, the median kept. Both tips
+read the same JSON, the working tree switched between them twice (A, B, A, B).
+
+| Tip | Per step, median (min–max) |
+|---|---|
+| `feature/melody-journey` `9a598dda` (92 as passed) | 9.47 µs (9.29–10.29), then 9.45 µs (9.30–10.03) |
+| `feature/journey-dynamics` `84129cbe` | 13.43 µs (13.11–14.66), then 13.48 µs (13.07–15.97) |
+| the same, entries handed back without the per-entry copy (a throwaway edit) | 13.62 µs, against 13.68 µs with it |
+
+**About 4 µs a step more, about 0.003 % of the main thread** at 120 bpm (eight steps a second). The per-entry copy
+that carries the level costs nothing measurable (a robot plays about one note a step, so the copy is about one small
+object per sounding robot); the 4 µs are the trip and level reads and the developed melodies rebuilt per trip.
+
+### The audio thread: `npm run perf:audio`
+
+**What was run.** Production builds from scratch `--outDir`s, served side by side on fresh ports checked free first,
+each port's bundle checked against its build: base `feature/melody-journey` `9a598dda` (`index-N_TXf9-w.js`, :4182),
+branch `84129cbe` (`index-DpfBLUS3.js`, :4181), and two throwaway diagnostics of the branch, built from an edit restored
+from a copy and never committed: freelancers back on Own (`index-B8EQSxEM.js`, :4183) and the performance off
+(the registry hands back no level, `index-BQB9E_ZA.js`, :4184). One pinned world, `charlie:200:-30`; `--seconds 120
+--bucket 15`, 8 s warm-up; three rounds of the four arms, the order changed each round (A B C D, D C B A, B D A C), two
+runs a call, in the foreground; 0 orphaned Chrome before and after every call. Every arm saw the same audible robots
+bucket for bucket. The machine was otherwise idle (Crawford's dev page closed).
+
+| Arm | Mean capacity by round | Median mean | Median peak window | Max by round |
+|---|---|---|---|---|
+| Base | 0.353 / 0.343 / 0.351 | **0.351** | 0.451 | 0.847 / 0.993 / 0.995 |
+| Branch | 0.339 / 0.344 / 0.348 | **0.344** | 0.459 | 0.721 / 0.731 / 0.771 |
+| Branch, freelancers on Own | 0.349 / 0.346 / 0.311 | **0.346** | 0.452 | 0.696 / 0.851 / 0.643 |
+| Branch, performance off | 0.341 / 0.338 / 0.353 | **0.341** | 0.440 | 0.739 / 0.996 / 0.731 |
+
+**No difference.** The four medians sit within 0.010 of each other, inside any one arm's own round-to-round spread.
+Neither the fleet on one journey nor the performance moves the audio thread. No series had an underrun (each run's two
+came in the boot, 0:01 to 0:04, and the count did not move after); the overlay's lag read 10 to 22 ms in every bucket of
+every arm; each run logged the one Tone scheduling warning, on every build, base included.
+
+**A first batch was discarded.** Three rounds of base against branch run earlier the same day read the branch +18 to
++28 % on mean capacity (medians 0.417 against 0.325). They ran while the machine was in use and the dev server's page was
+open: every run of that batch logged about 16 boot underruns, against 2 on the quiet machine. The
+quiet re-run above replaces it. Before any `perf:audio` run, close the dev page and leave the machine idle.
+
+**Not measured:** a phone. The journey's busy side and the fleet moving together were heard on Crawford's desktop
+only.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
