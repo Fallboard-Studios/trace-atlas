@@ -672,7 +672,7 @@ Phases 1 to 5 of the plan were built on `feature/melody-journey` before the revi
 
 ## 9. As built
 
-Built 2026-11-17 on `feature/melody-journey`, unpushed, for Crawford's PR: the plan's ten phases, Tasks 1 to 38
+Built 2026-11-17 on `feature/melody-journey` and merged 2026-11-19 (PR #656): the plan's ten phases, Tasks 1 to 38
 (Tasks 1 to 20 the first build, 24 to 38 the revision, 21 and 22 the docs; Task 23, the archive, follows the merge).
 Each task's commit, suite and mutation run is in the plan's Results, Checkpoints A to I. The reference docs:
 [MELODY_SYSTEM.md](../MELODY_SYSTEM.md#the-melody-journey-roadmap-92) (the journey, the changes, the settings),

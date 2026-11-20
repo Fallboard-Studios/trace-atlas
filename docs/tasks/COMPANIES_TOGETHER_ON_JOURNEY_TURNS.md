@@ -5,8 +5,8 @@ Source spec: [docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md](../specs/COMPAN
 [docs/intent/companies-together-on-journey-turns.md](../intent/companies-together-on-journey-turns.md). Roadmap
 [94](../todo/roadmap.md#94-companies-together-a-company-leaves-as-one-and-comings-and-goings-land-on-the-journeys-turns).
 
-**Status:** plan written 2026-11-20. Not started. Awaiting Crawford's approval. The build waits for roadmap 93 to
-merge (spec §6).
+**Status:** plan written 2026-11-20. Not started. Awaiting Crawford's approval. Roadmap 93 is on main since
+2026-11-20, so nothing blocks the build: it is on `feature/companies-together`, from main (spec §6).
 
 ## Overview
 
@@ -922,7 +922,6 @@ per task.
 | A tempo drag redraws every tick and thrashes the plans | Medium | Task 12 rescales only when `shiftBpm` differs and snaps to a turn; Task 26 drags the slider and watches that no robot changes state. |
 | A company edited mid-shift leaves a robot with a move no mate shares | Low | Task 13's one rule, tested on a moved robot and on a roster with no fields at all. |
 | The always-on sim cases slow the suite | Low | Task 17 runs the grid at one tempo and a few worlds at the others, and notes the file's run time. |
-| Journey Dynamics changes again before it merges | Low | The build waits for 93's merge; Task 1 is the only task that touches its file, with one additive export. |
 
 ## Open Questions
 

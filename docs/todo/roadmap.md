@@ -658,20 +658,20 @@ edit; the editor is out of this piece (Crawford, 2026-11-17) and needs its own i
 
 ### Open
 
-- **Built 2026-11-17** on `feature/melody-journey`, unpushed, for Crawford's PR: the plan
+- **Built 2026-11-17** on `feature/melody-journey`, merged 2026-11-19 (PR #656): the plan
   [MELODY_JOURNEY.md](../tasks/MELODY_JOURNEY.md)'s ten phases (Tasks 1 to 20, the first build; 24 to 38, the
   revision to pairs and to one max time; 21 and 22, the docs). What shipped, with every number, is the spec's §9, As
   built ([MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md#9-as-built)); the reference docs are
   [MELODY_SYSTEM.md](../MELODY_SYSTEM.md#the-melody-journey-roadmap-92) and those it links.
 - **The gates closed 2026-11-17:** Gates A and C and Checkpoint G's look passed on Crawford's listen with nothing
   moved, Gate B waived; every number (the journey's odds and leans, the band `{ min: 1, max: 16, lit: 0.7 }`, the one
-  max time of 16) ships as first cut. Ready for his PR.
+  max time of 16) ships as first cut.
 - The spec's four questions are answered (its §7.2, 2026-11-17): at least one note in a bar, the band stays the
   theme's, `pitchLocked` stays in place, a phone listen is enough.
-- After the merge: the plan's Task 23 moves this entry to the archive.
+- Still to do: the plan's Task 23 moves this entry to the archive.
 - It changes every world's sound, so it lands before backlog
   [45](backlog.md#45-off-screen-crawfords-three-preset-links).
-- Roadmap [93](#93-journey-dynamics-a-melody-journey-you-can-hear) builds on it: merge 92 first.
+- Roadmap [93](#93-journey-dynamics-a-melody-journey-you-can-hear) builds on it.
 
 ## 93. Journey Dynamics: A Melody Journey You Can Hear
 
@@ -699,15 +699,15 @@ the playing moved with it. Now:
 
 ### Open
 
-- **Built 2026-11-18 and 2026-11-19** on `feature/journey-dynamics` (branched from `feature/melody-journey`),
-  unpushed, for Crawford's PR after 92's: what each change does and its commit, every new number and what is mine
-  rather than his are the spec's §10. Reviewed (two missing tests found by mutation and added); suite 14,807 passed,
-  0 failed.
+- **Built 2026-11-18 and 2026-11-19** on `feature/journey-dynamics` (branched from `feature/melody-journey`). **On
+  main since 2026-11-20** with no PR of its own: roadmap 94's docs branch sat on it, and PR #657 carried it in. What
+  each change does and its commit, every new number and what is mine rather than his are the spec's §10. Reviewed
+  (two missing tests found by mutation and added); suite 14,807 passed, 0 failed.
 - **Passed on his listen** (2026-11-19, "ok i'm happy with my listen"); the three performance numbers ship as first
   cut.
 - **Perf check passed** ([PERFORMANCE.md](../PERFORMANCE.md#journey-dynamics-roadmap-93-2026-11-19)): about 4 µs a
   step on the main thread, the audio thread unchanged. Not heard on a phone.
-- After the merge: this entry moves to the archive with 92's.
+- Still to do: this entry moves to the archive with 92's.
 
 ## 94. Companies Together: A Company Leaves as One, and Comings and Goings Land on the Journey's Turns
 
@@ -741,8 +741,8 @@ company lines up organically.
 
 ### Open
 
-- **Builds on roadmap [93](#93-journey-dynamics-a-melody-journey-you-can-hear):** the freelancers travel on the Fleet
-  journey only there. Merge 93 first.
+- **Builds on roadmap [93](#93-journey-dynamics-a-melody-journey-you-can-hear)**, on main since 2026-11-20: the
+  freelancers travel on the Fleet journey from it on.
 - **Seven open items answered 2026-11-20** (recorded in the intent): a group exit is never worse than a coin flip and
   near certain after a big move; members gather at the station door until the slowest is home; a member moved to
   another journey still comes and goes with its company; the last company out stays whole until someone else arrives;
@@ -760,8 +760,8 @@ company lines up organically.
 - **The spec's six questions** (its §7.2) stand at their defaults since his approval, bar one: deleting the drain
   machinery waits for his yes (the plan's Task 27). The last bar and a staggered entrance's spacing are heard at
   Gate B.
-- **Not started.** The build waits for 93's merge; the plan stops at Gate A (the sims' numbers, before any wiring)
-  and Gate B (his eye and ear).
+- **Not started.** The intent, spec and plan merged 2026-11-20 (PR #657). The build is on `feature/companies-together`,
+  from main; the plan stops at Gate A (the sims' numbers, before any wiring) and Gate B (his eye and ear).
 - It changes every world's comings and goings, so it lands before backlog
   [45](backlog.md#45-off-screen-crawfords-three-preset-links).
 
