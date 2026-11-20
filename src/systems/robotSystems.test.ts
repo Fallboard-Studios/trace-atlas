@@ -14,7 +14,7 @@ import {
   stepShiftLifecycle,
 } from './robotSystems';
 import type { RobotLifecycleSnapshot, ShiftLifecycleSnapshot } from './robotSystems';
-import { planExit, type ShiftEnv } from './shiftPlan';
+import { planEntrance, planExit, type ShiftEnv } from './shiftPlan';
 import { journeyKey, journeyTurns } from '../engine/melodyJourney';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
@@ -1441,6 +1441,85 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
       const roster = [member('a', 'co-y', { exitsAtMeasure: 90, shiftBpm: 60 }), undocking('bb', 'co-y', 50, { exitsAtMeasure: 96 })];
       const after = stepShiftLifecycle(roster, 50, ENV_60);
       expect(after.map((r) => r.exitsAtMeasure)).toEqual([90, 96]);
+    });
+  });
+
+  describe("the entrance is drawn when a group's last member lands Docked (Task 9, spec §1.7)", () => {
+    const member = (id: string, o: Partial<ShiftLifecycleSnapshot> = {}) =>
+      shift({ id, companyId: 'co-d', compositionSeed: id.length / 16, batterySize: 1, shiftBpm: 60, ...o });
+    const asPlan = (r: ShiftLifecycleSnapshot) => ({ id: r.id, companyId: r.companyId, compositionSeed: r.compositionSeed, batterySize: r.batterySize });
+    /** A freelancer out for good, so a recall is never a stay. */
+    const keeper = shift({ id: 'keeper', compositionSeed: 0.9, exitsAtMeasure: 100_000, shiftBpm: 60 });
+
+    it("a drifting company's first members to dock get no entrance until the last docks; then all get theirs on that tick", () => {
+      let roster: ShiftLifecycleSnapshot[] = [
+        member('a', { exitsAtMeasure: 50 }),
+        member('bb', { exitsAtMeasure: 58 }),
+        member('ccc', { exitsAtMeasure: 66 }),
+        keeper,
+      ];
+      const plan = roster.slice(0, 3).map(asPlan);
+      for (let m = 40; m <= 66; m++) {
+        roster = stepShiftLifecycle(roster, m, ENV_60);
+        expect(roster.slice(0, 3).every((r) => r.entersAtMeasure === undefined), `measure ${m}`).toBe(true);
+      }
+      expect(roster.slice(0, 3).map((r) => r.docking)).toEqual([DockingState.Docked, DockingState.Docked, DockingState.Recalled]);
+      roster = stepShiftLifecycle(roster, 67, ENV_60);
+      expect(roster.slice(0, 3).map((r) => r.docking)).toEqual([DockingState.Docked, DockingState.Docked, DockingState.Docked]);
+      expect(roster.slice(0, 3).map((r) => r.entersAtMeasure)).toEqual(planEntrance({ worldKey: '0:0', members: plan, from: 67, bpm: 60 }));
+      expect(roster.slice(0, 3).map((r) => r.exitsAtMeasure)).toEqual([undefined, undefined, undefined]);
+      expect(roster.slice(0, 3).every((r) => r.shiftBpm === 60)).toBe(true);
+      // The keeper is another group: its exit is untouched.
+      expect(roster[3].exitsAtMeasure).toBe(100_000);
+    });
+
+    it('a member docking while a mate is still Recalled draws nothing: a Recalled robot is still out', () => {
+      let roster: ShiftLifecycleSnapshot[] = [
+        member('a', { docking: DockingState.Recalled, dockingHoldUntilMeasure: 30, exitsAtMeasure: 29 }),
+        member('bb', { docking: DockingState.Recalled, dockingHoldUntilMeasure: 33, exitsAtMeasure: 32 }),
+        keeper,
+      ];
+      roster = stepShiftLifecycle(roster, 30, ENV_60);
+      expect(roster[0].docking).toBe(DockingState.Docked);
+      expect(roster.slice(0, 2).map((r) => r.entersAtMeasure)).toEqual([undefined, undefined]);
+      for (let m = 31; m <= 33; m++) roster = stepShiftLifecycle(roster, m, ENV_60);
+      const want = planEntrance({ worldKey: '0:0', members: roster.slice(0, 2).map(asPlan), from: 33, bpm: 60 });
+      expect(roster.slice(0, 2).map((r) => r.entersAtMeasure)).toEqual(want);
+    });
+
+    it('two members docking on one measure draw once, from the later in the roster', () => {
+      let roster: ShiftLifecycleSnapshot[] = [
+        member('a', { docking: DockingState.Recalled, dockingHoldUntilMeasure: 30, exitsAtMeasure: 29 }),
+        member('bb', { docking: DockingState.Recalled, dockingHoldUntilMeasure: 30, exitsAtMeasure: 29 }),
+        keeper,
+      ];
+      roster = stepShiftLifecycle(roster, 30, ENV_60);
+      const want = planEntrance({ worldKey: '0:0', members: roster.slice(0, 2).map(asPlan), from: 30, bpm: 60 });
+      expect(roster.slice(0, 2).map((r) => r.entersAtMeasure)).toEqual(want);
+    });
+
+    it('a whole shift runs from hand-set starting moves through exit, entrance and the next exit, nothing set by hand after', () => {
+      for (const env of [ENV_60, { bpm: 140, worldKey: '-4:4' }]) {
+        let roster: ShiftLifecycleSnapshot[] = [
+          member('a', { docking: DockingState.Undocking, dockingHoldUntilMeasure: 10, entersAtMeasure: 10, shiftBpm: env.bpm }),
+          member('bb', { docking: DockingState.Undocking, dockingHoldUntilMeasure: 10, entersAtMeasure: 10, shiftBpm: env.bpm }),
+          { ...keeper, shiftBpm: env.bpm },
+        ];
+        const seen: string[] = [];
+        let last = '';
+        for (let m = 10; m <= 600 && seen.length < 12; m++) {
+          roster = stepShiftLifecycle(roster, m, env);
+          const now = roster.slice(0, 2).map((r) => r.docking).join(',');
+          if (now !== last) seen.push(now);
+          last = now;
+        }
+        // Out, recalled, home, undocking, out again: every docking of both members came from the plan.
+        expect(seen).toContain([DockingState.Active, DockingState.Active].join(','));
+        expect(seen.some((s) => s.includes(DockingState.Recalled))).toBe(true);
+        expect(seen).toContain([DockingState.Docked, DockingState.Docked].join(','));
+        expect(seen.some((s) => s.includes(DockingState.Undocking))).toBe(true);
+        expect(seen.filter((s) => s === [DockingState.Active, DockingState.Active].join(',')).length).toBeGreaterThanOrEqual(2);
+      }
     });
   });
 });

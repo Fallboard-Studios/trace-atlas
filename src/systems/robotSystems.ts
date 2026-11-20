@@ -7,7 +7,7 @@ import useLocaleStore from '../stores/localeStore';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { AudioEngine } from '../engine/AudioEngine';
 import { onLifecycleChange } from './workLoop';
-import { groupIdOf, planExit, recallLeadBars, type ShiftEnv } from './shiftPlan';
+import { groupIdOf, planEntrance, planExit, recallLeadBars, type ShiftEnv } from './shiftPlan';
 import {
   BATTERY_DRAIN_ACTIVE,
   BATTERY_RECHARGE_RATE,
@@ -158,6 +158,10 @@ export interface ShiftLifecycleSnapshot extends RobotLifecycleSnapshot {
   shiftBpm?: number;
 }
 
+/** Out: Active or Recalled, so heard in the world (spec §1.8). */
+const isOut = (r: Pick<ShiftLifecycleSnapshot, 'docking'>): boolean =>
+  r.docking === DockingState.Active || r.docking === DockingState.Recalled;
+
 /**
  * One measure of the docking machine for a whole roster when a group's plan on its journey's turns decides when a
  * robot comes and goes (spec §1.8). Pure: one pass over a working copy in roster order, so within-measure ordering
@@ -211,6 +215,16 @@ export function stepShiftLifecycle(
         if (robot.dockingHoldUntilMeasure === undefined || measure >= robot.dockingHoldUntilMeasure) {
           robot.docking = DockingState.Docked;
           robot.dockingHoldUntilMeasure = undefined;
+          // The group's last member home draws the entrance for every member, and the exits are spent (spec §1.7).
+          const members = mates(robot);
+          if (!members.some(isOut)) {
+            const entrances = planEntrance({ worldKey: env.worldKey, members, from: measure, bpm: env.bpm });
+            members.forEach((m, i) => {
+              m.entersAtMeasure = entrances[i];
+              m.exitsAtMeasure = undefined;
+              m.shiftBpm = env.bpm;
+            });
+          }
         }
         break;
     }
