@@ -7,7 +7,15 @@ import useLocaleStore from '../stores/localeStore';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { AudioEngine } from '../engine/AudioEngine';
 import { onLifecycleChange } from './workLoop';
-import { groupIdOf, groupJourneyKey, planEntrance, planExit, recallLeadBars, type ShiftEnv } from './shiftPlan';
+import {
+  groupIdOf,
+  groupJourneyKey,
+  planEntrance,
+  planExit,
+  recallLeadBars,
+  rescaleMove,
+  type ShiftEnv,
+} from './shiftPlan';
 import { journeyTurns } from '../engine/melodyJourney';
 import {
   BATTERY_DRAIN_ACTIVE,
@@ -210,6 +218,20 @@ export function stepShiftLifecycle(
   /** Whether a robot outside `robot`'s group is Active right now, on the working array. */
   const outsideActive = (robot: ShiftLifecycleSnapshot) =>
     working.some((m) => m.docking === DockingState.Active && groupIdOf(m) !== groupIdOf(robot));
+  // A tempo change (spec §1.12): a move scaled at another tempo keeps its seconds to go and snaps to a turn, never so
+  // near that it fires on this tick. A Recalled or Undocking robot keeps its hold.
+  for (const robot of working) {
+    if (robot.shiftBpm === undefined || robot.shiftBpm === env.bpm) continue;
+    const rescale = (move: number, least: number) =>
+      rescaleMove({ worldKey: env.worldKey, robot, move, measure, fromBpm: robot.shiftBpm!, toBpm: env.bpm, least });
+    if (robot.exitsAtMeasure !== undefined && robot.docking !== DockingState.Recalled) {
+      robot.exitsAtMeasure = rescale(robot.exitsAtMeasure, lead + 1);
+    }
+    if (robot.entersAtMeasure !== undefined && robot.docking === DockingState.Docked) {
+      robot.entersAtMeasure = rescale(robot.entersAtMeasure, 2);
+    }
+    robot.shiftBpm = env.bpm;
+  }
   // The gauge reads each robot as it stood at the top of the tick: a robot landing this tick is still finishing the
   // phase it was in, so it lands on its target exactly (spec §1.10).
   const start = working.map((r) => ({ out: isOut(r), exit: r.exitsAtMeasure, enter: r.entersAtMeasure }));

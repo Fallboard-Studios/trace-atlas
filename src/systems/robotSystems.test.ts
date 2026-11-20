@@ -14,7 +14,7 @@ import {
   stepShiftLifecycle,
 } from './robotSystems';
 import type { RobotLifecycleSnapshot, ShiftLifecycleSnapshot } from './robotSystems';
-import { planEntrance, planExit, type ShiftEnv } from './shiftPlan';
+import { planEntrance, planExit, rescaleMove, type ShiftEnv } from './shiftPlan';
 import { journeyKey, journeyTurns } from '../engine/melodyJourney';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
@@ -1717,6 +1717,99 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
       const r = shift({ id: 'h', compositionSeed: 0.2, docking: DockingState.Docked, batteryLevel: 20 });
       const after = stepShiftLifecycle([r, keeper], 9, ENV_60)[0];
       expect(after.batteryLevel).toBeCloseTo(20 + 80 * BATTERY_EASE_SHARE, 12);
+    });
+  });
+
+  describe('a tempo change rescales the moves (Task 12, spec §1.12)', () => {
+    const WORLD = '6:-6';
+    const companyKey = journeyKey(WORLD, { kind: 'company', companyId: 'co-t' });
+    const turnFrom = (m: number) => journeyTurns(companyKey, m, m + 40)[0].measure;
+    const member = (id: string, o: Partial<ShiftLifecycleSnapshot> = {}) =>
+      shift({ id, companyId: 'co-t', compositionSeed: id.length / 16, shiftBpm: 60, ...o });
+    const keeper = (bpm: number) => shift({ id: 'keeper', compositionSeed: 0.9, exitsAtMeasure: 100_000, shiftBpm: bpm, batteryLevel: 100 });
+
+    it('a company planned at 60 BPM and stepped at 200 keeps one exit turn, on a turn, further off; nothing changes state on the tick', () => {
+      const exit = turnFrom(130);
+      const roster = [member('a', { exitsAtMeasure: exit }), member('bb', { exitsAtMeasure: exit }), keeper(60)];
+      const after = stepShiftLifecycle(roster, 100, { bpm: 200, worldKey: WORLD });
+      expect(after.map((r) => r.docking)).toEqual(roster.map((r) => r.docking));
+      expect(after[0].exitsAtMeasure).toBe(after[1].exitsAtMeasure);
+      const moved = after[0].exitsAtMeasure!;
+      expect(moved).toBe(rescaleMove({ worldKey: WORLD, robot: { companyId: 'co-t' }, move: exit, measure: 100, fromBpm: 60, toBpm: 200, least: 21 }));
+      expect(moved - 100).toBeGreaterThan(exit - 100);
+      expect(journeyTurns(companyKey, moved, moved)).toHaveLength(1);
+      expect(after.every((r) => r.shiftBpm === 200)).toBe(true);
+    });
+
+    it('never recalls on the tick of the change, even when the new lead reaches past the old exit turn', () => {
+      // 20 BPM, lead 2: an exit 3 measures off. At 200 the lead is 20.
+      const exit = turnFrom(53);
+      const r = member('a', { exitsAtMeasure: exit, shiftBpm: 20 });
+      const [after] = stepShiftLifecycle([r, keeper(20)], exit - 3, { bpm: 200, worldKey: WORLD });
+      expect(after.docking).toBe(DockingState.Active);
+      expect(after.exitsAtMeasure! - 20).toBeGreaterThan(exit - 3);
+    });
+
+    it('never recalls on the tick of the change when the rescaled turn would fall exactly the lead away', () => {
+      // 200 -> 20 BPM: 10 bars to go become 1, so the least the lead allows decides. At 20 BPM the lead is 2, and a
+      // turn sits exactly 2 measures off: it would be due now, so the next turn is taken.
+      const t = turnFrom(70);
+      const measure = t - 2;
+      const r = member('a', { exitsAtMeasure: measure + 10, shiftBpm: 200 });
+      const [after] = stepShiftLifecycle([r, keeper(200)], measure, { bpm: 20, worldKey: WORLD });
+      expect(after.docking).toBe(DockingState.Active);
+      expect(after.exitsAtMeasure).toBeGreaterThan(t);
+    });
+
+    it('a Docked robot does not begin Undocking on the tick of the change, and its entrance lands on a turn', () => {
+      const enter = turnFrom(60);
+      for (const toGo of [2, 30]) {
+        const r = member('a', { docking: DockingState.Docked, entersAtMeasure: enter, shiftBpm: 200, batteryLevel: 50 });
+        const [after] = stepShiftLifecycle([r, keeper(200)], enter - toGo, { bpm: 20, worldKey: WORLD });
+        expect(after.docking).toBe(DockingState.Docked);
+        expect(after.entersAtMeasure).toBe(
+          rescaleMove({ worldKey: WORLD, robot: { companyId: 'co-t' }, move: enter, measure: enter - toGo, fromBpm: 200, toBpm: 20, least: 2 }),
+        );
+        expect(after.entersAtMeasure! - (enter - toGo)).toBeGreaterThanOrEqual(2);
+        expect(journeyTurns(companyKey, after.entersAtMeasure!, after.entersAtMeasure!)).toHaveLength(1);
+        expect(after.shiftBpm).toBe(20);
+      }
+    });
+
+    it('a Recalled or Undocking robot keeps its hold, and a Recalled one its exit turn', () => {
+      const recalled = member('a', { docking: DockingState.Recalled, dockingHoldUntilMeasure: 90, exitsAtMeasure: 89 });
+      const undocking = member('bb', { docking: DockingState.Undocking, dockingHoldUntilMeasure: 88, entersAtMeasure: 88 });
+      const after = stepShiftLifecycle([recalled, undocking, keeper(60)], 85, { bpm: 170, worldKey: WORLD });
+      expect(after[0].dockingHoldUntilMeasure).toBe(90);
+      expect(after[0].exitsAtMeasure).toBe(89);
+      expect(after[1].dockingHoldUntilMeasure).toBe(88);
+      expect(after[1].entersAtMeasure).toBe(88);
+    });
+
+    it('equal tempos leave the moves alone, on a turn or not', () => {
+      const r = member('a', { exitsAtMeasure: 333 });
+      expect(stepShiftLifecycle([r, keeper(60)], 100, { bpm: 60, worldKey: WORLD })[0].exitsAtMeasure).toBe(333);
+    });
+
+    it('the gauge reaches its target on the rescaled measure, with no jump on the tick of the change', () => {
+      const exit = turnFrom(140);
+      let roster = [member('a', { exitsAtMeasure: exit, batteryLevel: 100 }), keeper(60)];
+      const levels: number[] = [100];
+      for (let m = 100; m <= 109; m++) {
+        roster = stepShiftLifecycle(roster, m, { bpm: 60, worldKey: WORLD });
+        levels.push(roster[0].batteryLevel);
+      }
+      const before = levels[levels.length - 2] - levels[levels.length - 1];
+      roster = stepShiftLifecycle(roster, 110, { bpm: 200, worldKey: WORLD });
+      const moved = roster[0].exitsAtMeasure!;
+      expect(moved).toBeGreaterThan(exit);
+      const atChange = levels[levels.length - 1] - roster[0].batteryLevel;
+      // Still falling, by no more than it fell the measure before: the line bends, it does not jump.
+      expect(atChange).toBeGreaterThan(0);
+      expect(atChange).toBeLessThanOrEqual(before);
+      for (let m = 111; m <= moved + 1; m++) roster = stepShiftLifecycle(roster, m, { bpm: 200, worldKey: WORLD });
+      expect(roster[0].batteryLevel).toBe(BATTERY_CRITICAL_THRESHOLD);
+      expect(roster[0].docking).toBe(DockingState.Docked);
     });
   });
 });
