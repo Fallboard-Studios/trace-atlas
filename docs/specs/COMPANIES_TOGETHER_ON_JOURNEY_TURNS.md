@@ -22,7 +22,7 @@ function beside `stepRobotLifecycle`, which stays until the removals task, so to
 before then (not only "first", as §3 and §5.3 word it).
 
 **Where the facts come from.** Everything marked **(code)** was read on 2026-11-20 on `docs/companies-together-intent`,
-which sits on `feature/journey-dynamics` (roadmap 93, not yet on main). Numbers marked **(measured)** are from
+which sat on `feature/journey-dynamics` (roadmap 93; both reached main on 2026-11-20 with PR #657). Numbers marked **(measured)** are from
 [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md) or the intent's scratch probe. Every new number in this spec is a **first
 cut**: none is measured, and Gate A (§5.4) exists to measure them before anything is heard.
 
@@ -533,9 +533,9 @@ First cuts; Gate A may move any of them.
 
 ## 6. Git & Workflow Context
 
-- This spec, the intent and roadmap 94 sit on `docs/companies-together-intent`, cut from `feature/journey-dynamics`.
-  It merges after roadmap 93.
-- The build branch is `feature/companies-together`, from `main` once 93 and this docs branch are in.
+- This spec, the intent, the plan and roadmap 94 merged on 2026-11-20 (PR #657) from `docs/companies-together-intent`.
+  That branch was cut from `feature/journey-dynamics`, so roadmap 93 reached main with them.
+- The build branch is `feature/companies-together`, from `main`.
 - The plan goes to `docs/tasks/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md` from `docs/tasks/TASK_TEMPLATE.md`, after
   Crawford approves this spec. Suggested order: today's rows; `journeyTurns`; `shiftPlan.ts`; the step and its
   prove-it; the sims and Gate A; the tick, the spawn and the fade system; Gate B; the docs.

@@ -118,8 +118,8 @@ Everything here is a strong tendency, not a rule (Crawford, 2026-11-20: "it does
 
 ## Known implementation notes (not yet spec'd)
 
-- **Depends on Journey Dynamics.** Freelancers on the Fleet journey exist only on `feature/journey-dynamics`; on main
-  a freelancer travels alone. This is built after 93 merges.
+- **Depends on Journey Dynamics** (roadmap 93, on main since 2026-11-20): freelancers travel on the Fleet journey from
+  it on.
 - **How far apart the turns are.** A scratch probe (300 journeys of 400 pairs at max time 16, run on
   `feature/journey-dynamics` on 2026-11-18; not repo code, to be re-measured by the spec's sim), in measures: any turn
   mean 7.3, median 8, p10 to p90 1 to 13; a peak median 18 (9 to 31); a turn at home median 28 (12 to 70); a drop
