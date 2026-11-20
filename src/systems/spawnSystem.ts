@@ -24,7 +24,10 @@ import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, FREELANCERS_MIN,
   BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, DEFAULT_JOURNEY_MAX_INTENSITY,
+  JOURNEY_TIME_MAX, SHIFT_HOME_MAX_BARS, SHIFT_REFERENCE_BPM, SHIFT_START_OUT_ODDS,
 } from '../constants';
+import { journeyTurns } from '../engine/melodyJourney';
+import { groupJourneyKey, planExit } from './shiftPlan';
 import { recordByField, robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
 import type { RobotAspects } from '../data/bands/dealAspects';
@@ -778,6 +781,97 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   // The robot rides along: a rebuild spawns into a locale that is not current yet, where the engine's own lookup would
   // find no robot and register the melody without its motif accents (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5).
   AudioEngine.registerRobotMelody(robot.id, robot.melody, robot);
+}
+
+// ========================================
+// THE START OF A WORLD (roadmap 94, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.13)
+// ========================================
+
+/** One roster index's start: its group (companyId; compositionSeed and batterySize as spawn draws them at that spawn
+ *  count), its docking and battery, and its first move at the tempo it was planned at. */
+export interface RosterStartEntry {
+  companyId?: string;
+  compositionSeed: number;
+  batterySize: number;
+  docking: DockingState;
+  batteryLevel: number;
+  entersAtMeasure?: number;
+  exitsAtMeasure?: number;
+  shiftBpm: number;
+}
+
+/** A group's two start draws at its earliest member's roster index, both even (spec §1.13): whether it starts out
+ *  ('roster.groupStartsOut', under SHIFT_START_OUT_ODDS), and how far in its first entrance is
+ *  ('roster.groupFirstEntrance', a share of SHIFT_HOME_MAX_BARS). */
+export function rosterGroupDraws(noiseMap: NoiseFunction2D, earliest: number): { startsOut: number; firstEntrance: number } {
+  return {
+    startsOut: getUniformSeededVal(noiseMap, 'roster.groupStartsOut', earliest, 0, 1),
+    firstEntrance: getUniformSeededVal(noiseMap, 'roster.groupFirstEntrance', earliest, 0, 1),
+  };
+}
+
+/**
+ * The start of a world by groups, per roster index (spec §1.13). Pure, from the noise map alone. The groups are
+ * generateCompanyMembership's companies and each freelancer alone. A group starts out when its startsOut draw is under
+ * SHIFT_START_OUT_ODDS; when none does, the group earliest in the roster does. A group starting out has every member
+ * Active at 100, its exit drawn by planExit as if it came out on `startMeasure`; a group starting home has every member
+ * Docked at its own 'roster.dockedBattery' draw and one entrance: the first turn of its journey at or after
+ * max(1, round(firstEntrance × SHIFT_HOME_MAX_BARS × bpm ÷ 60)) measures in.
+ */
+export function generateRosterStart(
+  noiseMap: NoiseFunction2D,
+  { bpm, worldKey, startMeasure }: { bpm: number; worldKey: string; startMeasure: number },
+): RosterStartEntry[] {
+  const membership = generateCompanyMembership(noiseMap, MAX_ROBOTS);
+  const companyOf = new Map<number, string>();
+  membership.forEach((members, c) => {
+    const id = generateCompanyId(noiseMap, c);
+    for (const i of members) companyOf.set(i, id);
+  });
+  const robots = Array.from({ length: MAX_ROBOTS }, (_, i) => ({
+    id: `roster-${i}`,
+    companyId: companyOf.get(i),
+    compositionSeed: generateCompositionSeed(noiseMap, i),
+    batterySize: generateBatterySize(noiseMap, i),
+  }));
+  // Each group's members in roster order, the groups by their earliest member.
+  const groups = [
+    ...membership.map((members) => [...members].sort((a, b) => a - b)),
+    ...robots.flatMap((r, i) => (r.companyId === undefined ? [[i]] : [])),
+  ].sort((a, b) => a[0] - b[0]);
+
+  const startsOut = groups.map((g) => rosterGroupDraws(noiseMap, g[0]).startsOut < SHIFT_START_OUT_ODDS);
+  if (!startsOut.some(Boolean)) startsOut[0] = true;
+
+  const entries = new Array<RosterStartEntry>(MAX_ROBOTS);
+  groups.forEach((group, g) => {
+    const members = group.map((i) => robots[i]);
+    if (startsOut[g]) {
+      const exits = planExit({ worldKey, members, from: startMeasure, bpm });
+      group.forEach((i, n) => {
+        entries[i] = { ...withoutId(robots[i]), docking: DockingState.Active, batteryLevel: 100, exitsAtMeasure: exits[n], shiftBpm: bpm };
+      });
+    } else {
+      const offset = Math.max(1, Math.round((rosterGroupDraws(noiseMap, group[0]).firstEntrance * SHIFT_HOME_MAX_BARS * bpm) / SHIFT_REFERENCE_BPM));
+      const from = startMeasure + offset;
+      const entrance = journeyTurns(groupJourneyKey(worldKey, members[0]), from, from + JOURNEY_TIME_MAX)[0].measure;
+      group.forEach((i) => {
+        entries[i] = {
+          ...withoutId(robots[i]),
+          docking: DockingState.Docked,
+          batteryLevel: Math.floor(getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)),
+          entersAtMeasure: entrance,
+          shiftBpm: bpm,
+        };
+      });
+    }
+  });
+  return entries;
+}
+
+/** A start robot's fields less its placeholder id. */
+function withoutId({ companyId, compositionSeed, batterySize }: { companyId?: string; compositionSeed: number; batterySize: number }) {
+  return { ...(companyId !== undefined ? { companyId } : {}), compositionSeed, batterySize };
 }
 
 /**

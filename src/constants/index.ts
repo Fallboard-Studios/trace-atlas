@@ -265,6 +265,9 @@ export const ENTRANCE_STAGGER_BARS = 2;
 /** The battery is a gauge (§1.10): where a robot has no move to aim at (staying, or home with no entrance yet), it loses
  *  this share of its level, or gains this share of what is missing, each measure, so it never sits still or jumps. */
 export const BATTERY_EASE_SHARE = 0.125;
+/** The odds a group starts a world out (§1.13), on its even 'roster.groupStartsOut' draw; when none does, the group
+ *  earliest in the roster does. */
+export const SHIFT_START_OUT_ODDS = 0.45;
 
 // ========================================
 // THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)
