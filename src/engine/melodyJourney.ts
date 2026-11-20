@@ -56,7 +56,18 @@ export interface JourneyShare {
   drop: boolean;
 }
 
-const sharesByKey = new Map<string, { rand: () => number; list: JourneyShare[] }>();
+/** A key's shares as far as they have been drawn, and each pair's trip beside it (tripOfNext). */
+const sharesByKey = new Map<string, { rand: () => number; list: JourneyShare[]; trips: number[] }>();
+
+/** The trip of the pair that heads for `share`, after a pair on `tripBefore` that headed for `before` (undefined for
+ *  the first pair, trip 0). A trip is one stretch away from home on one side: a pair starts a new one when it heads
+ *  for a side the pair before it did not head for (away from home after a pair that headed there, or across home). A
+ *  pair that heads home, or further along the same side, stays on the trip. */
+function tripOfNext(share: JourneyShare, before: JourneyShare | undefined, tripBefore: number): number {
+  if (!before) return 0;
+  const heads = Math.sign(share.intensity);
+  return tripBefore + (heads !== 0 && heads !== Math.sign(before.intensity) ? 1 : 0);
+}
 
 /** The pair after `before` (undefined for the first), by §1.3's table. Takes four draws whatever it uses, so pair i
  *  always reads draws 4i to 4i + 3. */
@@ -93,17 +104,25 @@ export function journeyShares(key: string, count: number): JourneyShare[] {
   return sharesOf(key, count).slice(0, count);
 }
 
-/** The memo's own list for `key`, drawn to at least `count` pairs; not copied, so never handed out. */
-function sharesOf(key: string, count: number): readonly JourneyShare[] {
+/** The memo's own entry for `key`, drawn to at least `count` pairs; not copied, so never handed out. */
+function drawnTo(key: string, count: number): { list: readonly JourneyShare[]; trips: readonly number[] } {
   let shares = sharesByKey.get(key);
   if (!shares) {
-    shares = { rand: alea(key), list: [] };
+    shares = { rand: alea(key), list: [], trips: [] };
     sharesByKey.set(key, shares);
   }
   while (shares.list.length < count) {
-    shares.list.push(drawShare(shares.rand, shares.list[shares.list.length - 1]));
+    const last = shares.list.length - 1;
+    const share = drawShare(shares.rand, shares.list[last]);
+    shares.trips.push(tripOfNext(share, shares.list[last], shares.trips[last]));
+    shares.list.push(share);
   }
-  return shares.list;
+  return shares;
+}
+
+/** The memo's own list for `key`, drawn to at least `count` pairs; not copied, so never handed out. */
+function sharesOf(key: string, count: number): readonly JourneyShare[] {
+  return drawnTo(key, count).list;
 }
 
 // ========================================
@@ -127,9 +146,10 @@ export interface JourneyBounds {
 }
 
 /**
- * A robot's own pairs from its journey's shares (§1.3, "A robot's pairs"). Intensity: the share times max intensity,
- * rounded to the nearest whole change the same way on both sides of home, and never below minus the calm limit (the
- * busy side is not brought in). Time: the share times max time, rounded to the nearest even number of measures, never
+ * A robot's own pairs from its journey's shares (§1.3, "A robot's pairs"). Intensity: a busy share times max
+ * intensity, a calm share times the calm range (the smaller of max intensity and the calm limit), each rounded to the
+ * nearest whole change the same way on both sides of home. So the calm side is never past the calm limit, and is
+ * spread over the calm changes the robot has. Time: the share times max time, rounded to the nearest even number of measures, never
  * under 2. A drop's time is 1, and the pair before a drop is one measure shorter, so the times through a drop sum to
  * an even number. A drop is seen only in the shares handed in: a caller reading pair i hands in share i + 1. Pure.
  */
@@ -142,8 +162,11 @@ export function robotPairs(shares: readonly JourneyShare[], bounds: JourneyBound
 
 /** A share's intensity in a robot's whole changes (robotPairs' rule). */
 function pairIntensity(share: JourneyShare, bounds: JourneyBounds): number {
-  const scaled = share.intensity * bounds.maxIntensity;
-  const intensity = Math.max(-bounds.calmLimit, Math.sign(scaled) * Math.round(Math.abs(scaled)));
+  // The calm side is as deep as the robot has calm changes, so a calm share is spread over those: a full calm share
+  // is the floor, and nothing short of one waits there.
+  const range = share.intensity < 0 ? Math.min(bounds.maxIntensity, bounds.calmLimit) : bounds.maxIntensity;
+  const scaled = share.intensity * range;
+  const intensity = Math.sign(scaled) * Math.round(Math.abs(scaled));
   // `intensity === 0` is true of −0 as well: hand back a plain 0.
   return intensity === 0 ? 0 : intensity;
 }
@@ -212,18 +235,37 @@ function pairAt(key: string, maxTime: number, measure: number): { i: number; end
   return { i: lo, ends };
 }
 
+/** Where a robot is on its journey at one measure: its position, its trip and its level. */
+export interface JourneyRead {
+  /** Whole changes from home: busier above 0, calmer below it. */
+  position: number;
+  /** Which stretch away from home this is, counted from 0 on the journey's shares (tripOfNext), so robots on one
+   *  journey count alike. While a robot is still on the side it is leaving, it is on the trip of the pair before. */
+  trip: number;
+  /** How far out the journey is, from −1 (as calm as it goes) to 1 (as busy), for the performance to follow: the
+   *  shares in a straight line across the pair, unrounded, so it moves every measure. It reads neither max intensity
+   *  (Crawford, 2026-11-19: the performance swing is the journey's, whatever the depth; 0 at a max intensity of 0,
+   *  off the journey) nor the calm limit: a one-note robot has a calm level too. */
+  level: number;
+}
+
 /**
- * How many changes from home a robot is at `measure` on `key`'s journey, scaled by its bounds (§1.3, §1.7):
- * positionInPairs over robotPairs, read without walking there. 0 at a max intensity of 0, at measure 0 and at a
- * negative or non-finite measure, so every world starts at home. Pure.
+ * A robot's read of `key`'s journey at `measure`, scaled by its bounds (§1.3, §1.7): the position (positionInPairs
+ * over robotPairs, read without walking there), the trip and the level. All 0 at a max intensity of 0, at measure 0
+ * and at a negative or non-finite measure, so every world starts at home. Pure.
  */
-export function journeyPosition(key: string, bounds: JourneyBounds, measure: number): number {
-  if (!(bounds.maxIntensity > 0) || !Number.isFinite(measure) || measure <= 0) return 0;
+export function journeyAt(key: string, bounds: JourneyBounds, measure: number): JourneyRead {
+  if (!(bounds.maxIntensity > 0) || !Number.isFinite(measure) || measure <= 0) return { position: 0, trip: 0, level: 0 };
   const { i, ends } = pairAt(key, bounds.maxTime, measure);
-  const shares = sharesOf(key, i + 1);
+  const { list: shares, trips } = drawnTo(key, i + 1);
   const start = i === 0 ? 0 : ends[i - 1];
   const from = i === 0 ? 0 : pairIntensity(shares[i - 1], bounds);
-  return insidePair(from, pairIntensity(shares[i], bounds), measure - start, ends[i] - start);
+  const position = insidePair(from, pairIntensity(shares[i], bounds), measure - start, ends[i] - start);
+  // Still on the side it is leaving: the pair before's trip, until the robot is home or across.
+  const crossed = position === 0 || i === 0 || Math.sign(position) === Math.sign(shares[i].intensity);
+  const fromShare = i === 0 ? 0 : shares[i - 1].intensity;
+  const level = fromShare + ((shares[i].intensity - fromShare) * (measure - start)) / (ends[i] - start);
+  return { position, trip: crossed ? trips[i] : trips[i - 1], level: level === 0 ? 0 : level };
 }
 
 // ========================================
@@ -239,11 +281,12 @@ export function worldKeyOf(coordinates: { x: number; y: number }): string {
 /** What robotJourney reads from a stored robot; the settings absent read as their defaults. */
 export type RobotJourneyInputs = Pick<Robot, 'compositionSeed' | 'companyId' | 'journeyMaxIntensity' | 'journey'> & {
   audioAttributes?: { adsr?: { attack?: number } };
+  octaveRange?: Robot['octaveRange'];
 };
 
 /** A robot's journey as the engine plays it: the journey's key, the robot's max intensity, the journey's max time, and
- *  the two things the changes read (developMelody's options): the floor and the seed. The calm limit is the home
- *  melody's (calmLimit). */
+ *  the things the changes read (developMelody's options): the floor, the seed and the octave range. The calm limit is
+ *  the home melody's (calmLimit). */
 export interface RobotJourney extends DevelopmentOptions {
   key: string;
   maxIntensity: number;
@@ -252,23 +295,26 @@ export interface RobotJourney extends DevelopmentOptions {
 
 /**
  * The stored robot's journey (§1.7, §1.9): the key its Journey setting names (a robot on Company with no company
- * travels as Own), its max intensity, the journey's max time (JOURNEY_TIME_MAX for every robot, so robots on one
+ * travels on Fleet), its max intensity, the journey's max time (JOURNEY_TIME_MAX for every robot, so robots on one
  * journey turn together, §7.4), its attack's floor at `bpmTop` (the top of the theme's bpm band, handed in by the
- * caller) and its composition seed. Absent settings read as DEFAULT_JOURNEY_MAX_INTENSITY and DEFAULT_JOURNEY. Pure.
+ * caller), its composition seed and its octave range (absent when the robot has none). Absent settings read as
+ * DEFAULT_JOURNEY_MAX_INTENSITY and DEFAULT_JOURNEY. Pure.
  */
 export function robotJourney(robot: RobotJourneyInputs, worldKey: string, bpmTop: number): RobotJourney {
   const setting = robot.journey ?? DEFAULT_JOURNEY;
+  // A robot on Company with no company travels with the fleet, where the freelancers spawn (Crawford, 2026-11-19).
   const scope: JourneyScope =
-    setting === 'fleet'
-      ? { kind: 'fleet' }
+    setting === 'own'
+      ? { kind: 'own', compositionSeed: robot.compositionSeed }
       : setting === 'company' && robot.companyId
         ? { kind: 'company', companyId: robot.companyId }
-        : { kind: 'own', compositionSeed: robot.compositionSeed };
+        : { kind: 'fleet' };
   return {
     key: journeyKey(worldKey, scope),
     maxIntensity: robot.journeyMaxIntensity ?? DEFAULT_JOURNEY_MAX_INTENSITY,
     maxTime: JOURNEY_TIME_MAX,
     floor: developmentFloor(robot.audioAttributes?.adsr?.attack ?? 0, bpmTop),
     seed: robot.compositionSeed,
+    ...(robot.octaveRange ? { octaveRange: robot.octaveRange } : {}),
   };
 }

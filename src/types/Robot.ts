@@ -342,7 +342,7 @@ export interface Robot {
   journeyMaxIntensity?: number;
   /**
    * The melody journey (§1.9): whose journey the robot travels: its own, its company's, or the fleet's. On Company
-   * with no company it travels as Own. Absent = 'own' (DEFAULT_JOURNEY).
+   * with no company it travels on Fleet. Absent = 'own' (DEFAULT_JOURNEY).
    */
   journey?: JourneySetting;
   /**

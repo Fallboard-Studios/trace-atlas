@@ -9,7 +9,7 @@ import { ROBOT_SEND_FIELDS } from '../data/robotSends';
 import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { SIM_SEED_COORDS, simNoiseMap } from './lifecycleSim';
 import { getBand } from '../data/bands/loadingContext';
-import { journeyPosition, robotJourney } from '../engine/melodyJourney';
+import { journeyAt, robotJourney } from '../engine/melodyJourney';
 import { calmLimit, developMelody, eventSixteenths } from '../engine/melodyDevelopment';
 import {
   generateBatterySize,
@@ -235,13 +235,13 @@ describe('a seeded company is a family at spawn (Company Families Task 5)', () =
       const journey = robotJourney(robot, worldKey, bpmTop);
       const bounds = { maxIntensity: journey.maxIntensity, maxTime: journey.maxTime, calmLimit: calmLimit(robot.melody) };
       return Array.from({ length: MEASURES }, (_, measure) =>
-        developMelody(robot.melody, journeyPosition(journey.key, bounds, measure), journey).map((e) => `${e.startStep}:${eventSixteenths(e)}`).join(' '),
+        developMelody(robot.melody, journeyAt(journey.key, bounds, measure).position, journey).map((e) => `${e.startStep}:${eventSixteenths(e)}`).join(' '),
       );
     };
-    it('every robot of a seeded company, founder included, is on Company; every freelancer on Own', () => {
+    it('every robot of a seeded company, founder included, is on Company; every freelancer on Fleet', () => {
       for (const { key, robots, companies } of WORLDS) {
         const members = new Set(companies.flatMap((c) => c.robotIds));
-        for (const robot of robots) expect(robot.journey, `${key} ${robot.id}`).toBe(members.has(robot.id) ? 'company' : 'own');
+        for (const robot of robots) expect(robot.journey, `${key} ${robot.id}`).toBe(members.has(robot.id) ? 'company' : 'fleet');
       }
     });
 

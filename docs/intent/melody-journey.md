@@ -82,7 +82,8 @@ before this piece, goes.
   then reads `[[16, 15], [-8, 1], [0, 16]]`: the melody peaks on measure 15, drops on measure 16 with the new chord,
   and is home on measure 32.
 - **Companies and the whole fleet can share a journey.** A three-way setting on the robot, Own, Company or Fleet,
-  broadcast from the company and All Probes screens. Seeded: a family member starts on Company, a freelancer on Own.
+  broadcast from the company and All Probes screens. Seeded: a family member starts on Company, a freelancer on Own
+  (on Fleet since roadmap 93, below).
 - **A shared journey is drawn once.** Each robot scales its intensities by its own max intensity, and every robot on
   it turns on the same measures, each to its own depth: a company on Company, or the fleet on Fleet, moves in lock
   step.
@@ -134,3 +135,26 @@ before this piece, goes.
 - **Left for the spec, as first cuts for Crawford's ear:**
   - ~~The range max time is seeded across.~~ No longer asked: max time is not a robot setting (2026-11-17).
   - How strongly the seeded journey leans, how often "occasionally" is, and how often a pair is a drop.
+
+## Journey dynamics (roadmap 93)
+
+2026-11-18, after hearing the journey as built: "I hear it, but it's not quite as dynamic as i'd hoped. do you have
+suggestions for either the algo that determines the changes to the melody or its implementation?" Six suggestions
+came back with the measurements behind them (the spec's §10.1); he wanted to "give them a try", with these notes:
+
+- **The performance follows the journey** (quieter on the calm side, shorter and with deeper accents on the busy
+  side): "sounds good."
+- **The calm side scales instead of clamping:** "sounds good."
+- **Shifts keep their direction:** wanted only if there are still occasional sudden swings ("would we still get
+  occasional sudden swings? if yes sounds good"). There are: the drops, the octave jumps, and new directions each trip.
+- **Freelancers seed on Fleet:** "seeding freelancers into fleet is a great idea."
+- **Octave jumps:** "ok, but only for notes in octaves 1, 4, and 5. the rest should have an octave jump down."
+- **A different path each trip:** wanted only if company members keep one rhythm: "will different robots in the same
+  company still have the same rhythyms? if not, i'm not interested." They do.
+
+2026-11-19, after the review:
+
+- **The performance swing is independent of max intensity:** a robot at a small max intensity plays as far from home
+  in its performance as one at 16.
+- **A robot on Company with no company falls back to Fleet,** not Own.
+- **The listen passed:** "ok i'm happy with my listen." The three performance numbers ship as first cut.

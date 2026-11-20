@@ -3,8 +3,8 @@
 // ========================================
 import { describe, it, expect, vi } from 'vitest';
 import {
+  journeyAt,
   journeyKey,
-  journeyPosition,
   journeyShares,
   positionInPairs,
   robotJourney,
@@ -27,6 +27,8 @@ import {
 // HELPERS
 // ========================================
 const WORLD = '21:-188';
+/** A robot's position on `key`'s journey at `measure` (journeyAt). */
+const positionOn = (key: string, b: JourneyBounds, measure: number) => journeyAt(key, b, measure).position;
 const OWN = journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 });
 
 // ========================================
@@ -58,7 +60,7 @@ describe('journeyKey (spec §1.3)', () => {
 
 // The engine's read of a robot's journey (spec §1.3, §1.7; roadmap 92 Task 28): a key, two bounds and a calm limit
 // give a position at any measure. The oracle is the three pure pieces of Tasks 24 to 26, read over enough shares.
-describe('journeyPosition (spec §1.3)', () => {
+describe('journeyAt: the position (spec §1.3)', () => {
   const RUN = 2000;
   const KEYS = [OWN, 'x:journey', 'y:journey', journeyKey(WORLD, { kind: 'fleet' })];
   const bounds = (maxIntensity: number, maxTime: number, calmLimit: number): JourneyBounds => ({
@@ -87,23 +89,23 @@ describe('journeyPosition (spec §1.3)', () => {
     return out;
   };
   const positions = (key: string, b: JourneyBounds, measures = RUN) =>
-    Array.from({ length: measures + 1 }, (_, m) => journeyPosition(key, b, m));
+    Array.from({ length: measures + 1 }, (_, m) => positionOn(key, b, m));
 
   it('is 0 at measure 0 for any key and bounds', () => {
-    for (const b of CASES) for (const key of [...KEYS, 'a', '']) expect(journeyPosition(key, b, 0)).toBe(0);
+    for (const b of CASES) for (const key of [...KEYS, 'a', '']) expect(positionOn(key, b, 0)).toBe(0);
   });
 
   it('is 0 at every measure at a max intensity of 0, whatever the max time and calm limit', () => {
     for (const key of KEYS) {
       for (const b of [bounds(0, 16, 15), bounds(0, 2, 0), bounds(0, 8, 3)]) {
-        for (let m = 0; m <= 500; m++) expect(journeyPosition(key, b, m)).toBe(0);
+        for (let m = 0; m <= 500; m++) expect(positionOn(key, b, m)).toBe(0);
       }
     }
   });
 
   it('is 0 at a negative or non-finite measure', () => {
     const b = bounds(16, 16, 15);
-    for (const m of [-1, -5, Number.NaN, Infinity, -Infinity]) expect(journeyPosition(OWN, b, m)).toBe(0);
+    for (const m of [-1, -5, Number.NaN, Infinity, -Infinity]) expect(positionOn(OWN, b, m)).toBe(0);
   });
 
   it('is the position inside the robot pairs at every measure of a long run, for every key and bounds', () => {
@@ -113,7 +115,7 @@ describe('journeyPosition (spec §1.3)', () => {
         const pairs = pairsOf(key, b);
         for (let m = 0; m <= RUN; m++) {
           const want = positionInPairs(pairs, m);
-          if (journeyPosition(key, b, m) !== want) misses.push(`${key} ${JSON.stringify(b)} m${m}`);
+          if (positionOn(key, b, m) !== want) misses.push(`${key} ${JSON.stringify(b)} m${m}`);
         }
       }
     }
@@ -141,7 +143,7 @@ describe('journeyPosition (spec §1.3)', () => {
         const pairs = pairsOf(key, b);
         turningMeasures(pairs).forEach((at, i) => {
           const where = `${key} ${JSON.stringify(b)} pair ${i} at ${at}`;
-          if (journeyPosition(key, b, at) !== pairs[i].intensity) misses.push(`${where}: not there`);
+          if (positionOn(key, b, at) !== pairs[i].intensity) misses.push(`${where}: not there`);
           const beforeDrop = shares[i + 1].drop;
           if (beforeDrop) drops++;
           if (beforeDrop ? at % 2 !== 1 : at % 2 !== 0) misses.push(`${where}: ${beforeDrop ? 'even before a drop' : 'odd'}`);
@@ -158,11 +160,11 @@ describe('journeyPosition (spec §1.3)', () => {
     vi.resetModules();
     const fresh = await import('./melodyJourney');
     const backwards: number[] = [];
-    for (let m = 600; m >= 0; m--) backwards[m] = fresh.journeyPosition('order:journey', b, m);
+    for (let m = 600; m >= 0; m--) backwards[m] = fresh.journeyAt('order:journey', b, m).position;
     expect(backwards).toEqual(inOrder);
     vi.resetModules();
     const jumping = await import('./melodyJourney');
-    for (const m of [600, 3, 451, 0, 99, 600, 17]) expect(jumping.journeyPosition('order:journey', b, m)).toBe(inOrder[m]);
+    for (const m of [600, 3, 451, 0, 99, 600, 17]) expect(jumping.journeyAt('order:journey', b, m).position).toBe(inOrder[m]);
   });
 
   it('reads one key at several max times in turn, each its own: no max time borrows another turning measures', () => {
@@ -170,7 +172,7 @@ describe('journeyPosition (spec §1.3)', () => {
     for (const t of [16, 2, 8, 16, 4, 2]) {
       const b = bounds(16, t, 15);
       const pairs = pairsOf(key, b, 400);
-      for (let m = 0; m <= 400; m++) expect(journeyPosition(key, b, m), `max time ${t} m${m}`).toBe(positionInPairs(pairs, m));
+      for (let m = 0; m <= 400; m++) expect(positionOn(key, b, m), `max time ${t} m${m}`).toBe(positionInPairs(pairs, m));
     }
   });
 
@@ -184,14 +186,14 @@ describe('journeyPosition (spec §1.3)', () => {
       expect(turningMeasures(pairsOf(key, long))).not.toEqual(turns);
       // Each arrives at its own depth on those measures.
       pairsOf(key, shallow).slice(0, turns.length).forEach((pair, i) => {
-        expect(journeyPosition(key, shallow, turns[i])).toBe(pair.intensity);
+        expect(positionOn(key, shallow, turns[i])).toBe(pair.intensity);
       });
     }
   });
 
   it('reads measure 10,000 straight off, and as the run up to it would', () => {
     const b = bounds(16, 16, 15);
-    const far = journeyPosition('far:journey', b, 10_000);
+    const far = positionOn('far:journey', b, 10_000);
     expect(far).toBe(positionInPairs(robotPairs(journeyShares('far:journey', 10_002), b), 10_000));
   });
 });
@@ -453,12 +455,22 @@ describe('robotPairs (spec §1.3)', () => {
     expect(intensities([share(-0.7), share(0.5)], bounds(16, 16, 0))).toEqual([0, 8]);
   });
 
-  it('brings a calm intensity past the calm limit in to it, and never brings a busy one in', () => {
-    expect(intensities([share(-0.75)], bounds(16, 16, 4))).toEqual([-4]);
-    expect(intensities([share(-0.25)], bounds(16, 16, 4))).toEqual([-4]);
-    expect(intensities([share(-0.125)], bounds(16, 16, 4))).toEqual([-2]);
+  it('scales a calm share across the calm range, the smaller of max intensity and the calm limit, and a busy one across max intensity', () => {
+    // A calm limit of 4 under a max intensity of 16: the whole calm side is spread over the four changes there are.
+    expect(intensities([share(-1)], bounds(16, 16, 4))).toEqual([-4]);
+    expect(intensities([share(-0.75)], bounds(16, 16, 4))).toEqual([-3]);
+    expect(intensities([share(-0.5)], bounds(16, 16, 4))).toEqual([-2]);
+    expect(intensities([share(-0.25)], bounds(16, 16, 4))).toEqual([-1]);
+    // A max intensity under the calm limit bounds the calm side as it does the busy one.
+    expect(intensities([share(-1), share(-0.5)], bounds(6, 16, 15))).toEqual([-6, -3]);
+    // The busy side is never brought in.
     expect(intensities([share(0.75)], bounds(16, 16, 4))).toEqual([12]);
     expect(intensities([share(1)], bounds(16, 16, 0))).toEqual([16]);
+  });
+
+  it('reaches the calm floor only on a full calm share: a robot does not wait on its floor through a ramp', () => {
+    const shares = [-0.9, -0.8, -0.7, -0.6].map((s) => share(s));
+    expect(intensities(shares, bounds(16, 16, 4))).toEqual([-4, -3, -3, -2]);
   });
 
   it('scales time to the nearest even number of measures, never under 2: at 16, 0, 0.1, 0.5 and 1 give 2, 2, 8 and 16', () => {
@@ -477,7 +489,7 @@ describe('robotPairs (spec §1.3)', () => {
   });
 
   it('gives Crawford example from shares that scale to it: [[16, 15], [-8, 1], [0, 16]]', () => {
-    const pairs = robotPairs([share(1, 1), share(-0.5, 0.25, true), share(0, 1)], bounds(16, 16, 8));
+    const pairs = robotPairs([share(1, 1), share(-0.5, 0.25, true), share(0, 1)], bounds(16, 16, 16));
     expect(pairs.map((p) => [p.intensity, p.time])).toEqual([
       [16, 15],
       [-8, 1],
@@ -504,6 +516,153 @@ describe('robotPairs (spec §1.3)', () => {
       }
     }
     expect(misses).toEqual([]);
+  });
+});
+
+// A trip (journey dynamics, 2026-11-18): one stretch away from home on one side. The changes take a different path
+// each trip, so the engine reads the trip beside the position. It is counted on the shares, so robots on one journey
+// count alike.
+describe('journeyAt: the position and the trip', () => {
+  const RUN = 2000;
+  const KEYS = [OWN, 'x:journey', 'y:journey', journeyKey(WORLD, { kind: 'fleet' })];
+  const b = (maxIntensity: number, calmLimit: number): JourneyBounds => ({ maxIntensity, maxTime: 16, calmLimit });
+  const CASES = [b(16, 15), b(16, 4), b(3, 2), b(8, 0)];
+
+
+  it('is trip 0 at measure 0 and through the first pair', () => {
+    for (const key of KEYS) {
+      const first = robotPairs(journeyShares(key, 2), b(16, 15))[0].time;
+      for (let m = 0; m < first; m++) expect(journeyAt(key, b(16, 15), m).trip).toBe(0);
+    }
+  });
+
+  it('is trip 0 at a max intensity of 0, and at a negative or non-finite measure', () => {
+    for (let m = 0; m <= 200; m++) expect(journeyAt(OWN, b(0, 15), m)).toEqual({ position: 0, trip: 0, level: 0 });
+    for (const m of [-1, Number.NaN, Infinity]) expect(journeyAt(OWN, b(16, 15), m)).toEqual({ position: 0, trip: 0, level: 0 });
+    expect(journeyAt(OWN, b(16, 15), 0)).toEqual({ position: 0, trip: 0, level: 0 });
+  });
+
+  // The level (journey dynamics, 2026-11-18): how far out the journey is, unrounded, for the performance to follow.
+  describe('the level', () => {
+    /** Each pair's start measure, turning measure and the shares it runs between, for `key` at a max time of 16. */
+    const spans = (key: string) => {
+      const shares = journeyShares(key, RUN + 2);
+      const times = robotPairs(shares, b(16, 15)).map((p) => p.time);
+      const out: { start: number; turn: number; from: number; to: number }[] = [];
+      let start = 0;
+      for (let i = 0; start + times[i] <= RUN; i++) {
+        out.push({ start, turn: start + times[i], from: i === 0 ? 0 : shares[i - 1].intensity, to: shares[i].intensity });
+        start += times[i];
+      }
+      return out;
+    };
+
+    it('is the share the pair heads for on its turning measure, at a max intensity of 16', () => {
+      for (const key of KEYS) {
+        for (const { turn, to } of spans(key)) expect(journeyAt(key, b(16, 15), turn).level).toBeCloseTo(to, 10);
+      }
+    });
+
+    it('runs in a straight line from one share to the next across the pair, every measure a step', () => {
+      for (const key of KEYS) {
+        for (const { start, turn, from, to } of spans(key)) {
+          for (let m = start; m <= turn; m++) {
+            const want = from + ((to - from) * (m - start)) / (turn - start);
+            expect(journeyAt(key, b(16, 15), m).level, `${key} m${m}`).toBeCloseTo(want, 10);
+          }
+        }
+      }
+    });
+
+    it('does not read max intensity (Crawford, 2026-11-19): at 8, 4 and 1 it is what it is at 16; at 0 it is 0', () => {
+      for (const key of KEYS) {
+        for (let m = 0; m <= 400; m++) {
+          const full = journeyAt(key, b(16, 15), m).level;
+          for (const max of [8, 4, 1]) expect(journeyAt(key, b(max, 15), m).level, `${key} m${m} at ${max}`).toBe(full);
+          expect(journeyAt(key, b(0, 15), m).level).toBe(0);
+        }
+      }
+    });
+
+    it('stays from -1 to 1, and goes both ways', () => {
+      for (const key of KEYS) {
+        const levels = Array.from({ length: RUN + 1 }, (_, m) => journeyAt(key, b(16, 15), m).level);
+        expect(Math.max(...levels)).toBeLessThanOrEqual(1);
+        expect(Math.min(...levels)).toBeGreaterThanOrEqual(-1);
+        expect(levels.some((l) => l > 0.5)).toBe(true);
+        expect(levels.some((l) => l < -0.5)).toBe(true);
+      }
+    });
+
+    it('does not read the calm limit: a robot with no calm change still has a calm level', () => {
+      let calmAtHome = 0;
+      for (let m = 0; m <= RUN; m++) {
+        const one = journeyAt(OWN, b(16, 0), m);
+        expect(one.level).toBe(journeyAt(OWN, b(16, 15), m).level);
+        if (one.position === 0 && one.level < -0.25) calmAtHome++;
+      }
+      expect(calmAtHome).toBeGreaterThan(0);
+    });
+  });
+
+  it('follows the shares: a new trip when a pair heads for a side the pair before did not, the old one until the robot has crossed', () => {
+    const misses: string[] = [];
+    for (const key of KEYS) {
+      const shares = journeyShares(key, RUN + 2);
+      // The trip of each pair, from the shares alone.
+      const tripOf: number[] = [0];
+      for (let i = 1; i < shares.length; i++) {
+        const heads = Math.sign(shares[i].intensity);
+        tripOf.push(tripOf[i - 1] + (heads !== 0 && heads !== Math.sign(shares[i - 1].intensity) ? 1 : 0));
+      }
+      for (const bounds of CASES) {
+        const pairs = robotPairs(shares, bounds);
+        let i = 0;
+        let turn = pairs[0].time;
+        for (let m = 1; m <= RUN; m++) {
+          while (m >= turn) turn += pairs[++i].time;
+          const { position, trip } = journeyAt(key, bounds, m);
+          const crossed = position === 0 || i === 0 || Math.sign(position) === Math.sign(shares[i].intensity);
+          const want = crossed ? tripOf[i] : tripOf[i - 1];
+          if (trip !== want) misses.push(`${key} ${JSON.stringify(bounds)} m${m}: ${trip}, not ${want}`);
+        }
+      }
+    }
+    expect(misses.slice(0, 5)).toEqual([]);
+  });
+
+  it('never goes back, and holds while a robot stays on one side of home', () => {
+    for (const key of KEYS) {
+      for (const bounds of CASES) {
+        let before = journeyAt(key, bounds, 0);
+        for (let m = 1; m <= RUN; m++) {
+          const now = journeyAt(key, bounds, m);
+          expect(now.trip, `${key} m${m}`).toBeGreaterThanOrEqual(before.trip);
+          if (now.position !== 0 && Math.sign(now.position) === Math.sign(before.position)) {
+            expect(now.trip, `${key} ${JSON.stringify(bounds)} m${m}`).toBe(before.trip);
+          }
+          before = now;
+        }
+      }
+    }
+  });
+
+  it('gives two robots on one journey one trip wherever both are away from home on one side, whatever their bounds', () => {
+    let together = 0;
+    for (const key of KEYS) {
+      for (let m = 0; m <= RUN; m++) {
+        const deep = journeyAt(key, b(16, 15), m);
+        const shallow = journeyAt(key, b(5, 3), m);
+        if (deep.position === 0 || Math.sign(deep.position) !== Math.sign(shallow.position)) continue;
+        together++;
+        expect(shallow.trip, `${key} m${m}`).toBe(deep.trip);
+      }
+    }
+    expect(together).toBeGreaterThan(1000);
+  });
+
+  it('takes many trips over a long run', () => {
+    for (const key of KEYS) expect(journeyAt(key, b(16, 15), RUN).trip).toBeGreaterThan(20);
   });
 });
 
@@ -549,9 +708,9 @@ describe('robotJourney (spec §1.7, §1.9)', () => {
     expect(a).toBe(journeyKey(WORLD, { kind: 'fleet' }));
   });
 
-  it('a freelancer on Company gets the key it would have on Own', () => {
-    expect(keyOf({ journey: 'company' })).toBe(keyOf({ journey: 'own' }));
-    expect(keyOf({ journey: 'company' })).toBe(journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 }));
+  it('a freelancer on Company gets the key it would have on Fleet (Crawford, 2026-11-19)', () => {
+    expect(keyOf({ journey: 'company' })).toBe(keyOf({ journey: 'fleet' }));
+    expect(keyOf({ compositionSeed: 0.1, journey: 'company' })).toBe(journeyKey(WORLD, { kind: 'fleet' }));
   });
 
   it('a robot with none of the fields reads as max intensity 0, at the journey max time of 16, on its Own key', () => {
@@ -580,6 +739,12 @@ describe('robotJourney (spec §1.7, §1.9)', () => {
 
   it('the seed is the composition seed', () => {
     expect(robotJourney(robot({ compositionSeed: 0.8125 }) as never, WORLD, BPM_TOP).seed).toBe(0.8125);
+  });
+
+  it('the octave range is the stored one, for the octave jumps to stay inside; a robot with none hands on none', () => {
+    expect(robotJourney(robot({ octaveRange: [2, 5] }) as never, WORLD, BPM_TOP).octaveRange).toEqual([2, 5]);
+    expect(robotJourney(robot({ octaveRange: [4, 4] }) as never, WORLD, BPM_TOP).octaveRange).toEqual([4, 4]);
+    expect(robotJourney(robot() as never, WORLD, BPM_TOP).octaveRange).toBeUndefined();
   });
 
   it('the floor follows the attack and the bpm top: 1.14 s at 100 is 4, 0.01 s is 1, 1.14 s at 50 is 2', () => {

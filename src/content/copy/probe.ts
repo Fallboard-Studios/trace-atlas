@@ -282,7 +282,7 @@ export const probe = {
   'probe.composition.journeyMaxIntensity': {
     human: 'Max Intensity',
     lore: 'Drift Reach',
-    help: { human: 'How far this probe’s melody may wander from its home tune: busier, with notes split and gaps filled, or calmer, with notes tied together. It travels there and back on its journey, sometimes dropping straight back on a bar line. The number is how many changes from home it may go; 0 always plays the home tune.' },
+    help: { human: 'How far this probe’s melody may wander from its home tune: busier, with notes split, gaps filled and some notes leaping an octave, played shorter with sharper accents; or calmer, with notes tied together and played softer. It travels there and back on its journey, by a different path each time, sometimes dropping straight back on a bar line. The number is how many changes from home it may go; 0 always plays the home tune.' },
   },
   'probe.composition.journey': {
     human: 'Journey',
@@ -292,7 +292,7 @@ export const probe = {
       company: { human: 'Company', lore: 'Convoy Drift' },
       fleet: { human: 'Fleet', lore: 'Fleet Drift' },
     },
-    help: { human: 'Who this probe’s melody wanders with. Own takes its own path; Company follows the same path as every member set to Company, so they get busier and calmer together; Fleet follows one path shared by every probe set to Fleet. A probe with no company on Company takes its own path. It does nothing while Max Intensity is 0.' },
+    help: { human: 'Who this probe’s melody wanders with. Own takes its own path; Company follows the same path as every member set to Company, so they get busier and calmer together; Fleet follows one path shared by every probe set to Fleet. A probe with no company on Company follows the fleet’s path. It does nothing while Max Intensity is 0.' },
   },
 
   // ---------------------------------------------------------------- Envelope

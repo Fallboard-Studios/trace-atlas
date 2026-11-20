@@ -28,6 +28,11 @@ time of 16, so robots on one journey move in lock step; max intensity is a robot
 
 **Built 2026-11-17**, every phase; what shipped, every number and what the gates moved (nothing; passed or waived 2026-11-17) is §9, As built.
 
+**Changed by roadmap 93, journey dynamics (2026-11-18 and 2026-11-19), §10.** The calm side is scaled, not clamped;
+freelancers and a robot on Company with no company travel on Fleet; shifts hold their direction; octave jumps are a
+busy phase; each trip takes its own path; the performance follows the journey's level; `journeyPosition` became
+`journeyAt`. §1 to §9 stand as the record of 92 and are not rewritten: where they differ, §10 holds.
+
 **Where the claims come from.** Two sources, marked where it matters:
 
 - **(code)** read in the repo while writing this spec.
@@ -759,3 +764,81 @@ that change what a reader of this spec would expect:
 | 6 | By construction (§1.2: a pure function of the home melody, the settings, the seed, the attack, the world key and the measure): "gives the same positions whichever order the measures are read in"; the save and link round trips (`sessionDiff.test.ts`, `worldDiffCodec.test.ts`). Not heard after a reload: Gate C |
 | 7 | `robotSystems.test.ts`, "a Recalled robot landing on Docked keeps the same melody array and registers no melody" and the two-dock-cycle case; Checkpoint B's headless probe (19 landings, 0 melody changes) |
 | 8 | The plan's Checkpoint Complete |
+
+## 10. Journey dynamics (roadmap 93)
+
+Roadmap [93](../todo/roadmap.md#93-journey-dynamics-a-melody-journey-you-can-hear). Raised 2026-11-18: Crawford heard
+the journey and found it "not quite as dynamic as i'd hoped", and asked for suggestions on the algorithm or its
+implementation. Six were proposed from the measurements in §10.1; he took all six with notes (his intent, in
+[melody-journey.md](../intent/melody-journey.md#journey-dynamics-roadmap-93)). Built 2026-11-18 and 2026-11-19 on
+`feature/journey-dynamics`, branched from `feature/melody-journey` so 92's branch stays as it was passed; reviewed with
+the `code-review-and-quality` workflow, then passed on his listen ("i'm happy with my listen", 2026-11-19). No task
+file: the changes were built straight from the conversation, TDD and one commit a change, and the commits below are
+the record. This section supersedes §1 to §9 wherever they differ; [MELODY_SYSTEM.md](../MELODY_SYSTEM.md#the-melody-journey-roadmap-92)
+and [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#note-resolution-pipeline) describe the result.
+
+### 10.1 Why: what the measurements said
+
+A throwaway probe over 300 journey keys × 2,000 measures (not committed), and §9.2's Checkpoint A:
+
+- **The busy side was mostly pitch shifts,** and they cancelled: half the fleet (729 of 1,452 robots) has no split and
+  no fill, so its busy side is shifts from the first change, and each shift took a fresh coin flip, so a note moved up
+  and back down again.
+- **The calm side waited on its floor.** `robotPairs` clamped a calm share at minus the calm limit, so a robot with a
+  calm limit of 4 at max intensity 16 reached its floor on any calm share past about a fifth (3.5 ÷ 16) and sat there:
+  14.2 % of measures on the floor.
+- **Journeys of their own cancel out across a fleet.** Six robots on Own journeys (max intensity 8, calm limit 4)
+  summed to a spread (standard deviation) of 7.2 changes; six on one shared journey, 17.5. The freelancers spawned on Own, so the fleet as a whole barely moved.
+- **Intensity moved only the notes:** how many and which neighbour. Nothing in how they were played.
+
+### 10.2 What changed
+
+| Change | The rule now | Whose call | Commits |
+|---|---|---|---|
+| The calm side is scaled, not clamped | A calm share times the **calm range**, the smaller of max intensity and the calm limit; a busy share times max intensity, as before. The calm floor comes only on a full calm share. | Proposed; "sounds good" | `3464bb50` |
+| Freelancers on Fleet | Spawn and the roster baseline write `journey: 'fleet'` for a robot outside a seeded company. `DEFAULT_JOURNEY` (an absent field) stays `'own'`. | His: "seeding freelancers into fleet is a great idea" | `82cee22b` |
+| Company with no company travels on Fleet | `robotJourney`: Own only when set to Own; Company with a `companyId` on the company's key; anything else on the fleet's. Was Own (§1.9, A15). | His, 2026-11-19 | `6fa40fa9` |
+| Shifts hold their direction | A note keeps the way it first went: a note a split or fill added goes on the way that change sent it, any other takes its first shift's draw and holds it. | Proposed; his condition: "would we still get occasional sudden swings?" (yes: drops, octave jumps, a fresh set of directions each trip) | `fd99a51c` |
+| Octave jumps | A fifth busy phase, after the fills and before the shifts: one note an octave a change, **up from octave 1, 4 or 5, down from any other**, landing inside the robot's octave range; half the notes that can jump (rounded up), by length then start from alternating ends; each once. | The octaves are his: "only for notes in octaves 1, 4, and 5. the rest should have an octave jump down." The rest is mine | `3bc1c065`, `d69e4802` |
+| A different path each trip | A **trip** is one stretch away from home on one side, counted on the shares. Each trip's order draws (`` `${key}:${trip}:order` ``) start each visiting order somewhere else, and the directions are drawn afresh (`` `${seed}:development:${trip}` ``). | His condition: robots in one company keep the same rhythms. They do: the order reads the journey's key and the trip, never the robot. | `b1226427`, `48e44227`, `8a48ceed` |
+| The performance follows the level | The **level** is the shares in a straight line across the pair, −1 to 1, moving every measure. Busy: notes up to 40 % shorter (never under the floor, own release kept) and accent lift up to 50 % deeper. Calm: notes up to 40 % quieter. | Proposed; "sounds good". The level is independent of max intensity (his, 2026-11-19); it first scaled with it | `e4f246c9`, `d8f5128f`, `47b216ef` |
+
+The other commits: the help copy (`22693fc7`), two tests the review's mutation run found missing (`655cf567`),
+`journeyPosition` deleted for `journeyAt(...).position` (`8715b3c6`), and a sixteenth's seconds read once a step
+(`84129cbe`).
+
+### 10.3 Every new number
+
+| What | Value | Where |
+|---|---|---|
+| The octaves that jump up | 1, 4 and 5 (`OCTAVES_THAT_JUMP_UP`); every other jumps down | `melodyDevelopment.ts` |
+| A note with no octave | `DEFAULT_NOTE_OCTAVE` 4, for the engine and the jumps alike | `src/constants/index.ts` |
+| How many notes jump | half the notes that can, rounded up | `melodyDevelopment.ts` |
+| The order draws a trip | four, in the order first pass, two thresholds (0.5 or more starts on `T` and the longest), octave jumps, shifts; the calm ties take the first | same |
+| Calm, quieter | `JOURNEY_CALM_VELOCITY_CUT` 0.4 × \|level\| (about 4.4 dB at a full calm level) | `src/constants/index.ts` |
+| Busy, shorter | `JOURNEY_BUSY_LENGTH_CUT` 0.4 × level, never under the robot's floor | same |
+| Busy, deeper accents | `JOURNEY_BUSY_ACCENT_GAIN` 0.5 × level, on the lift over an unaccented note | same |
+
+The three performance constants are first cuts, kept on his listen. `JOURNEY_MIN_MOVE` stays 0.125 (0.25 to 0.33 was
+offered and not taken).
+
+### 10.4 Measured after the build
+
+- **The calm side** (the same probe, max intensity 16, calm limit 4, no busy path): measures on the calm floor 14.2 %
+  → 1.9 %. The calm side is shallower overall: measures whose rhythm moves 20.4 % → 14.3 %, and measures that move
+  at all 60.2 % → 55.5 %. Told to Crawford before his listen, with `3464bb50` as the one commit to drop for the old
+  depth; it stayed. The probe counts neither the octave jumps nor the performance, which move every measure away
+  from home.
+- **Cost** ([PERFORMANCE.md](../PERFORMANCE.md#journey-dynamics-roadmap-93-2026-11-19)): the registry's read of a
+  step 9.5 → 13.5 µs for twelve robots (about 0.003 % of the main thread at 120 bpm); the audio thread unchanged on a
+  quiet machine, four builds × three rounds.
+
+### 10.5 Choices that are mine, not his
+
+First cuts, each in one place if his ear moves it: a jump stays inside the octave range, and a robot with no range
+handed in makes none; half the notes that can jump do; a trip is counted on the shares (so every robot on a journey
+counts alike) and a robot reads the old trip until it is home or across; the four order draws turn an order rather
+than reshuffle it; a busy-shortened note keeps its own release; nothing gets louder than home but an accent, so the
+output headroom holds; the level reads no calm limit, so a one-note robot still plays quieter on the calm side.
+**Not built:** "calm plays longer". The ties already lengthen notes, and a longer note would overlap the next and hold
+a voice.

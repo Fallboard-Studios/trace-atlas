@@ -389,7 +389,7 @@ export interface RobotAudioBaseline {
    *  pitchRepeat. */
   journeyMaxIntensity: number;
   /** Whose journey it travels (§1.9): 'company' for every index of a seeded company's membership, founder included,
-   *  'own' for a freelancer - what spawnRobot and spawnInitialCompanies write between them. */
+   *  'fleet' for a freelancer - what spawnRobot and spawnInitialCompanies write between them. */
   journey: JourneySetting;
   /** Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): seeded, 0-100 integers, a member's from its founder like pitchRepeat. */
   dynamics: number;
@@ -438,7 +438,7 @@ export function generateRobotAudioBaseline(
 
   const masterVolume = seedMasterVolume(noiseMap, spawnCount, octaveRange);
 
-  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, journeyMaxIntensity, journey: 'own', dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, journeyMaxIntensity, journey: 'fleet', dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
 }
 
 /** A company member's baseline at `spawnCount` (Company Families §1.11): its founder's, every field inherited — the
@@ -706,9 +706,10 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
     // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): max intensity seeded, a member's its founder's; every
-    // robot spawns on its own journey, and spawnInitialCompanies moves a seeded company's robots onto theirs.
+    // robot spawns on the fleet's journey, so the freelancers rise and fall together (journeys of their own cancel
+    // each other out across a fleet), and spawnInitialCompanies moves a seeded company's robots onto theirs.
     journeyMaxIntensity: spawnJourneyMaxIntensity,
-    journey: 'own',
+    journey: 'fleet',
     dynamics: spawnDynamics,
     rests: spawnRests,
     accents: spawnAccents,

@@ -144,6 +144,9 @@ export const NOTE_VARIANCE_MIN = 0;
 export const NOTE_VARIANCE_MAX = 8;
 export const OCTAVE_RANGE_MIN = 1;
 export const OCTAVE_RANGE_MAX = 7;
+/** The octave a melody event with none sounds in: the engine plays it there (stepNotes), and the journey's octave
+ *  jumps read it as their start (melodyDevelopment). */
+export const DEFAULT_NOTE_OCTAVE = 4;
 
 /**
  * `pitchRepeat` is a 0-100% lock strength (not a toggle) — same shape as `rhythmicDensity`. See
@@ -249,6 +252,16 @@ export const DEFAULT_JOURNEY_MAX_INTENSITY = 0;
  *  time is its share of this, rounded to an even number from 2 (Crawford, 2026-11-17: "one max journey time of 16 for
  *  now"). */
 export const JOURNEY_TIME_MAX = 16;
+/** How a robot's performance follows its journey's level (journeyAt; journey dynamics, 2026-11-18). First cuts,
+ *  Crawford's to move by ear. Each is scaled by the level, so each moves a little every measure and never pops.
+ *  - CALM_VELOCITY_CUT: at a full calm level a note is this share quieter (0.4: about 4.4 dB). Nothing is louder on
+ *    the busy side, so the output headroom holds.
+ *  - BUSY_LENGTH_CUT: at a full busy level a note sounds this share shorter, never under the robot's attack floor
+ *    (developmentFloor) and with its own release.
+ *  - BUSY_ACCENT_GAIN: at a full busy level an accent's lift over an unaccented note is this share larger. */
+export const JOURNEY_CALM_VELOCITY_CUT = 0.4;
+export const JOURNEY_BUSY_LENGTH_CUT = 0.4;
+export const JOURNEY_BUSY_ACCENT_GAIN = 0.5;
 
 /**
  * Whether background-depth buildings host work sites (jobHosts.ts's isWorkSiteEligible). True
