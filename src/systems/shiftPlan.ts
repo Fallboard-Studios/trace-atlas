@@ -32,6 +32,17 @@ import {
 } from '../constants';
 
 // ========================================
+// THE ENVIRONMENT (§1.8)
+// ========================================
+
+/** What a lifecycle step is told about the world (spec §1.8). */
+export interface ShiftEnv {
+  bpm: number;
+  /** worldKeyOf(coordinates): the key the journeys are drawn from. */
+  worldKey: string;
+}
+
+// ========================================
 // THE PACE (§1.5, §1.11)
 // ========================================
 

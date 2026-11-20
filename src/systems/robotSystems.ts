@@ -7,6 +7,7 @@ import useLocaleStore from '../stores/localeStore';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { AudioEngine } from '../engine/AudioEngine';
 import { onLifecycleChange } from './workLoop';
+import { recallLeadBars, type ShiftEnv } from './shiftPlan';
 import {
   BATTERY_DRAIN_ACTIVE,
   BATTERY_RECHARGE_RATE,
@@ -140,6 +141,70 @@ export function replayLifecycle(
   for (let measure = fromMeasure + 1; measure <= toMeasure; measure++) {
     working = stepRobotLifecycle(working, measure, drain);
   }
+  return working;
+}
+
+// ========================================
+// THE SHIFT STEP (roadmap 94, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.8)
+// ========================================
+
+/** What the shift step reads and writes of a robot: today's snapshot, the robot's next moves and the tempo they were
+ *  scaled at (spec §4), and what finds its group (`companyId`, `compositionSeed`). */
+export interface ShiftLifecycleSnapshot extends RobotLifecycleSnapshot {
+  companyId?: string;
+  compositionSeed: number;
+  entersAtMeasure?: number;
+  exitsAtMeasure?: number;
+  shiftBpm?: number;
+}
+
+/**
+ * One measure of the docking machine for a whole roster when a group's plan on its journey's turns decides when a
+ * robot comes and goes (spec §1.8). Pure: one pass over a working copy in roster order, so within-measure ordering
+ * matches a real tick; imports no store and no clock. Per robot, with the recall lead in bars at `env.bpm`
+ * (recallLeadBars): a Docked robot begins Undocking one measure before its entrance, holding until it; an Undocking
+ * robot lands Active on its hold; an Active robot is Recalled the lead before its exit turn, holding until the bar line
+ * after the turn; a Recalled robot lands Docked on its hold. A robot moves at most one state a tick, so a hold is never
+ * nearer than the next measure.
+ */
+export function stepShiftLifecycle(
+  roster: readonly ShiftLifecycleSnapshot[],
+  measure: number,
+  env: ShiftEnv,
+): ShiftLifecycleSnapshot[] {
+  const working = roster.map((r) => ({ ...r }));
+  const lead = recallLeadBars(env.bpm);
+
+  for (const robot of working) {
+    switch (robot.docking) {
+      case DockingState.Docked:
+        if (robot.entersAtMeasure !== undefined && measure >= robot.entersAtMeasure - 1) {
+          robot.docking = DockingState.Undocking;
+          robot.dockingHoldUntilMeasure = Math.max(robot.entersAtMeasure, measure + 1);
+        }
+        break;
+      case DockingState.Undocking:
+        if (robot.dockingHoldUntilMeasure === undefined || measure >= robot.dockingHoldUntilMeasure) {
+          robot.docking = DockingState.Active;
+          robot.dockingHoldUntilMeasure = undefined;
+          robot.entersAtMeasure = undefined;
+        }
+        break;
+      case DockingState.Active:
+        if (robot.exitsAtMeasure !== undefined && measure >= robot.exitsAtMeasure - lead) {
+          robot.docking = DockingState.Recalled;
+          robot.dockingHoldUntilMeasure = Math.max(robot.exitsAtMeasure + 1, measure + 1);
+        }
+        break;
+      case DockingState.Recalled:
+        if (robot.dockingHoldUntilMeasure === undefined || measure >= robot.dockingHoldUntilMeasure) {
+          robot.docking = DockingState.Docked;
+          robot.dockingHoldUntilMeasure = undefined;
+        }
+        break;
+    }
+  }
+
   return working;
 }
 

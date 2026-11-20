@@ -11,8 +11,10 @@ import {
   stepRobotLifecycle,
   replayLifecycle,
   activeDrain,
+  stepShiftLifecycle,
 } from './robotSystems';
-import type { RobotLifecycleSnapshot } from './robotSystems';
+import type { RobotLifecycleSnapshot, ShiftLifecycleSnapshot } from './robotSystems';
+import type { ShiftEnv } from './shiftPlan';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -1261,6 +1263,112 @@ describe('robotSystems', () => {
         expect(replayed.batteryLevel).toBe(real.batteryLevel);
         expect(replayed.dockingHoldUntilMeasure).toBe(real.dockingHoldUntilMeasure);
       }
+    });
+  });
+});
+
+// ========================================
+// THE SHIFT STEP (roadmap 94, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.8 to §1.14)
+// ========================================
+describe('stepShiftLifecycle (roadmap 94)', () => {
+  const ENV_60: ShiftEnv = { bpm: 60, worldKey: '0:0' };
+  const ENV_200: ShiftEnv = { bpm: 200, worldKey: '0:0' };
+  function shift(overrides: Partial<ShiftLifecycleSnapshot> = {}): ShiftLifecycleSnapshot {
+    return {
+      id: overrides.id ?? 'robot-1',
+      docking: DockingState.Active,
+      batteryLevel: 50,
+      compositionSeed: 0.5,
+      ...overrides,
+    };
+  }
+  beforeEach(() => {
+    useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+    vi.clearAllMocks();
+  });
+
+  describe('the four transitions on robots that carry moves (Task 7, spec §1.8)', () => {
+    // An outside robot is out on every case below, so the recall is the table row and not a stay.
+    const outside = shift({ id: 'outside', exitsAtMeasure: 10_000, shiftBpm: 60 });
+    const step2 = (r: ShiftLifecycleSnapshot, measure: number, env = ENV_60) => stepShiftLifecycle([r, outside], measure, env)[0];
+
+    it('a Docked robot begins Undocking one measure before its entrance, holding until the entrance', () => {
+      const r = shift({ docking: DockingState.Docked, entersAtMeasure: 40, shiftBpm: 60 });
+      expect(step2(r, 38).docking).toBe(DockingState.Docked);
+      const begun = step2(r, 39);
+      expect(begun.docking).toBe(DockingState.Undocking);
+      expect(begun.dockingHoldUntilMeasure).toBe(40);
+    });
+
+    it('an Undocking robot lands Active on its hold, the entrance, and its entrance is spent', () => {
+      const r = shift({ docking: DockingState.Undocking, dockingHoldUntilMeasure: 40, entersAtMeasure: 40, exitsAtMeasure: 70, shiftBpm: 60 });
+      expect(step2(r, 39).docking).toBe(DockingState.Undocking);
+      const landed = step2(r, 40);
+      expect(landed.docking).toBe(DockingState.Active);
+      expect(landed.dockingHoldUntilMeasure).toBeUndefined();
+      expect(landed.entersAtMeasure).toBeUndefined();
+    });
+
+    it('an Active robot is Recalled the lead before its exit turn, holding until the bar line after the turn', () => {
+      // 60 BPM: the lead is 6 measures.
+      const r = shift({ exitsAtMeasure: 80, shiftBpm: 60 });
+      expect(step2(r, 73).docking).toBe(DockingState.Active);
+      const recalled = step2(r, 74);
+      expect(recalled.docking).toBe(DockingState.Recalled);
+      expect(recalled.dockingHoldUntilMeasure).toBe(81);
+      expect(recalled.exitsAtMeasure).toBe(80);
+    });
+
+    it('the lead follows the tempo: the same exit turn recalls 6 measures ahead at 60 BPM and 20 at 200', () => {
+      const r60 = shift({ exitsAtMeasure: 200, shiftBpm: 60 });
+      expect(step2(r60, 193).docking).toBe(DockingState.Active);
+      expect(step2(r60, 194).docking).toBe(DockingState.Recalled);
+      const r200 = shift({ exitsAtMeasure: 200, shiftBpm: 200 });
+      const outside200 = { ...outside, shiftBpm: 200 };
+      expect(stepShiftLifecycle([r200, outside200], 179, ENV_200)[0].docking).toBe(DockingState.Active);
+      const recalled = stepShiftLifecycle([r200, outside200], 180, ENV_200)[0];
+      expect(recalled.docking).toBe(DockingState.Recalled);
+      expect(recalled.dockingHoldUntilMeasure).toBe(201);
+    });
+
+    it('a Recalled robot lands Docked on its hold', () => {
+      const r = shift({ docking: DockingState.Recalled, dockingHoldUntilMeasure: 81, exitsAtMeasure: 80, shiftBpm: 60 });
+      expect(step2(r, 80).docking).toBe(DockingState.Recalled);
+      const landed = step2(r, 81);
+      expect(landed.docking).toBe(DockingState.Docked);
+      expect(landed.dockingHoldUntilMeasure).toBeUndefined();
+    });
+
+    it('fires each transition once: a robot moves one state a tick', () => {
+      // Due to undock long ago: it begins Undocking this tick and lands on the next bar line, never in one tick.
+      const late = shift({ docking: DockingState.Docked, entersAtMeasure: 10, shiftBpm: 60 });
+      const begun = step2(late, 50);
+      expect(begun.docking).toBe(DockingState.Undocking);
+      expect(begun.dockingHoldUntilMeasure).toBe(51);
+      // Due to recall long ago: Recalled now, Docked on the next bar line.
+      const overdue = step2(shift({ exitsAtMeasure: 10, shiftBpm: 60 }), 50);
+      expect(overdue.docking).toBe(DockingState.Recalled);
+      expect(overdue.dockingHoldUntilMeasure).toBe(51);
+    });
+
+    it('does not mutate the roster it is handed', () => {
+      const roster = [
+        shift({ id: 'a', docking: DockingState.Docked, entersAtMeasure: 5, shiftBpm: 60 }),
+        shift({ id: 'b', exitsAtMeasure: 10, shiftBpm: 60 }),
+        shift({ id: 'c', docking: DockingState.Recalled, dockingHoldUntilMeasure: 4 }),
+        outside,
+      ];
+      const copy = structuredClone(roster);
+      stepShiftLifecycle(roster, 4, ENV_60);
+      expect(roster).toEqual(copy);
+    });
+
+    it('reads no store and no clock: the live store and the beat clock leave it unchanged', () => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'x', batteryLevel: 1 })] } } });
+      const r = shift({ exitsAtMeasure: 80, shiftBpm: 60 });
+      const result = step2(r, 74);
+      expect(result.docking).toBe(DockingState.Recalled);
+      expect(getCurrentMeasure).not.toHaveBeenCalled();
     });
   });
 });
