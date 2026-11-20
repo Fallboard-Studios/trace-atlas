@@ -6,6 +6,7 @@ import {
   journeyAt,
   journeyKey,
   journeyShares,
+  journeyTurns,
   positionInPairs,
   robotJourney,
   robotPairs,
@@ -754,5 +755,95 @@ describe('robotJourney (spec §1.7, §1.9)', () => {
     expect(floorAt(0.01, 100)).toBe(1);
     expect(floorAt(1.14, 50)).toBe(2);
     expect(floorAt(0.6, 100)).toBe(developmentFloor(0.6, 100));
+  });
+});
+
+// The turns of a key (roadmap 94, spec §1.4): the lifecycle's read of a journey. The oracle is the running sum of the
+// pairs' times at JOURNEY_TIME_MAX, the measures journeyAt's pair changes on, and the shares themselves.
+describe('journeyTurns (roadmap 94, spec §1.4)', () => {
+  const TURN_KEYS = [OWN, journeyKey(WORLD, { kind: 'fleet' }), journeyKey('0:0', { kind: 'company', companyId: 'co-1' })];
+  const FULL: JourneyBounds = { maxIntensity: 16, maxTime: JOURNEY_TIME_MAX, calmLimit: 16 };
+  /** Every turning measure up to `to`, with its pair index, from the robot pairs' times. */
+  const oracle = (key: string, to: number): { measure: number; index: number }[] => {
+    const out: { measure: number; index: number }[] = [];
+    let at = 0;
+    robotPairs(journeyShares(key, to + 2), FULL).forEach((pair, index) => {
+      at += pair.time;
+      if (at <= to) out.push({ measure: at, index });
+    });
+    return out;
+  };
+  /** A key whose journey has a drop before measure 400. */
+  const keyWithDrop = (): string => {
+    for (let n = 0; n < 200; n++) {
+      const key = `drop-${n}:journey`;
+      if (journeyShares(key, 40).some((s) => s.drop)) return key;
+    }
+    throw new Error('no key with a drop');
+  };
+
+  it('returns exactly the turning measures in the range, in order, for ranges that start and end mid-pair', () => {
+    for (const key of TURN_KEYS) {
+      const all = oracle(key, 600);
+      for (const [from, to] of [[0, 600], [5, 97], [13, 14], [101, 333], [1, 1]]) {
+        const want = all.filter((t) => t.measure >= from && t.measure <= to);
+        const got = journeyTurns(key, from, to);
+        expect(got.map((t) => t.measure), `${key} ${from}..${to}`).toEqual(want.map((t) => t.measure));
+        expect(got.map((t) => t.index)).toEqual(want.map((t) => t.index));
+      }
+    }
+  });
+
+  it('includes a turn on either end of the range, and is empty for a range with no turn, or one back to front', () => {
+    const [first, second] = oracle(OWN, 100);
+    expect(journeyTurns(OWN, first.measure, first.measure).map((t) => t.measure)).toEqual([first.measure]);
+    expect(journeyTurns(OWN, first.measure, second.measure).map((t) => t.measure)).toEqual([first.measure, second.measure]);
+    expect(journeyTurns(OWN, first.measure + 1, second.measure - 1)).toEqual([]);
+    expect(journeyTurns(OWN, 0, 0)).toEqual([]);
+    expect(journeyTurns(OWN, 50, 10)).toEqual([]);
+  });
+
+  it('turns on the measures where journeyAt arrives at each pair intensity', () => {
+    for (const turn of journeyTurns(OWN, 0, 300)) {
+      const pair = robotPairs(journeyShares(OWN, turn.index + 2), FULL)[turn.index];
+      expect(journeyAt(OWN, FULL, turn.measure).position).toBe(pair.intensity);
+    }
+  });
+
+  it('gives each turn the move of its shares, the first from home, unscaled by any robot', () => {
+    for (const key of TURN_KEYS) {
+      const turns = journeyTurns(key, 0, 400);
+      const shares = journeyShares(key, turns.length + 1);
+      turns.forEach((turn) => {
+        const before = turn.index === 0 ? 0 : shares[turn.index - 1].intensity;
+        expect(turn.move).toBe(Math.abs(shares[turn.index].intensity - before));
+      });
+      expect(turns.some((t) => !Number.isInteger(t.move))).toBe(true);
+      expect(turns.every((t) => t.move >= 0 && t.move <= 2)).toBe(true);
+    }
+  });
+
+  it('flags a drop on the drop pair itself, one measure after the turn before it, and no other pair', () => {
+    const key = keyWithDrop();
+    const turns = journeyTurns(key, 0, 400);
+    const shares = journeyShares(key, turns.length + 1);
+    let drops = 0;
+    turns.forEach((turn, n) => {
+      expect(turn.drop).toBe(shares[turn.index].drop);
+      if (turn.drop) {
+        drops++;
+        expect(turn.measure - (n === 0 ? 0 : turns[n - 1].measure)).toBe(1);
+      }
+    });
+    expect(drops).toBeGreaterThan(0);
+  });
+
+  it('gives the same turns for a key whichever range is asked first', async () => {
+    const want = journeyTurns('turns-order:journey', 0, 500);
+    vi.resetModules();
+    const fresh = await import('./melodyJourney');
+    const late = fresh.journeyTurns('turns-order:journey', 300, 500);
+    const early = fresh.journeyTurns('turns-order:journey', 0, 299);
+    expect([...early, ...late]).toEqual(want);
   });
 });
