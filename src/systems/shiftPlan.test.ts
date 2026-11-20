@@ -10,6 +10,7 @@ import {
   groupJourneyKey,
   groupSize,
   paceBars,
+  planEntrance,
   planExit,
   recallLeadBars,
   shiftWindow,
@@ -18,9 +19,12 @@ import {
 import { journeyKey, journeyTurns, type JourneyTurn } from '../engine/melodyJourney';
 import {
   DEFAULT_BATTERY_SIZE,
+  ENTRANCE_STAGGER_BARS,
+  ENTRANCE_TOGETHER_ODDS,
   GROUP_EXIT_ODDS_MAX,
   GROUP_EXIT_ODDS_MIN,
   JOURNEY_TIME_MAX,
+  SHIFT_ENTER_ODDS,
   SHIFT_LEAVE_ODDS_MAX,
   SHIFT_LEAVE_ODDS_MIN,
   SHIFT_MIN_BARS,
@@ -331,6 +335,94 @@ describe('planExit (spec §1.6)', () => {
     const first = planExit(c);
     for (const other of CASES.slice(0, 50)) planExit(other);
     expect(planExit(c)).toEqual(first);
+  });
+});
+
+// The entrance (spec §1.7): the walk over the home window's turns at flat odds, then together or staggered.
+describe('planEntrance (spec §1.7)', () => {
+  const homeCandidates = (c: (typeof CASES)[number]): JourneyTurn[] => {
+    const size = c.members[0].batterySize ?? DEFAULT_BATTERY_SIZE;
+    const w = shiftWindow('home', size, c.bpm);
+    return journeyTurns(groupJourneyKey(c.worldKey, c.members[0]), c.from + w.least, c.from + w.most);
+  };
+  /** The walk by hand: the first candidate whose enter draw is under SHIFT_ENTER_ODDS, else the last. */
+  const walked = (c: (typeof CASES)[number]): JourneyTurn => {
+    const candidates = homeCandidates(c);
+    return candidates.find((t) => groupDraws(c.worldKey, c.members[0], t.index)[0] < SHIFT_ENTER_ODDS) ?? candidates[candidates.length - 1];
+  };
+
+  it('gives one entrance per member, the first on a turning measure inside the home window, by the flat walk', () => {
+    let last = 0;
+    for (const c of CASES) {
+      const entrances = planEntrance(c);
+      expect(entrances).toHaveLength(c.members.length);
+      const want = walked(c);
+      expect(Math.min(...entrances), `${c.worldKey} ${c.members[0].id}`).toBe(want.measure);
+      const candidates = homeCandidates(c);
+      if (want.measure === candidates[candidates.length - 1].measure && candidates.length > 1) last++;
+    }
+    expect(last).toBeGreaterThan(0);
+  });
+
+  it('reads no move: a drop or a big move is no likelier to be taken than a small one', () => {
+    for (const c of CASES) {
+      const first = Math.min(...planEntrance(c));
+      for (const t of homeCandidates(c)) {
+        if (t.measure >= first) break;
+        // Every candidate passed over had an enter draw at or over the flat odds, whatever its weight.
+        expect(groupDraws(c.worldKey, c.members[0], t.index)[0]).toBeGreaterThanOrEqual(SHIFT_ENTER_ODDS);
+      }
+    }
+  });
+
+  it('together gives every member one measure; staggered gives 0, 2, 4 and 6 bars after the turn to four members', () => {
+    let together = 0;
+    let staggered = 0;
+    for (let n = 0; n < 200; n++) {
+      const c = { worldKey: `${n}:enter`, members: company('co-four', 4), from: 40, bpm: 60 };
+      const t = walked(c);
+      const entrances = planEntrance(c);
+      if (groupDraws(c.worldKey, c.members[0], t.index)[1] < ENTRANCE_TOGETHER_ODDS) {
+        together++;
+        expect(entrances).toEqual([t.measure, t.measure, t.measure, t.measure]);
+      } else {
+        staggered++;
+        expect([...entrances].sort((a, b) => a - b)).toEqual([0, 1, 2, 3].map((k) => t.measure + k * ENTRANCE_STAGGER_BARS));
+      }
+    }
+    expect(together).toBeGreaterThan(50);
+    expect(staggered).toBeGreaterThan(20);
+  });
+
+  it('staggers in a drawn order, not the roster order', () => {
+    const firsts = new Set<number>();
+    for (let n = 0; n < 200; n++) {
+      const entrances = planEntrance({ worldKey: `${n}:order`, members: company('co-o', 3), from: 0, bpm: 100 });
+      if (new Set(entrances).size > 1) firsts.add(entrances.indexOf(Math.min(...entrances)));
+    }
+    expect(firsts.size).toBe(3);
+  });
+
+  it('brings about 70 % of companies in together over many keys', () => {
+    let together = 0;
+    const N = 3000;
+    for (let n = 0; n < N; n++) {
+      const entrances = planEntrance({ worldKey: `${n}:share`, members: company('co-s', 3), from: 10, bpm: 60 });
+      if (new Set(entrances).size === 1) together++;
+    }
+    expect(Math.abs(together / N - ENTRANCE_TOGETHER_ODDS)).toBeLessThan(0.03);
+  });
+
+  it('gives a group of one the turn itself', () => {
+    for (const c of CASES.filter((k) => k.members.length === 1)) expect(planEntrance(c)).toEqual([walked(c).measure]);
+  });
+
+  it('reads the home window, not the out window', () => {
+    const c = { worldKey: '3:3', members: company('co-w', 2), from: 100, bpm: 60 };
+    const least = shiftWindow('home', 1, 60).least;
+    for (let n = 0; n < 100; n++) {
+      expect(Math.min(...planEntrance({ ...c, worldKey: `${n}:w` }))).toBeGreaterThanOrEqual(c.from + least);
+    }
   });
 });
 

@@ -256,6 +256,12 @@ export const SHIFT_LEAVE_ODDS_MAX = 0.95;
  *  flip", near certain after a big move); always after a drop. */
 export const GROUP_EXIT_ODDS_MIN = 0.5;
 export const GROUP_EXIT_ODDS_MAX = 0.95;
+/** The odds a group comes out on a candidate turn of its home window, whatever the move (§1.7). */
+export const SHIFT_ENTER_ODDS = 0.5;
+/** The odds a company comes out together; otherwise its members land ENTRANCE_STAGGER_BARS apart (§1.7, one chord
+ *  change, so a company of four is all in within six bars). */
+export const ENTRANCE_TOGETHER_ODDS = 0.7;
+export const ENTRANCE_STAGGER_BARS = 2;
 
 // ========================================
 // THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)
