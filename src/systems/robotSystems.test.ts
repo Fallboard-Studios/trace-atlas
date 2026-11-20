@@ -1522,4 +1522,125 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
       }
     });
   });
+
+  describe('the stay: a group is recalled only while a robot outside it is Active (Task 10, spec §1.9)', () => {
+    const co = (id: string, companyId: string, o: Partial<ShiftLifecycleSnapshot> = {}) =>
+      shift({ id, companyId, compositionSeed: id.length / 16, shiftBpm: 60, ...o });
+    const home = (id: string, o: Partial<ShiftLifecycleSnapshot> = {}) =>
+      shift({ id, compositionSeed: 0.75, docking: DockingState.Docked, entersAtMeasure: 5_000, shiftBpm: 60, ...o });
+    /** The first turn of `companyId`'s journey whose recall is after `measure`, at 60 BPM's lead of 6. */
+    const firstTurnAfter = (companyId: string, measure: number, lead = 6) =>
+      journeyTurns(journeyKey('0:0', { kind: 'company', companyId }), measure + lead + 1, measure + lead + 40)[0].measure;
+
+    it('a lone group due for recall stays whole: no member is recalled, and every member loses its exit turn', () => {
+      const roster = [co('a', 'co-1', { exitsAtMeasure: 50 }), home('h1'), co('bb', 'co-1', { exitsAtMeasure: 58 })];
+      const after = stepShiftLifecycle(roster, 44, ENV_60);
+      expect(after.map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Docked, DockingState.Active]);
+      expect(after[0].exitsAtMeasure).toBeUndefined();
+      expect(after[2].exitsAtMeasure).toBeUndefined();
+      // Staying, it is never recalled while alone.
+      let r = after;
+      for (let m = 45; m <= 200; m++) {
+        r = stepShiftLifecycle(r, m, ENV_60);
+        expect(r[0].docking).toBe(DockingState.Active);
+        expect(r[2].docking).toBe(DockingState.Active);
+      }
+    });
+
+    it('relief landing earlier in the roster gives the staying group its new exit the same tick, one turn for all', () => {
+      const roster = [
+        shift({ id: 'relief', compositionSeed: 0.1, docking: DockingState.Undocking, dockingHoldUntilMeasure: 70, shiftBpm: 60 }),
+        co('a', 'co-1'),
+        co('bb', 'co-1'),
+      ];
+      const after = stepShiftLifecycle(roster, 70, ENV_60);
+      expect(after[0].docking).toBe(DockingState.Active);
+      const t = firstTurnAfter('co-1', 70);
+      expect(after[1].exitsAtMeasure).toBe(t);
+      expect(after[2].exitsAtMeasure).toBe(t);
+      expect(after[1].shiftBpm).toBe(60);
+      expect(after.slice(1).every((r) => r.docking === DockingState.Active)).toBe(true);
+    });
+
+    it('relief landing between two members in the roster gives both one turn on that tick', () => {
+      const roster = [
+        co('a', 'co-1'),
+        shift({ id: 'relief', compositionSeed: 0.1, docking: DockingState.Undocking, dockingHoldUntilMeasure: 70, shiftBpm: 60 }),
+        co('bb', 'co-1'),
+      ];
+      const after = stepShiftLifecycle(roster, 70, ENV_60);
+      const t = firstTurnAfter('co-1', 70);
+      expect(after[0].exitsAtMeasure).toBe(t);
+      expect(after[2].exitsAtMeasure).toBe(t);
+    });
+
+    it('relief landing later in the roster gives it the next tick', () => {
+      const roster = [
+        co('a', 'co-1'),
+        co('bb', 'co-1'),
+        shift({ id: 'relief', compositionSeed: 0.1, docking: DockingState.Undocking, dockingHoldUntilMeasure: 70, shiftBpm: 60 }),
+      ];
+      const first = stepShiftLifecycle(roster, 70, ENV_60);
+      expect(first[2].docking).toBe(DockingState.Active);
+      expect(first[0].exitsAtMeasure).toBeUndefined();
+      const second = stepShiftLifecycle(first, 71, ENV_60);
+      const t = firstTurnAfter('co-1', 71);
+      expect(second[0].exitsAtMeasure).toBe(t);
+      expect(second[1].exitsAtMeasure).toBe(t);
+    });
+
+    it('two groups due on one measure with no third: the earlier in the roster is recalled whole, the later stays whole', () => {
+      // Interleaved, so a robot-by-robot rule would split both groups.
+      const roster = [
+        co('a1', 'co-a', { exitsAtMeasure: 50 }),
+        co('b1', 'co-b', { exitsAtMeasure: 50 }),
+        co('a2', 'co-a', { exitsAtMeasure: 50 }),
+        co('b2', 'co-b', { exitsAtMeasure: 50 }),
+      ];
+      const after = stepShiftLifecycle(roster, 44, ENV_60);
+      expect(after.map((r) => r.docking)).toEqual([DockingState.Recalled, DockingState.Active, DockingState.Recalled, DockingState.Active]);
+      expect(after.map((r) => r.dockingHoldUntilMeasure)).toEqual([51, undefined, 51, undefined]);
+      expect(after[1].exitsAtMeasure).toBeUndefined();
+      expect(after[3].exitsAtMeasure).toBeUndefined();
+    });
+
+    it('a drifting group: the due member is recalled with the members due with it, and the rest keep their turns', () => {
+      const roster = [co('a', 'co-d', { exitsAtMeasure: 50 }), co('bb', 'co-d', { exitsAtMeasure: 58 }), shift({ id: 'other', compositionSeed: 0.2, exitsAtMeasure: 900 })];
+      const after = stepShiftLifecycle(roster, 44, ENV_60);
+      expect(after.map((r) => r.docking)).toEqual([DockingState.Recalled, DockingState.Active, DockingState.Active]);
+      expect(after[1].exitsAtMeasure).toBe(58);
+    });
+
+    it('a group beside only a Recalled robot stays', () => {
+      const roster = [
+        shift({ id: 'going', compositionSeed: 0.2, docking: DockingState.Recalled, dockingHoldUntilMeasure: 60, exitsAtMeasure: 59 }),
+        co('a', 'co-1', { exitsAtMeasure: 50 }),
+      ];
+      const after = stepShiftLifecycle(roster, 44, ENV_60);
+      expect(after[1].docking).toBe(DockingState.Active);
+      expect(after[1].exitsAtMeasure).toBeUndefined();
+    });
+
+    it('over hand-built worlds stepped 500 measures, the Active count never reaches zero', () => {
+      for (const env of [ENV_60, { bpm: 20, worldKey: '9:-9' }, { bpm: 200, worldKey: '-3:12' }, { bpm: 97, worldKey: '1:1' }]) {
+        let roster: ShiftLifecycleSnapshot[] = [
+          co('a1', 'co-a', { exitsAtMeasure: 30, shiftBpm: env.bpm, batterySize: 0.7 }),
+          co('a2', 'co-a', { exitsAtMeasure: 30, shiftBpm: env.bpm }),
+          co('b1', 'co-b', { docking: DockingState.Docked, entersAtMeasure: 20, shiftBpm: env.bpm, batterySize: 1.4 }),
+          co('b2', 'co-b', { docking: DockingState.Docked, entersAtMeasure: 22, shiftBpm: env.bpm }),
+          co('b3', 'co-b', { docking: DockingState.Docked, entersAtMeasure: 24, shiftBpm: env.bpm }),
+          shift({ id: 'f1', compositionSeed: 0.3, docking: DockingState.Docked, entersAtMeasure: 9, shiftBpm: env.bpm }),
+          shift({ id: 'f2', compositionSeed: 0.6, docking: DockingState.Docked, entersAtMeasure: 40, shiftBpm: env.bpm }),
+        ];
+        let moves = 0;
+        for (let m = 1; m <= 500; m++) {
+          const before = roster.map((r) => r.docking).join();
+          roster = stepShiftLifecycle(roster, m, env);
+          if (roster.map((r) => r.docking).join() !== before) moves++;
+          expect(roster.filter((r) => r.docking === DockingState.Active).length, `${env.worldKey} m${m}`).toBeGreaterThan(0);
+        }
+        expect(moves).toBeGreaterThan(10);
+      }
+    });
+  });
 });

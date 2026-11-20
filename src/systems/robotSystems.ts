@@ -7,13 +7,15 @@ import useLocaleStore from '../stores/localeStore';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { AudioEngine } from '../engine/AudioEngine';
 import { onLifecycleChange } from './workLoop';
-import { groupIdOf, planEntrance, planExit, recallLeadBars, type ShiftEnv } from './shiftPlan';
+import { groupIdOf, groupJourneyKey, planEntrance, planExit, recallLeadBars, type ShiftEnv } from './shiftPlan';
+import { journeyTurns } from '../engine/melodyJourney';
 import {
   BATTERY_DRAIN_ACTIVE,
   BATTERY_RECHARGE_RATE,
   BATTERY_CRITICAL_THRESHOLD,
   BATTERY_FULL_THRESHOLD,
   DEFAULT_BATTERY_SIZE,
+  JOURNEY_TIME_MAX,
 } from '../constants';
 
 // ========================================
@@ -180,6 +182,9 @@ export function stepShiftLifecycle(
   const lead = recallLeadBars(env.bpm);
   /** `robot`'s group in `working`, itself included, in roster order. */
   const mates = (robot: ShiftLifecycleSnapshot) => working.filter((m) => groupIdOf(m) === groupIdOf(robot));
+  /** Whether a robot outside `robot`'s group is Active right now, on the working array. */
+  const outsideActive = (robot: ShiftLifecycleSnapshot) =>
+    working.some((m) => m.docking === DockingState.Active && groupIdOf(m) !== groupIdOf(robot));
 
   for (const robot of working) {
     switch (robot.docking) {
@@ -206,9 +211,29 @@ export function stepShiftLifecycle(
         }
         break;
       case DockingState.Active:
-        if (robot.exitsAtMeasure !== undefined && measure >= robot.exitsAtMeasure - lead) {
-          robot.docking = DockingState.Recalled;
-          robot.dockingHoldUntilMeasure = Math.max(robot.exitsAtMeasure + 1, measure + 1);
+        if (robot.exitsAtMeasure === undefined) {
+          // Staying (spec §1.9): once a robot outside the group is Active, every staying member takes the first turn
+          // of the group's journey the lead allows, together.
+          if (outsideActive(robot)) {
+            const turn = journeyTurns(groupJourneyKey(env.worldKey, robot), measure + lead + 1, measure + lead + 1 + JOURNEY_TIME_MAX)[0];
+            for (const m of mates(robot)) {
+              if (m.docking !== DockingState.Active || m.exitsAtMeasure !== undefined) continue;
+              m.exitsAtMeasure = turn.measure;
+              m.shiftBpm = env.bpm;
+            }
+          }
+        } else if (measure >= robot.exitsAtMeasure - lead) {
+          if (outsideActive(robot)) {
+            // The group goes: every Active member due now is recalled on this tick, held to its exit turn's bar line.
+            for (const m of mates(robot)) {
+              if (m.docking !== DockingState.Active || m.exitsAtMeasure === undefined || measure < m.exitsAtMeasure - lead) continue;
+              m.docking = DockingState.Recalled;
+              m.dockingHoldUntilMeasure = Math.max(m.exitsAtMeasure + 1, measure + 1);
+            }
+          } else {
+            // Never silent (spec §1.9): nobody outside is out, so the whole group stays, losing its exit turns.
+            for (const m of mates(robot)) if (m.docking === DockingState.Active) m.exitsAtMeasure = undefined;
+          }
         }
         break;
       case DockingState.Recalled:
