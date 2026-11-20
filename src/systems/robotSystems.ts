@@ -7,7 +7,7 @@ import useLocaleStore from '../stores/localeStore';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { AudioEngine } from '../engine/AudioEngine';
 import { onLifecycleChange } from './workLoop';
-import { recallLeadBars, type ShiftEnv } from './shiftPlan';
+import { groupIdOf, planExit, recallLeadBars, type ShiftEnv } from './shiftPlan';
 import {
   BATTERY_DRAIN_ACTIVE,
   BATTERY_RECHARGE_RATE,
@@ -174,6 +174,8 @@ export function stepShiftLifecycle(
 ): ShiftLifecycleSnapshot[] {
   const working = roster.map((r) => ({ ...r }));
   const lead = recallLeadBars(env.bpm);
+  /** `robot`'s group in `working`, itself included, in roster order. */
+  const mates = (robot: ShiftLifecycleSnapshot) => working.filter((m) => groupIdOf(m) === groupIdOf(robot));
 
   for (const robot of working) {
     switch (robot.docking) {
@@ -188,6 +190,15 @@ export function stepShiftLifecycle(
           robot.docking = DockingState.Active;
           robot.dockingHoldUntilMeasure = undefined;
           robot.entersAtMeasure = undefined;
+          // The group's first member out draws the exit for every member, those still home included (spec §1.6).
+          const members = mates(robot);
+          if (!members.some((m) => m.exitsAtMeasure !== undefined)) {
+            const exits = planExit({ worldKey: env.worldKey, members, from: measure, bpm: env.bpm });
+            members.forEach((m, i) => {
+              m.exitsAtMeasure = exits[i];
+              m.shiftBpm = env.bpm;
+            });
+          }
         }
         break;
       case DockingState.Active:

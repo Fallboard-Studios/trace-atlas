@@ -14,7 +14,8 @@ import {
   stepShiftLifecycle,
 } from './robotSystems';
 import type { RobotLifecycleSnapshot, ShiftLifecycleSnapshot } from './robotSystems';
-import type { ShiftEnv } from './shiftPlan';
+import { planExit, type ShiftEnv } from './shiftPlan';
+import { journeyKey, journeyTurns } from '../engine/melodyJourney';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -1363,12 +1364,83 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
       expect(roster).toEqual(copy);
     });
 
+    it('the exit draw (Task 8) leaves a robot that already carries an exit alone', () => {
+      const r = shift({ docking: DockingState.Undocking, dockingHoldUntilMeasure: 40, exitsAtMeasure: 70, shiftBpm: 60 });
+      expect(step2(r, 40).exitsAtMeasure).toBe(70);
+    });
+
     it('reads no store and no clock: the live store and the beat clock leave it unchanged', () => {
       useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'x', batteryLevel: 1 })] } } });
       const r = shift({ exitsAtMeasure: 80, shiftBpm: 60 });
       const result = step2(r, 74);
       expect(result.docking).toBe(DockingState.Recalled);
       expect(getCurrentMeasure).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("the exit is drawn when a group's first member lands Active (Task 8, spec §1.6)", () => {
+    const member = (id: string, companyId: string, o: Partial<ShiftLifecycleSnapshot> = {}) =>
+      shift({ id, companyId, compositionSeed: id.length / 16, batterySize: 1, ...o });
+    const undocking = (id: string, companyId: string, hold: number, o: Partial<ShiftLifecycleSnapshot> = {}) =>
+      member(id, companyId, { docking: DockingState.Undocking, dockingHoldUntilMeasure: hold, entersAtMeasure: hold, shiftBpm: 60, ...o });
+    const asPlan = (r: ShiftLifecycleSnapshot) => ({ id: r.id, companyId: r.companyId, compositionSeed: r.compositionSeed, batterySize: r.batterySize });
+
+    it('a company landing together gets the exit turns planExit gives for the same inputs, on that tick', () => {
+      for (const worldKey of ['0:0', '4:-2', '-9:13']) {
+        const env = { bpm: 60, worldKey };
+        const roster = [undocking('a', 'co-x', 40, { batterySize: 1.3 }), undocking('bb', 'co-x', 40), undocking('ccc', 'co-x', 40)];
+        const after = stepShiftLifecycle(roster, 40, env);
+        const want = planExit({ worldKey, members: roster.map(asPlan), from: 40, bpm: 60 });
+        expect(after.map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Active, DockingState.Active]);
+        expect(after.map((r) => r.exitsAtMeasure)).toEqual(want);
+        expect(after.every((r) => r.shiftBpm === 60)).toBe(true);
+      }
+    });
+
+    it('draws nothing on the tick before the landing', () => {
+      const after = stepShiftLifecycle([undocking('a', 'co-x', 40), undocking('bb', 'co-x', 40)], 39, ENV_60);
+      expect(after.map((r) => r.exitsAtMeasure)).toEqual([undefined, undefined]);
+    });
+
+    it("a staggered company's later members get the exit with the first, and land on it without a second draw", () => {
+      // A world where an exit drawn from measure 42 would differ from one drawn from 40, so a second draw shows.
+      const worldKey = ['0:0', '1:0', '2:0', '3:0', '4:0', '5:0', '6:0'].find((k) => {
+        const m = [asPlan(member('a', 'co-s')), asPlan(member('bb', 'co-s')), asPlan(member('ccc', 'co-s'))];
+        return JSON.stringify(planExit({ worldKey: k, members: m, from: 40, bpm: 60 })) !== JSON.stringify(planExit({ worldKey: k, members: m, from: 42, bpm: 60 }));
+      })!;
+      const env = { bpm: 60, worldKey };
+      let roster: ShiftLifecycleSnapshot[] = [
+        undocking('a', 'co-s', 40),
+        member('bb', 'co-s', { docking: DockingState.Docked, entersAtMeasure: 42, shiftBpm: 60 }),
+        member('ccc', 'co-s', { docking: DockingState.Docked, entersAtMeasure: 44, shiftBpm: 60 }),
+      ];
+      const want = planExit({ worldKey, members: roster.map(asPlan), from: 40, bpm: 60 });
+      roster = stepShiftLifecycle(roster, 40, env);
+      expect(roster.map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Docked, DockingState.Docked]);
+      expect(roster.map((r) => r.exitsAtMeasure)).toEqual(want);
+      for (let m = 41; m <= 44; m++) roster = stepShiftLifecycle(roster, m, env);
+      expect(roster.map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Active, DockingState.Active]);
+      expect(roster.map((r) => r.exitsAtMeasure)).toEqual(want);
+    });
+
+    it("a freelancer landing draws on the fleet turns with its own draws; another company's exit is not its own", () => {
+      const env = { bpm: 100, worldKey: '3:7' };
+      const free = shift({ id: 'free', compositionSeed: 0.3125, docking: DockingState.Undocking, dockingHoldUntilMeasure: 12, shiftBpm: 100 });
+      const busy = member('m1', 'co-busy', { exitsAtMeasure: 400, shiftBpm: 100 });
+      const [landed] = stepShiftLifecycle([free, busy], 12, env);
+      const want = planExit({ worldKey: '3:7', members: [asPlan(free)], from: 12, bpm: 100 });
+      expect(landed.exitsAtMeasure).toBe(want[0]);
+      expect(journeyTurns(journeyKey('3:7', { kind: 'fleet' }), want[0], want[0])).toHaveLength(1);
+      // Two freelancers landing together draw for themselves.
+      const other = { ...free, id: 'free-2', compositionSeed: 0.6875 };
+      const both = stepShiftLifecycle([free, other], 12, env);
+      expect(both[1].exitsAtMeasure).toBe(planExit({ worldKey: '3:7', members: [asPlan(other)], from: 12, bpm: 100 })[0]);
+    });
+
+    it('a member landing while a mate carries an exit draws nothing', () => {
+      const roster = [member('a', 'co-y', { exitsAtMeasure: 90, shiftBpm: 60 }), undocking('bb', 'co-y', 50, { exitsAtMeasure: 96 })];
+      const after = stepShiftLifecycle(roster, 50, ENV_60);
+      expect(after.map((r) => r.exitsAtMeasure)).toEqual([90, 96]);
     });
   });
 });
