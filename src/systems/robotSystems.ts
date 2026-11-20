@@ -14,6 +14,7 @@ import {
   BATTERY_RECHARGE_RATE,
   BATTERY_CRITICAL_THRESHOLD,
   BATTERY_FULL_THRESHOLD,
+  BATTERY_EASE_SHARE,
   DEFAULT_BATTERY_SIZE,
   JOURNEY_TIME_MAX,
 } from '../constants';
@@ -164,6 +165,30 @@ export interface ShiftLifecycleSnapshot extends RobotLifecycleSnapshot {
 const isOut = (r: Pick<ShiftLifecycleSnapshot, 'docking'>): boolean =>
   r.docking === DockingState.Active || r.docking === DockingState.Recalled;
 
+/** One measure of a straight line from `level` to `target`, arriving on measure `at` (spec §1.10). */
+function stepToward(level: number, target: number, at: number, measure: number): number {
+  const remaining = at - measure + 1;
+  return remaining <= 1 ? target : level + (target - level) / remaining;
+}
+
+/**
+ * The gauge's next level (spec §1.10). Out (the robot's docking at the top of the tick, so Recalled counts until it
+ * has landed): a straight line to BATTERY_CRITICAL_THRESHOLD on the bar line after its exit turn; with no exit turn
+ * (a stay), or once at or under that level (it has stayed), it loses BATTERY_EASE_SHARE of its level. Home (Undocking
+ * included): a straight line to BATTERY_FULL_THRESHOLD on its entrance; with none yet, it gains BATTERY_EASE_SHARE of
+ * what is missing. So the level falls every measure out and rises every measure home, and never reaches 0.
+ */
+function gaugeLevel(level: number, out: boolean, exit: number | undefined, enter: number | undefined, measure: number): number {
+  if (out) {
+    return exit !== undefined && level > BATTERY_CRITICAL_THRESHOLD && exit + 1 >= measure
+      ? stepToward(level, BATTERY_CRITICAL_THRESHOLD, exit + 1, measure)
+      : level * (1 - BATTERY_EASE_SHARE);
+  }
+  return enter !== undefined && enter >= measure
+    ? stepToward(level, BATTERY_FULL_THRESHOLD, enter, measure)
+    : level + (BATTERY_FULL_THRESHOLD - level) * BATTERY_EASE_SHARE;
+}
+
 /**
  * One measure of the docking machine for a whole roster when a group's plan on its journey's turns decides when a
  * robot comes and goes (spec §1.8). Pure: one pass over a working copy in roster order, so within-measure ordering
@@ -185,6 +210,9 @@ export function stepShiftLifecycle(
   /** Whether a robot outside `robot`'s group is Active right now, on the working array. */
   const outsideActive = (robot: ShiftLifecycleSnapshot) =>
     working.some((m) => m.docking === DockingState.Active && groupIdOf(m) !== groupIdOf(robot));
+  // The gauge reads each robot as it stood at the top of the tick: a robot landing this tick is still finishing the
+  // phase it was in, so it lands on its target exactly (spec §1.10).
+  const start = working.map((r) => ({ out: isOut(r), exit: r.exitsAtMeasure, enter: r.entersAtMeasure }));
 
   for (const robot of working) {
     switch (robot.docking) {
@@ -254,6 +282,17 @@ export function stepShiftLifecycle(
         break;
     }
   }
+
+  working.forEach((robot, i) => {
+    const s = start[i];
+    robot.batteryLevel = gaugeLevel(
+      robot.batteryLevel,
+      s.out,
+      s.exit ?? robot.exitsAtMeasure,
+      s.enter ?? robot.entersAtMeasure,
+      measure,
+    );
+  });
 
   return working;
 }

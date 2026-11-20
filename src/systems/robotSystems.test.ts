@@ -29,6 +29,7 @@ import {
   BATTERY_FULL_THRESHOLD,
   BATTERY_SIZE_MIN,
   BATTERY_SIZE_MAX,
+  BATTERY_EASE_SHARE,
   MAX_ROBOTS,
 } from '../constants';
 
@@ -1641,6 +1642,81 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
         }
         expect(moves).toBeGreaterThan(10);
       }
+    });
+  });
+
+  describe('the battery is a gauge (Task 11, spec §1.10)', () => {
+    const keeper = shift({ id: 'keeper', compositionSeed: 0.9, exitsAtMeasure: 100_000, shiftBpm: 60, batteryLevel: 100 });
+    /** Steps `roster` from `from` to `to`, recording each robot's docking before each step and level after it. */
+    const run = (roster: ShiftLifecycleSnapshot[], from: number, to: number, env = ENV_60) => {
+      const rows: { measure: number; before: DockingState[]; after: ShiftLifecycleSnapshot[] }[] = [];
+      let r = roster;
+      for (let m = from; m <= to; m++) {
+        const before = r.map((x) => x.docking);
+        r = stepShiftLifecycle(r, m, env);
+        rows.push({ measure: m, before, after: r });
+      }
+      return rows;
+    };
+
+    it('lands exactly on 10 on the bar line after the exit turn, and is above it before', () => {
+      const rows = run([shift({ id: 'a', compositionSeed: 0.2, exitsAtMeasure: 50, shiftBpm: 60, batteryLevel: 100 }), keeper], 1, 51);
+      expect(rows.find((x) => x.measure === 51)!.after[0].batteryLevel).toBe(BATTERY_CRITICAL_THRESHOLD);
+      expect(rows.find((x) => x.measure === 50)!.after[0].batteryLevel).toBeGreaterThan(BATTERY_CRITICAL_THRESHOLD);
+      expect(rows.find((x) => x.measure === 51)!.after[0].docking).toBe(DockingState.Docked);
+    });
+
+    it('lands exactly on 100 on the entrance', () => {
+      const rows = run([shift({ id: 'a', compositionSeed: 0.2, docking: DockingState.Docked, entersAtMeasure: 30, shiftBpm: 60, batteryLevel: 12 }), keeper], 1, 30);
+      expect(rows.find((x) => x.measure === 30)!.after[0].batteryLevel).toBe(BATTERY_FULL_THRESHOLD);
+      expect(rows.find((x) => x.measure === 29)!.after[0].batteryLevel).toBeLessThan(BATTERY_FULL_THRESHOLD);
+      expect(rows.find((x) => x.measure === 30)!.after[0].docking).toBe(DockingState.Active);
+    });
+
+    it('falls on every measure a robot is out, Recalled included, and rises on every measure it is home, Undocking included', () => {
+      for (const env of [ENV_60, { bpm: 30, worldKey: '2:5' }, { bpm: 180, worldKey: '-7:1' }]) {
+        const roster = [
+          shift({ id: 'a1', companyId: 'co-g', compositionSeed: 0.1, docking: DockingState.Undocking, dockingHoldUntilMeasure: 3, entersAtMeasure: 3, shiftBpm: env.bpm, batteryLevel: 97 }),
+          shift({ id: 'a2', companyId: 'co-g', compositionSeed: 0.2, docking: DockingState.Docked, entersAtMeasure: 5, shiftBpm: env.bpm, batteryLevel: 60 }),
+          shift({ id: 'b1', companyId: 'co-h', compositionSeed: 0.3, exitsAtMeasure: 40, shiftBpm: env.bpm, batteryLevel: 80 }),
+          shift({ id: 'f1', compositionSeed: 0.4, docking: DockingState.Docked, entersAtMeasure: 20, shiftBpm: env.bpm, batteryLevel: 30 }),
+        ];
+        const seen = new Set<DockingState>();
+        let prev = roster.map((x) => x.batteryLevel);
+        for (const row of run(roster, 1, 600, env)) {
+          row.after.forEach((r, i) => {
+            const out = row.before[i] === DockingState.Active || row.before[i] === DockingState.Recalled;
+            seen.add(row.before[i]);
+            if (out) expect(r.batteryLevel, `${r.id} m${row.measure} ${row.before[i]}`).toBeLessThan(prev[i]);
+            else expect(r.batteryLevel, `${r.id} m${row.measure} ${row.before[i]}`).toBeGreaterThan(prev[i]);
+            expect(r.batteryLevel).toBeGreaterThan(0);
+            expect(r.batteryLevel).toBeLessThanOrEqual(100);
+          });
+          prev = row.after.map((x) => x.batteryLevel);
+        }
+        expect(seen.size).toBe(4);
+      }
+    });
+
+    it('in a stay the level keeps falling and never reaches 0', () => {
+      const rows = run([shift({ id: 'alone', companyId: 'co-s', compositionSeed: 0.2, exitsAtMeasure: 20, shiftBpm: 60, batteryLevel: 100 })], 1, 400);
+      let prev = 100;
+      for (const row of rows) {
+        expect(row.after[0].docking).toBe(DockingState.Active);
+        expect(row.after[0].batteryLevel).toBeLessThan(prev);
+        expect(row.after[0].batteryLevel).toBeGreaterThan(0);
+        prev = row.after[0].batteryLevel;
+      }
+      // It eased: an eighth of what was left each measure, once it stayed.
+      const late = rows[rows.length - 1].after[0].batteryLevel;
+      const before = rows[rows.length - 2].after[0].batteryLevel;
+      expect(late).toBeCloseTo(before * (1 - BATTERY_EASE_SHARE), 12);
+    });
+
+    it('a home robot with no entrance gains an eighth of what is missing each measure', () => {
+      const r = shift({ id: 'h', compositionSeed: 0.2, docking: DockingState.Docked, batteryLevel: 20 });
+      const after = stepShiftLifecycle([r, keeper], 9, ENV_60)[0];
+      expect(after.batteryLevel).toBeCloseTo(20 + 80 * BATTERY_EASE_SHARE, 12);
     });
   });
 });

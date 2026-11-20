@@ -262,6 +262,9 @@ export const SHIFT_ENTER_ODDS = 0.5;
  *  change, so a company of four is all in within six bars). */
 export const ENTRANCE_TOGETHER_ODDS = 0.7;
 export const ENTRANCE_STAGGER_BARS = 2;
+/** The battery is a gauge (§1.10): where a robot has no move to aim at (staying, or home with no entrance yet), it loses
+ *  this share of its level, or gains this share of what is missing, each measure, so it never sits still or jumps. */
+export const BATTERY_EASE_SHARE = 0.125;
 
 // ========================================
 // THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)
