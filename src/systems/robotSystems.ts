@@ -218,6 +218,20 @@ export function stepShiftLifecycle(
   /** Whether a robot outside `robot`'s group is Active right now, on the working array. */
   const outsideActive = (robot: ShiftLifecycleSnapshot) =>
     working.some((m) => m.docking === DockingState.Active && groupIdOf(m) !== groupIdOf(robot));
+  /** `robot`'s mates, itself left out. */
+  const othersOf = (robot: ShiftLifecycleSnapshot) => mates(robot).filter((m) => m !== robot);
+  /** An exit turn a robot brought from another group (spec §1.14): no mate shares it, it is no turn of the group's
+   *  journey, and a mate is out on an exit turn of its own. Every exit the plan draws is a turn of the group's journey,
+   *  a drifting member's included, so a planned exit is never stray. */
+  const isStrayExit = (robot: ShiftLifecycleSnapshot) => {
+    const exit = robot.exitsAtMeasure!;
+    const others = othersOf(robot);
+    return (
+      others.some((m) => isOut(m) && m.exitsAtMeasure !== undefined) &&
+      !others.some((m) => m.exitsAtMeasure === exit) &&
+      journeyTurns(groupJourneyKey(env.worldKey, robot), exit, exit).length === 0
+    );
+  };
   // A tempo change (spec §1.12): a move scaled at another tempo keeps its seconds to go and snaps to a turn, never so
   // near that it fires on this tick. A Recalled or Undocking robot keeps its hold.
   for (const robot of working) {
@@ -239,6 +253,28 @@ export function stepShiftLifecycle(
   for (const robot of working) {
     switch (robot.docking) {
       case DockingState.Docked:
+        // Out of step (spec §1.14). An entrance while its group is out, and no exit drawn with the group's, is another
+        // group's: dropped, so the robot waits for its company's next entrance.
+        if (robot.entersAtMeasure !== undefined && robot.exitsAtMeasure === undefined && othersOf(robot).some(isOut)) {
+          robot.entersAtMeasure = undefined;
+        }
+        if (robot.entersAtMeasure === undefined && !othersOf(robot).some(isOut)) {
+          // Home with none: a home mate's entrance, or with none, the group's drawn now.
+          const mateEnters = othersOf(robot).find((m) => m.entersAtMeasure !== undefined)?.entersAtMeasure;
+          if (mateEnters !== undefined) {
+            robot.entersAtMeasure = mateEnters;
+            robot.shiftBpm = env.bpm;
+          } else {
+            const members = mates(robot);
+            const entrances = planEntrance({ worldKey: env.worldKey, members, from: measure, bpm: env.bpm });
+            members.forEach((m, i) => {
+              if (m.docking !== DockingState.Docked) return;
+              m.entersAtMeasure = entrances[i];
+              m.exitsAtMeasure = undefined;
+              m.shiftBpm = env.bpm;
+            });
+          }
+        }
         if (robot.entersAtMeasure !== undefined && measure >= robot.entersAtMeasure - 1) {
           robot.docking = DockingState.Undocking;
           robot.dockingHoldUntilMeasure = Math.max(robot.entersAtMeasure, measure + 1);
@@ -261,10 +297,20 @@ export function stepShiftLifecycle(
         }
         break;
       case DockingState.Active:
+        // Out of step (spec §1.14): an exit turn no mate shares, that is no turn of the group's journey, while a mate
+        // is out on one of its own, is another group's: dropped.
+        if (robot.exitsAtMeasure !== undefined && isStrayExit(robot)) robot.exitsAtMeasure = undefined;
         if (robot.exitsAtMeasure === undefined) {
-          // Staying (spec §1.9): once a robot outside the group is Active, every staying member takes the first turn
-          // of the group's journey the lead allows, together.
-          if (outsideActive(robot)) {
+          // A mate's exit turn it can still make, the earliest.
+          const reachable = othersOf(robot)
+            .map((m) => m.exitsAtMeasure)
+            .filter((x): x is number => x !== undefined && x - lead > measure);
+          if (reachable.length > 0) {
+            robot.exitsAtMeasure = Math.min(...reachable);
+            robot.shiftBpm = env.bpm;
+          } else if (outsideActive(robot)) {
+            // Staying (spec §1.9): once a robot outside the group is Active, every staying member takes the first turn
+            // of the group's journey the lead allows, together.
             const turn = journeyTurns(groupJourneyKey(env.worldKey, robot), measure + lead + 1, measure + lead + 1 + JOURNEY_TIME_MAX)[0];
             for (const m of mates(robot)) {
               if (m.docking !== DockingState.Active || m.exitsAtMeasure !== undefined) continue;

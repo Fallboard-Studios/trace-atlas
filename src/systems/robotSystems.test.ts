@@ -14,7 +14,7 @@ import {
   stepShiftLifecycle,
 } from './robotSystems';
 import type { RobotLifecycleSnapshot, ShiftLifecycleSnapshot } from './robotSystems';
-import { planEntrance, planExit, rescaleMove, type ShiftEnv } from './shiftPlan';
+import { planEntrance, planExit, rescaleMove, shiftWindow, type ShiftEnv } from './shiftPlan';
 import { journeyKey, journeyTurns } from '../engine/melodyJourney';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
@@ -1453,21 +1453,23 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
     const keeper = shift({ id: 'keeper', compositionSeed: 0.9, exitsAtMeasure: 100_000, shiftBpm: 60 });
 
     it("a drifting company's first members to dock get no entrance until the last docks; then all get theirs on that tick", () => {
+      // Three successive turns of the company's journey, as a drifting exit gives them.
+      const [t0, t1, t2] = journeyTurns(journeyKey('0:0', { kind: 'company', companyId: 'co-d' }), 50, 120).map((t) => t.measure);
       let roster: ShiftLifecycleSnapshot[] = [
-        member('a', { exitsAtMeasure: 50 }),
-        member('bb', { exitsAtMeasure: 58 }),
-        member('ccc', { exitsAtMeasure: 66 }),
+        member('a', { exitsAtMeasure: t0 }),
+        member('bb', { exitsAtMeasure: t1 }),
+        member('ccc', { exitsAtMeasure: t2 }),
         keeper,
       ];
       const plan = roster.slice(0, 3).map(asPlan);
-      for (let m = 40; m <= 66; m++) {
+      for (let m = 40; m <= t2; m++) {
         roster = stepShiftLifecycle(roster, m, ENV_60);
         expect(roster.slice(0, 3).every((r) => r.entersAtMeasure === undefined), `measure ${m}`).toBe(true);
       }
       expect(roster.slice(0, 3).map((r) => r.docking)).toEqual([DockingState.Docked, DockingState.Docked, DockingState.Recalled]);
-      roster = stepShiftLifecycle(roster, 67, ENV_60);
+      roster = stepShiftLifecycle(roster, t2 + 1, ENV_60);
       expect(roster.slice(0, 3).map((r) => r.docking)).toEqual([DockingState.Docked, DockingState.Docked, DockingState.Docked]);
-      expect(roster.slice(0, 3).map((r) => r.entersAtMeasure)).toEqual(planEntrance({ worldKey: '0:0', members: plan, from: 67, bpm: 60 }));
+      expect(roster.slice(0, 3).map((r) => r.entersAtMeasure)).toEqual(planEntrance({ worldKey: '0:0', members: plan, from: t2 + 1, bpm: 60 }));
       expect(roster.slice(0, 3).map((r) => r.exitsAtMeasure)).toEqual([undefined, undefined, undefined]);
       expect(roster.slice(0, 3).every((r) => r.shiftBpm === 60)).toBe(true);
       // The keeper is another group: its exit is untouched.
@@ -1533,15 +1535,20 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
     const firstTurnAfter = (companyId: string, measure: number, lead = 6) =>
       journeyTurns(journeyKey('0:0', { kind: 'company', companyId }), measure + lead + 1, measure + lead + 40)[0].measure;
 
+    /** Two successive turns of `companyId`'s journey from `from`, as a drifting exit gives them. */
+    const twoTurns = (companyId: string, from: number) =>
+      journeyTurns(journeyKey('0:0', { kind: 'company', companyId }), from, from + 60).slice(0, 2).map((t) => t.measure);
+
     it('a lone group due for recall stays whole: no member is recalled, and every member loses its exit turn', () => {
-      const roster = [co('a', 'co-1', { exitsAtMeasure: 50 }), home('h1'), co('bb', 'co-1', { exitsAtMeasure: 58 })];
-      const after = stepShiftLifecycle(roster, 44, ENV_60);
+      const [t0, t1] = twoTurns('co-1', 50);
+      const roster = [co('a', 'co-1', { exitsAtMeasure: t0 }), home('h1'), co('bb', 'co-1', { exitsAtMeasure: t1 })];
+      const after = stepShiftLifecycle(roster, t0 - 6, ENV_60);
       expect(after.map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Docked, DockingState.Active]);
       expect(after[0].exitsAtMeasure).toBeUndefined();
       expect(after[2].exitsAtMeasure).toBeUndefined();
       // Staying, it is never recalled while alone.
       let r = after;
-      for (let m = 45; m <= 200; m++) {
+      for (let m = t0 - 5; m <= 200; m++) {
         r = stepShiftLifecycle(r, m, ENV_60);
         expect(r[0].docking).toBe(DockingState.Active);
         expect(r[2].docking).toBe(DockingState.Active);
@@ -1606,10 +1613,11 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
     });
 
     it('a drifting group: the due member is recalled with the members due with it, and the rest keep their turns', () => {
-      const roster = [co('a', 'co-d', { exitsAtMeasure: 50 }), co('bb', 'co-d', { exitsAtMeasure: 58 }), shift({ id: 'other', compositionSeed: 0.2, exitsAtMeasure: 900 })];
-      const after = stepShiftLifecycle(roster, 44, ENV_60);
+      const [t0, t1] = twoTurns('co-d', 50);
+      const roster = [co('a', 'co-d', { exitsAtMeasure: t0 }), co('bb', 'co-d', { exitsAtMeasure: t1 }), shift({ id: 'other', compositionSeed: 0.2, exitsAtMeasure: 900 })];
+      const after = stepShiftLifecycle(roster, t0 - 6, ENV_60);
       expect(after.map((r) => r.docking)).toEqual([DockingState.Recalled, DockingState.Active, DockingState.Active]);
-      expect(after[1].exitsAtMeasure).toBe(58);
+      expect(after[1].exitsAtMeasure).toBe(t1);
     });
 
     it('a group beside only a Recalled robot stays', () => {
@@ -1713,9 +1721,11 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
       expect(late).toBeCloseTo(before * (1 - BATTERY_EASE_SHARE), 12);
     });
 
-    it('a home robot with no entrance gains an eighth of what is missing each measure', () => {
-      const r = shift({ id: 'h', compositionSeed: 0.2, docking: DockingState.Docked, batteryLevel: 20 });
-      const after = stepShiftLifecycle([r, keeper], 9, ENV_60)[0];
+    it('a home robot with no entrance (its company still out) gains an eighth of what is missing each measure', () => {
+      const r = shift({ id: 'h', companyId: 'co-e', compositionSeed: 0.2, docking: DockingState.Docked, batteryLevel: 20 });
+      const mate = shift({ id: 'm', companyId: 'co-e', compositionSeed: 0.3, exitsAtMeasure: 100_000, shiftBpm: 60 });
+      const after = stepShiftLifecycle([r, mate, keeper], 9, ENV_60)[0];
+      expect(after.entersAtMeasure).toBeUndefined();
       expect(after.batteryLevel).toBeCloseTo(20 + 80 * BATTERY_EASE_SHARE, 12);
     });
   });
@@ -1810,6 +1820,162 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
       for (let m = 111; m <= moved + 1; m++) roster = stepShiftLifecycle(roster, m, { bpm: 200, worldKey: WORLD });
       expect(roster[0].batteryLevel).toBe(BATTERY_CRITICAL_THRESHOLD);
       expect(roster[0].docking).toBe(DockingState.Docked);
+    });
+  });
+
+  describe("a robot out of step takes its group's move (Task 13, spec §1.14)", () => {
+    const WORLD = '2:2';
+    const env = { bpm: 60, worldKey: WORLD };
+    const keyOf = (companyId?: string) => journeyKey(WORLD, companyId ? { kind: 'company', companyId } : { kind: 'fleet' });
+    const isTurn = (companyId: string | undefined, m: number) => journeyTurns(keyOf(companyId), m, m).length === 1;
+    const bare = (id: string, docking: DockingState, companyId?: string, o: Partial<ShiftLifecycleSnapshot> = {}) =>
+      shift({ id, docking, companyId, compositionSeed: (id.charCodeAt(0) % 16) / 16, batteryLevel: 60, ...o });
+
+    it('a hand-built Active robot with no fields is recalled on a turn once another group is out, and docks', () => {
+      let roster = [bare('x', DockingState.Active), bare('y', DockingState.Active, 'co-y', { exitsAtMeasure: 100_000, shiftBpm: 60 })];
+      const docking: DockingState[] = [];
+      let recalledAt = -1;
+      for (let m = 1; m <= 80; m++) {
+        const before = roster[0].docking;
+        roster = stepShiftLifecycle(roster, m, env);
+        if (before === DockingState.Active && roster[0].docking === DockingState.Recalled) recalledAt = m;
+        docking.push(roster[0].docking);
+      }
+      expect(recalledAt).toBeGreaterThan(0);
+      // Recalled the lead (6) before a turn of the fleet journey, and Docked on the bar line after it.
+      expect(isTurn(undefined, recalledAt + 6)).toBe(true);
+      expect(docking).toContain(DockingState.Docked);
+    });
+
+    it('an Active robot alone with no fields stays while nobody else is out, and is never left out once someone is', () => {
+      let roster = [bare('x', DockingState.Active), bare('y', DockingState.Docked, 'co-y', { entersAtMeasure: 50, shiftBpm: 60 })];
+      for (let m = 1; m <= 48; m++) {
+        roster = stepShiftLifecycle(roster, m, env);
+        expect(roster[0].docking).toBe(DockingState.Active);
+        expect(roster[0].exitsAtMeasure).toBeUndefined();
+      }
+      let docked = false;
+      for (let m = 49; m <= 200; m++) {
+        roster = stepShiftLifecycle(roster, m, env);
+        if (roster[0].docking === DockingState.Docked) docked = true;
+      }
+      expect(docked).toBe(true);
+    });
+
+    it("an Active member with no exit turn takes a mate's it can still make, and is recalled with it", () => {
+      const turn = journeyTurns(keyOf('co-m'), 40, 60)[0].measure;
+      const roster = [
+        bare('a', DockingState.Active, 'co-m', { exitsAtMeasure: turn, shiftBpm: 60 }),
+        bare('b', DockingState.Active, 'co-m'),
+        bare('k', DockingState.Active, undefined, { exitsAtMeasure: 100_000, shiftBpm: 60 }),
+      ];
+      const after = stepShiftLifecycle(roster, 10, env);
+      expect(after[1].exitsAtMeasure).toBe(turn);
+      expect(after[1].shiftBpm).toBe(60);
+      let r = after;
+      for (let m = 11; m <= turn - 6; m++) r = stepShiftLifecycle(r, m, env);
+      expect(r.slice(0, 2).map((x) => x.docking)).toEqual([DockingState.Recalled, DockingState.Recalled]);
+    });
+
+    it("a mate's turn it can no longer make is not taken", () => {
+      const turn = journeyTurns(keyOf('co-m'), 40, 60)[0].measure;
+      const roster = [
+        bare('a', DockingState.Recalled, 'co-m', { dockingHoldUntilMeasure: turn + 1, exitsAtMeasure: turn, shiftBpm: 60 }),
+        bare('b', DockingState.Active, 'co-m'),
+        bare('k', DockingState.Active, undefined, { exitsAtMeasure: 100_000, shiftBpm: 60 }),
+      ];
+      const [, b] = stepShiftLifecycle(roster, turn - 3, env);
+      expect(b.exitsAtMeasure).not.toBe(turn);
+      expect(b.exitsAtMeasure! - 6).toBeGreaterThan(turn - 3);
+    });
+
+    it('a robot moved into a company that is out, while it is home, stays home and comes out at the company next entrance', () => {
+      const exit = journeyTurns(keyOf('co-o'), 30, 50)[0].measure;
+      let roster = [
+        bare('a', DockingState.Active, 'co-o', { exitsAtMeasure: exit, shiftBpm: 60 }),
+        bare('b', DockingState.Active, 'co-o', { exitsAtMeasure: exit, shiftBpm: 60 }),
+        // Moved in from elsewhere: home, with the entrance of its old group, which comes before the company is back.
+        bare('n', DockingState.Docked, 'co-o', { entersAtMeasure: 20, shiftBpm: 60 }),
+        bare('k', DockingState.Active, undefined, { exitsAtMeasure: 100_000, shiftBpm: 60 }),
+      ];
+      roster = stepShiftLifecycle(roster, 10, env);
+      expect(roster[2].entersAtMeasure).toBeUndefined();
+      let companyIn = -1;
+      for (let m = 11; m <= 400 && companyIn < 0; m++) {
+        roster = stepShiftLifecycle(roster, m, env);
+        if (m <= exit + 1) expect(roster[2].docking, `m${m}`).toBe(DockingState.Docked);
+        if (roster[0].entersAtMeasure !== undefined && companyIn < 0 && roster[0].docking === DockingState.Docked) {
+          companyIn = m;
+          // All three share the draw, the newcomer included.
+          expect(roster[2].entersAtMeasure).toBeDefined();
+        }
+      }
+      expect(companyIn).toBe(exit + 1);
+      const want = planEntrance({ worldKey: WORLD, members: roster.slice(0, 3), from: exit + 1, bpm: 60 });
+      // Drawn on the tick the last member docked, for all three (members as handed to the plan, in roster order).
+      expect([roster[0].entersAtMeasure, roster[1].entersAtMeasure, roster[2].entersAtMeasure]).toEqual(want);
+    });
+
+    it('a Docked robot with no entrance takes a home mate entrance; with its whole group home and none, the entrance is drawn now', () => {
+      const roster = [
+        bare('a', DockingState.Docked, 'co-h', { entersAtMeasure: 77, shiftBpm: 60 }),
+        bare('b', DockingState.Docked, 'co-h'),
+        bare('c', DockingState.Docked, 'co-g'),
+        bare('d', DockingState.Docked, 'co-g'),
+        bare('k', DockingState.Active, undefined, { exitsAtMeasure: 100_000, shiftBpm: 60 }),
+      ];
+      const after = stepShiftLifecycle(roster, 5, env);
+      expect(after[1].entersAtMeasure).toBe(77);
+      const want = planEntrance({ worldKey: WORLD, members: roster.slice(2, 4), from: 5, bpm: 60 });
+      expect([after[2].entersAtMeasure, after[3].entersAtMeasure]).toEqual(want);
+      expect(after[2].shiftBpm).toBe(60);
+    });
+
+    it('a Docked robot with no entrance waits while its group is out', () => {
+      const roster = [
+        bare('a', DockingState.Active, 'co-w', { exitsAtMeasure: 100_000, shiftBpm: 60 }),
+        bare('b', DockingState.Docked, 'co-w'),
+      ];
+      const after = stepShiftLifecycle(roster, 5, env);
+      expect(after[1].entersAtMeasure).toBeUndefined();
+      expect(after[1].docking).toBe(DockingState.Docked);
+    });
+
+    it('an Active robot whose exit turn no mate shares and is no turn of its new group journey takes the group move', () => {
+      const exit = journeyTurns(keyOf('co-n'), 60, 80)[0].measure;
+      // Find a measure that is not a turn of co-n's journey for the newcomer's old exit.
+      let stale = 70;
+      while (isTurn('co-n', stale)) stale++;
+      const roster = [
+        bare('a', DockingState.Active, 'co-n', { exitsAtMeasure: exit, shiftBpm: 60 }),
+        bare('n', DockingState.Active, 'co-n', { exitsAtMeasure: stale, shiftBpm: 60 }),
+        bare('k', DockingState.Active, undefined, { exitsAtMeasure: 100_000, shiftBpm: 60 }),
+      ];
+      const after = stepShiftLifecycle(roster, 10, env);
+      expect(after[1].exitsAtMeasure).toBe(exit);
+      // A drifting member on a turn of its own journey keeps its own.
+      const later = journeyTurns(keyOf('co-n'), exit + 1, exit + 40)[0].measure;
+      const drifting = stepShiftLifecycle([roster[0], { ...roster[1], exitsAtMeasure: later }, roster[2]], 10, env);
+      expect(drifting[1].exitsAtMeasure).toBe(later);
+    });
+
+    it('twelve robots with no fields at all each carry a move within one home window, and the Active count is never zero', () => {
+      for (const e of [env, { bpm: 200, worldKey: '-5:5' }, { bpm: 20, worldKey: '8:1' }]) {
+        const companies = ['co-1', 'co-1', 'co-1', 'co-2', 'co-2', undefined, 'co-3', 'co-3', 'co-3', 'co-3', undefined, undefined];
+        let roster = companies.map((c, i) =>
+          shift({ id: `r${i}`, companyId: c, compositionSeed: (i + 1) / 13, docking: i < 3 ? DockingState.Active : DockingState.Docked, batteryLevel: 50 }),
+        );
+        const window = 2 + Math.max(...[0.67, 1, 1.5].map((s) => shiftWindow('home', s, e.bpm).most));
+        let allCarry = -1;
+        for (let m = 1; m <= 2 * window; m++) {
+          roster = stepShiftLifecycle(roster, m, e);
+          expect(roster.some((r) => r.docking === DockingState.Active), `${e.worldKey} m${m}`).toBe(true);
+          const carries = roster.every((r) => r.exitsAtMeasure !== undefined || r.entersAtMeasure !== undefined || r.dockingHoldUntilMeasure !== undefined);
+          if (carries && allCarry < 0) allCarry = m;
+        }
+        expect(allCarry).toBeGreaterThan(0);
+        expect(allCarry).toBeLessThanOrEqual(window);
+      }
     });
   });
 });
