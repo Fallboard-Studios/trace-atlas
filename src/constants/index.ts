@@ -248,6 +248,14 @@ export const SHIFT_MIN_BARS = 8;
 /** How many seconds before its exit turn a robot is recalled: the longest trip home on record (~22 s, backlog 84's
  *  loop sim) and a little over (§1.11). Turned into bars by the tempo, never by a robot's own trip. */
 export const RECALL_LEAD_SECONDS = 24;
+/** The odds a group leaves on a candidate turn of its out window (§1.6): from MIN after the smallest move to MAX after a
+ *  move weighing 1 (half the journey's range or more), always after a drop. */
+export const SHIFT_LEAVE_ODDS_MIN = 0.35;
+export const SHIFT_LEAVE_ODDS_MAX = 0.95;
+/** The odds a company's exit is a group exit, on the same weight (§1.6; Crawford, 2026-11-20: "never worse than a coin
+ *  flip", near certain after a big move); always after a drop. */
+export const GROUP_EXIT_ODDS_MIN = 0.5;
+export const GROUP_EXIT_ODDS_MAX = 0.95;
 
 // ========================================
 // THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)

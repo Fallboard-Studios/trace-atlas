@@ -10,12 +10,16 @@
 // ========================================
 import alea from 'alea';
 
-import { journeyKey } from '../engine/melodyJourney';
+import { journeyKey, journeyTurns, type JourneyTurn } from '../engine/melodyJourney';
 import {
   BEATS_PER_MEASURE,
   DEFAULT_BATTERY_SIZE,
+  GROUP_EXIT_ODDS_MAX,
+  GROUP_EXIT_ODDS_MIN,
   JOURNEY_TIME_MAX,
   RECALL_LEAD_SECONDS,
+  SHIFT_LEAVE_ODDS_MAX,
+  SHIFT_LEAVE_ODDS_MIN,
   SHIFT_HOME_BASE_BARS,
   SHIFT_HOME_MAX_BARS,
   SHIFT_MIN_BARS,
@@ -111,4 +115,89 @@ export function groupDraws(worldKey: string, robot: Pick<ShiftRobot, 'companyId'
   const end = (turnIndex + 1) * DRAWS_PER_TURN;
   while (draws.list.length < end) draws.list.push(draws.rand());
   return draws.list.slice(end - DRAWS_PER_TURN, end);
+}
+
+/** Which of a turn's four draws decides what (groupDraws). */
+const LEAVE_DRAW = 0;
+const TOGETHER_DRAW = 1;
+const ORDER_DRAW = 2;
+
+/** `count` positions in an order picked by one even draw from 0 to 1: the draw read as an index into the count's
+ *  permutations, in the factorial number system. */
+function drawnOrder(count: number, draw: number): number[] {
+  const left = Array.from({ length: count }, (_, i) => i);
+  let permutations = 1;
+  for (let i = 2; i <= count; i++) permutations *= i;
+  let index = Math.min(permutations - 1, Math.floor(draw * permutations));
+  const order: number[] = [];
+  for (let n = count; n > 0; n--) {
+    permutations /= n;
+    const pick = Math.floor(index / permutations);
+    index -= pick * permutations;
+    order.push(left.splice(pick, 1)[0]);
+  }
+  return order;
+}
+
+/** The first `count` turns of `key` from `measure` on, `measure` included. Turns are at most JOURNEY_TIME_MAX apart,
+ *  so that many measures a turn always holds them. */
+function turnsFrom(key: string, measure: number, count: number): JourneyTurn[] {
+  return journeyTurns(key, measure, measure + JOURNEY_TIME_MAX * Math.max(1, count)).slice(0, count);
+}
+
+// ========================================
+// THE EXIT (§1.6)
+// ========================================
+
+/** What planExit and planEntrance are handed: a group's members in roster order (all of one group), the measure the
+ *  window counts from, and the tempo. */
+export interface ShiftPlanInput {
+  worldKey: string;
+  members: readonly ShiftRobot[];
+  /** The measure the group's first member landed Active (an exit) or its last landed Docked (an entrance). */
+  from: number;
+  bpm: number;
+}
+
+/** A turn's weight (spec §1.4): 1 for a drop, else its move, at most 1. */
+export function turnWeight(turn: JourneyTurn): number {
+  return turn.drop ? 1 : Math.min(1, turn.move);
+}
+
+/**
+ * Each member's exit turn, in `members`' order (spec §1.6). The group's turns in its out window from `from` are walked
+ * in order: it leaves on one when that turn's leave draw is under SHIFT_LEAVE_ODDS_MIN + (MAX − MIN) × the turn's
+ * weight (always on a drop), and on the last if on none before. At the chosen turn the exit is a group exit, every
+ * member on that turn, when the together draw is under GROUP_EXIT_ODDS_MIN + (MAX − MIN) × the weight (always on a
+ * drop); otherwise the members, in an order drawn on that turn, take the turns from it on, one each. A group of one
+ * takes the turn. Pure.
+ */
+export function planExit({ worldKey, members, from, bpm }: ShiftPlanInput): number[] {
+  if (members.length === 0) return [];
+  const lead = members[0];
+  const key = groupJourneyKey(worldKey, lead);
+  const window = shiftWindow('out', groupSize(members), bpm);
+  const candidates = journeyTurns(key, from + window.least, from + window.most);
+  if (candidates.length === 0) candidates.push(...turnsFrom(key, from + window.least, 1));
+
+  let chosen = candidates[candidates.length - 1];
+  for (const turn of candidates) {
+    const odds = SHIFT_LEAVE_ODDS_MIN + (SHIFT_LEAVE_ODDS_MAX - SHIFT_LEAVE_ODDS_MIN) * turnWeight(turn);
+    if (turn.drop || groupDraws(worldKey, lead, turn.index)[LEAVE_DRAW] < odds) {
+      chosen = turn;
+      break;
+    }
+  }
+
+  const draws = groupDraws(worldKey, lead, chosen.index);
+  const togetherOdds = GROUP_EXIT_ODDS_MIN + (GROUP_EXIT_ODDS_MAX - GROUP_EXIT_ODDS_MIN) * turnWeight(chosen);
+  if (members.length === 1 || chosen.drop || draws[TOGETHER_DRAW] < togetherOdds) {
+    return members.map(() => chosen.measure);
+  }
+  const turns = turnsFrom(key, chosen.measure, members.length);
+  const exits = new Array<number>(members.length);
+  drawnOrder(members.length, draws[ORDER_DRAW]).forEach((member, n) => {
+    exits[member] = turns[n].measure;
+  });
+  return exits;
 }
