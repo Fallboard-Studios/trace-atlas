@@ -206,6 +206,33 @@ export function planExit({ worldKey, members, from, bpm }: ShiftPlanInput): numb
 }
 
 // ========================================
+// A TEMPO CHANGE (§1.12)
+// ========================================
+
+/** What rescaleMove is handed: the group's robot (for its journey), its next move, the measure now, the tempo the move
+ *  was scaled at and the live one, and how near the result may be (the lead, for an exit). */
+export interface RescaleInput {
+  worldKey: string;
+  robot: Pick<ShiftRobot, 'companyId'>;
+  move: number;
+  measure: number;
+  fromBpm: number;
+  toBpm: number;
+  least: number;
+}
+
+/**
+ * A move after a tempo change (spec §1.12): the bars still to go times `toBpm ÷ fromBpm`, rounded, never under `least`,
+ * then the first turn of the group's journey at or after that. So the seconds still to go are kept and the move lands
+ * on a turn; members with one move get one move. Equal tempos return the move unchanged. Pure.
+ */
+export function rescaleMove({ worldKey, robot, move, measure, fromBpm, toBpm, least }: RescaleInput): number {
+  if (fromBpm === toBpm) return move;
+  const toGo = Math.max(least, Math.round(((move - measure) * toBpm) / fromBpm));
+  return turnsFrom(groupJourneyKey(worldKey, robot), measure + toGo, 1)[0].measure;
+}
+
+// ========================================
 // THE ENTRANCE (§1.7)
 // ========================================
 

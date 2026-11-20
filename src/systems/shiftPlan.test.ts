@@ -13,6 +13,7 @@ import {
   planEntrance,
   planExit,
   recallLeadBars,
+  rescaleMove,
   shiftWindow,
   type ShiftRobot,
 } from './shiftPlan';
@@ -423,6 +424,60 @@ describe('planEntrance (spec §1.7)', () => {
     for (let n = 0; n < 100; n++) {
       expect(Math.min(...planEntrance({ ...c, worldKey: `${n}:w` }))).toBeGreaterThanOrEqual(c.from + least);
     }
+  });
+});
+
+// A tempo change (spec §1.12): the bars to go scaled by new ÷ old, then the first turn at or after, never nearer
+// than `least`.
+describe('rescaleMove (spec §1.12)', () => {
+  const WORLD = '5:9';
+  const robot = { companyId: 'co-r' };
+  const key = groupJourneyKey(WORLD, robot);
+  const firstTurnFrom = (m: number) => journeyTurns(key, m, m + 40)[0].measure;
+
+  it('lengthens the bars to go by 200 / 60 and lands on the first turn at or after', () => {
+    for (const measure of [0, 37, 120, 501]) {
+      const move = firstTurnFrom(measure + 20);
+      const got = rescaleMove({ worldKey: WORLD, robot, move, measure, fromBpm: 60, toBpm: 200, least: 0 });
+      expect(got).toBe(firstTurnFrom(measure + Math.round(((move - measure) * 200) / 60)));
+      expect(got - measure).toBeGreaterThanOrEqual(((move - measure) * 10) / 3 - 0.5);
+    }
+  });
+
+  it('shortens them tenfold from 200 to 20 and lands on a turn', () => {
+    for (const measure of [3, 64, 900]) {
+      const move = firstTurnFrom(measure + 90);
+      const got = rescaleMove({ worldKey: WORLD, robot, move, measure, fromBpm: 200, toBpm: 20, least: 0 });
+      expect(got).toBe(firstTurnFrom(measure + Math.round((move - measure) / 10)));
+      expect(journeyTurns(key, got, got).length).toBe(1);
+    }
+  });
+
+  it('is never nearer than `least` measures ahead', () => {
+    for (const measure of [10, 77, 300]) {
+      const move = firstTurnFrom(measure + 30);
+      const got = rescaleMove({ worldKey: WORLD, robot, move, measure, fromBpm: 200, toBpm: 20, least: 20 });
+      expect(got).toBe(firstTurnFrom(measure + 20));
+      expect(got - measure).toBeGreaterThanOrEqual(20);
+    }
+  });
+
+  it('returns the move unchanged at equal tempos, on a turn or not', () => {
+    expect(rescaleMove({ worldKey: WORLD, robot, move: 133, measure: 100, fromBpm: 90, toBpm: 90, least: 50 })).toBe(133);
+    const turn = firstTurnFrom(40);
+    expect(rescaleMove({ worldKey: WORLD, robot, move: turn, measure: 10, fromBpm: 60, toBpm: 60, least: 0 })).toBe(turn);
+  });
+
+  it('gives two members with one move one move; reads the company, not the robot', () => {
+    const a = rescaleMove({ worldKey: WORLD, robot: { companyId: 'co-r', compositionSeed: 0.1 } as never, move: 80, measure: 40, fromBpm: 60, toBpm: 140, least: 14 });
+    const b = rescaleMove({ worldKey: WORLD, robot: { companyId: 'co-r', compositionSeed: 0.9 } as never, move: 80, measure: 40, fromBpm: 60, toBpm: 140, least: 14 });
+    expect(a).toBe(b);
+  });
+
+  it('a freelancer lands on the fleet turns', () => {
+    const fleet = groupJourneyKey(WORLD, {});
+    const got = rescaleMove({ worldKey: WORLD, robot: {}, move: 70, measure: 50, fromBpm: 60, toBpm: 120, least: 0 });
+    expect(got).toBe(journeyTurns(fleet, 90, 140)[0].measure);
   });
 });
 
