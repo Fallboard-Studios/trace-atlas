@@ -230,6 +230,25 @@ export const BATTERY_CRITICAL_THRESHOLD = 10;
 /** Docked robot at or above this battery level begins Undocking (redeploy-eligible). */
 export const BATTERY_FULL_THRESHOLD = 100;
 
+/**
+ * The pace of a shift (roadmap 94, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.5, §4): every length is written
+ * in bars at SHIFT_REFERENCE_BPM and scaled by bpm ÷ 60 at the live tempo (Crawford, 2026-11-20: "numbers given are for
+ * 60bpm and we should scale them for faster and slower tempos"). First cuts for Gate A unless dated.
+ */
+export const SHIFT_REFERENCE_BPM = 60;
+/** The least time out and home for a group of battery size 1: today's size-1 robot (15 measures out, 20 from recall to
+ *  Active again). A group's size multiplies them. */
+export const SHIFT_OUT_BASE_BARS = 15;
+export const SHIFT_HOME_BASE_BARS = 20;
+/** The most time out and home, whatever the size (Crawford, 2026-11-20: out at most ~40 bars, gone at most ~50). */
+export const SHIFT_OUT_MAX_BARS = 40;
+export const SHIFT_HOME_MAX_BARS = 50;
+/** No shift is shorter than this, in bars at the live tempo (Crawford, 2026-11-20). */
+export const SHIFT_MIN_BARS = 8;
+/** How many seconds before its exit turn a robot is recalled: the longest trip home on record (~22 s, backlog 84's
+ *  loop sim) and a little over (§1.11). Turned into bars by the tempo, never by a robot's own trip. */
+export const RECALL_LEAD_SECONDS = 24;
+
 // ========================================
 // THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)
 // ========================================
