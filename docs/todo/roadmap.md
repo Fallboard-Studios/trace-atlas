@@ -709,3 +709,59 @@ the playing moved with it. Now:
   step on the main thread, the audio thread unchanged. Not heard on a phone.
 - After the merge: this entry moves to the archive with 92's.
 
+## 94. Companies Together: A Company Leaves as One, and Comings and Goings Land on the Journey's Turns
+
+Raised by Crawford on 2026-11-18 as "how to control batteries better": "I want companies to stay together i think is
+my main issue. and the timing of the robots coming and going just feels random." Interviewed on 2026-11-20; intent
+[companies-together-on-journey-turns.md](../intent/companies-together-on-journey-turns.md), spec
+[COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md](../specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md) (approved 2026-11-20), plan
+[COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md](../tasks/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md) (thirty tasks, written the
+same day, awaiting his approval). Not placed in [plan.md](plan.md).
+
+### About
+
+Today every robot draws its own battery size and starting charge, company members included, so a company's members
+drift apart from the first shift and are heard without their mates, and nothing in the docking cycle reads the melody
+journey. The intent, each line a strong tendency and not a rule:
+
+- a company stops being heard together: its last notes end together, whenever its members set off for home;
+- a group exit is the norm, and likelier the bigger the move on the journey the company has just finished, a drop most
+  of all;
+- entrances and exits usually land on the journey's turning measures; a company's entrances may be staggered;
+- companies overlap freely, with no designed order, and freelancers come and go one by one on the fleet journey's
+  turns;
+- shifts may be uneven and airtime unfair, but no line-up stays stuck and the fleet is never silent;
+- the battery stays believable (it falls while a robot is out and rises while it is home) without having to be the
+  true cause;
+- nothing is a control: it is seeded behaviour.
+
+It reverses Company Families' answer B2 of 2026-11-11
+([spec](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md) §7.3), under which a member draws its own battery size and a
+company lines up organically.
+
+### Open
+
+- **Builds on roadmap [93](#93-journey-dynamics-a-melody-journey-you-can-hear):** the freelancers travel on the Fleet
+  journey only there. Merge 93 first.
+- **Seven open items answered 2026-11-20** (recorded in the intent): a group exit is never worse than a coin flip and
+  near certain after a big move; members gather at the station door until the slowest is home; a member moved to
+  another journey still comes and goes with its company; the last company out stays whole until someone else arrives;
+  a company is out for at most about 40 bars and gone for at most about 50, at 60 BPM; the battery paces itself to
+  reach empty on the exit and full on the entrance.
+- **Tempo is in** (Crawford, 2026-11-20): the pacing numbers are written for 60 BPM and scaled for faster and slower
+  tempos, with no wall clock. It takes the docking-cycle half of roadmap
+  [90](#90-the-score-editable-chords-a-clock-with-two-rulers-hand-edited-parts)'s pace ruler; the journey's turns and
+  the chords stay counted in bars.
+- **Two more answers, 2026-11-20:** 60 BPM stays the reference, and a shift is never shorter than about 8 bars.
+- **The spec's mechanism:** each group's exit and entrance are drawn ahead on its journey's turns, the battery is a
+  gauge that runs to empty at the exit and to full at the entrance, every member is recalled a fixed lead before the
+  exit turn and waits at its port, and the fade ends on one bar line. Every new number is a first cut; its Gate A
+  measures them before anything is heard.
+- **The spec's six questions** (its §7.2) stand at their defaults since his approval, bar one: deleting the drain
+  machinery waits for his yes (the plan's Task 27). The last bar and a staggered entrance's spacing are heard at
+  Gate B.
+- **Not started.** The build waits for 93's merge; the plan stops at Gate A (the sims' numbers, before any wiring)
+  and Gate B (his eye and ear).
+- It changes every world's comings and goings, so it lands before backlog
+  [45](backlog.md#45-off-screen-crawfords-three-preset-links).
+
