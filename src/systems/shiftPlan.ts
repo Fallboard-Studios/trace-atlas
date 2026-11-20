@@ -8,8 +8,12 @@
 // ========================================
 // IMPORTS
 // ========================================
+import alea from 'alea';
+
+import { journeyKey } from '../engine/melodyJourney';
 import {
   BEATS_PER_MEASURE,
+  DEFAULT_BATTERY_SIZE,
   JOURNEY_TIME_MAX,
   RECALL_LEAD_SECONDS,
   SHIFT_HOME_BASE_BARS,
@@ -54,4 +58,57 @@ export function shiftWindow(phase: ShiftPhase, size: number, bpm: number): Shift
  *  rounded up, so the lead is never shorter than the seconds. */
 export function recallLeadBars(bpm: number): number {
   return Math.ceil((RECALL_LEAD_SECONDS * bpm) / (BEATS_PER_MEASURE * 60));
+}
+
+// ========================================
+// GROUPS (§1.3)
+// ========================================
+
+/** What the plan reads from a robot to find its group, its journey, its size and its draws. */
+export interface ShiftRobot {
+  id: string;
+  companyId?: string;
+  compositionSeed: number;
+  batterySize?: number;
+}
+
+/** A robot's group (spec §1.3): its company, or itself alone. */
+export function groupIdOf(robot: Pick<ShiftRobot, 'id' | 'companyId'>): string {
+  return robot.companyId ?? robot.id;
+}
+
+/** The key of the journey a robot's group comes and goes on (spec §1.3): the company's for a member, whatever the
+ *  member's own Journey setting says (Crawford, 2026-11-20), and the fleet's for a freelancer. */
+export function groupJourneyKey(worldKey: string, robot: Pick<ShiftRobot, 'companyId'>): string {
+  return journeyKey(worldKey, robot.companyId ? { kind: 'company', companyId: robot.companyId } : { kind: 'fleet' });
+}
+
+/** A group's battery size (spec §1.3): its member earliest in the roster's (`members` in roster order), an absent
+ *  size reading as DEFAULT_BATTERY_SIZE. */
+export function groupSize(members: readonly Pick<ShiftRobot, 'batterySize'>[]): number {
+  return members[0]?.batterySize ?? DEFAULT_BATTERY_SIZE;
+}
+
+/** How many draws a group takes per turn of its journey, used or not (spec §1.3). */
+const DRAWS_PER_TURN = 4;
+
+/** Each stream's draws so far, four per turn. */
+const drawsByStream = new Map<string, { rand: () => number; list: number[] }>();
+
+/**
+ * Turn `turnIndex`'s four draws for `robot`'s group (spec §1.3): from `${worldKey}:${companyId}:shifts` for a company
+ * and `${worldKey}:${compositionSeed}:shifts` for a freelancer, four per turn of the group's journey whether used or
+ * not, memoised per stream, so a turn's draws are the same whenever they are asked. The order of use: the leave (or
+ * enter) draw, the together draw, the order draw, and one spare. A copy, so a caller cannot change the memo.
+ */
+export function groupDraws(worldKey: string, robot: Pick<ShiftRobot, 'companyId' | 'compositionSeed'>, turnIndex: number): number[] {
+  const stream = `${worldKey}:${robot.companyId ?? robot.compositionSeed}:shifts`;
+  let draws = drawsByStream.get(stream);
+  if (!draws) {
+    draws = { rand: alea(stream), list: [] };
+    drawsByStream.set(stream, draws);
+  }
+  const end = (turnIndex + 1) * DRAWS_PER_TURN;
+  while (draws.list.length < end) draws.list.push(draws.rand());
+  return draws.list.slice(end - DRAWS_PER_TURN, end);
 }

@@ -1,10 +1,21 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import alea from 'alea';
 
-import { paceBars, recallLeadBars, shiftWindow } from './shiftPlan';
-import { JOURNEY_TIME_MAX, SHIFT_MIN_BARS } from '../constants';
+import {
+  groupDraws,
+  groupIdOf,
+  groupJourneyKey,
+  groupSize,
+  paceBars,
+  recallLeadBars,
+  shiftWindow,
+  type ShiftRobot,
+} from './shiftPlan';
+import { journeyKey } from '../engine/melodyJourney';
+import { DEFAULT_BATTERY_SIZE, JOURNEY_TIME_MAX, SHIFT_MIN_BARS } from '../constants';
 
 // ========================================
 // HELPERS
@@ -75,6 +86,89 @@ describe('shiftWindow and paceBars (spec §1.5)', () => {
     expect(paceBars(40, 100)).toBe(67);
     expect(paceBars(50, 20)).toBe(17);
     expect(paceBars(0, 200)).toBe(0);
+  });
+});
+
+// Groups (spec §1.3): a company, or one freelancer, with the company's journey and its own draws.
+describe('a robot group: its id, journey key, size and draws (spec §1.3)', () => {
+  const WORLD = '7:-3';
+  const member = (id: string, extra: Partial<ShiftRobot> = {}): ShiftRobot => ({
+    id,
+    companyId: 'co-a',
+    compositionSeed: 0.25,
+    ...extra,
+  });
+
+  it('a company member is in its company group; a freelancer is a group of one', () => {
+    expect(groupIdOf(member('r1'))).toBe('co-a');
+    expect(groupIdOf(member('r2', { companyId: 'co-b' }))).toBe('co-b');
+    expect(groupIdOf({ id: 'r3' })).toBe('r3');
+  });
+
+  it("gives a member its company's journey key whatever its Journey setting, and a freelancer the fleet's", () => {
+    const company = journeyKey(WORLD, { kind: 'company', companyId: 'co-a' });
+    const fleet = journeyKey(WORLD, { kind: 'fleet' });
+    for (const journey of ['own', 'company', 'fleet', undefined] as const) {
+      expect(groupJourneyKey(WORLD, { ...member('r1'), journey } as ShiftRobot)).toBe(company);
+      expect(groupJourneyKey(WORLD, { id: 'f', compositionSeed: 0.5, journey } as ShiftRobot)).toBe(fleet);
+    }
+  });
+
+  it('reads the size of the member earliest in the roster; an absent size reads as DEFAULT_BATTERY_SIZE', () => {
+    expect(groupSize([member('a', { batterySize: 0.8 }), member('b', { batterySize: 1.4 })])).toBe(0.8);
+    expect(groupSize([member('b', { batterySize: 1.4 }), member('a', { batterySize: 0.8 })])).toBe(1.4);
+    expect(groupSize([member('a'), member('b', { batterySize: 1.4 })])).toBe(DEFAULT_BATTERY_SIZE);
+    expect(groupSize([])).toBe(DEFAULT_BATTERY_SIZE);
+  });
+
+  it('gives four draws a turn, each from 0 to 1', () => {
+    const draws = groupDraws(WORLD, member('r1'), 0);
+    expect(draws).toHaveLength(4);
+    for (let i = 0; i < 50; i++) {
+      for (const d of groupDraws(WORLD, member('r1'), i)) {
+        expect(d).toBeGreaterThanOrEqual(0);
+        expect(d).toBeLessThan(1);
+      }
+    }
+  });
+
+  it("gives two members of one company the same draws, whatever their own seeds, and the stream is the company's", () => {
+    const a = groupDraws(WORLD, member('r1', { compositionSeed: 0.1 }), 7);
+    const b = groupDraws(WORLD, member('r2', { compositionSeed: 0.9 }), 7);
+    expect(a).toEqual(b);
+    const rand = alea(`${WORLD}:co-a:shifts`);
+    for (let i = 0; i < 7 * 4; i++) rand();
+    expect(a).toEqual([rand(), rand(), rand(), rand()]);
+  });
+
+  it('gives two freelancers on the fleet turns different draws for the same turn, each from its own stream', () => {
+    const a = groupDraws(WORLD, { compositionSeed: 0.125 }, 3);
+    const b = groupDraws(WORLD, { compositionSeed: 0.375 }, 3);
+    expect(a).not.toEqual(b);
+    const rand = alea(`${WORLD}:0.125:shifts`);
+    for (let i = 0; i < 3 * 4; i++) rand();
+    expect(a).toEqual([rand(), rand(), rand(), rand()]);
+  });
+
+  it('gives two worlds different draws for one company', () => {
+    expect(groupDraws('1:1', member('r1'), 0)).not.toEqual(groupDraws('1:2', member('r1'), 0));
+  });
+
+  it("gives turn i's draws whether turn i or a later turn is asked first", async () => {
+    const inOrder = Array.from({ length: 30 }, (_, i) => groupDraws(WORLD, member('r1', { companyId: 'co-order' }), i));
+    vi.resetModules();
+    const fresh = await import('./shiftPlan');
+    const r = member('r1', { companyId: 'co-order' });
+    expect(fresh.groupDraws(WORLD, r, 29)).toEqual(inOrder[29]);
+    expect(fresh.groupDraws(WORLD, r, 4)).toEqual(inOrder[4]);
+    for (let i = 29; i >= 0; i--) expect(fresh.groupDraws(WORLD, r, i)).toEqual(inOrder[i]);
+  });
+
+  it('hands out a copy: changing what it returns changes no later read', () => {
+    const first = groupDraws(WORLD, member('r1'), 2);
+    const want = [...first];
+    first[0] = 5;
+    expect(groupDraws(WORLD, member('r1'), 2)).toEqual(want);
   });
 });
 
