@@ -1017,4 +1017,38 @@ Filled in by Tasks 18, 19, 20 and 26. Nothing measured yet.
   again into this section, and the always-on pins that name a value move in that commit (none of today's pins names a
   first-cut value except the windows of Task 2's table and the 0.45 / 0.7 / 0.5 odds read in `shiftPlan.test.ts` and
   `spawnSystem.rosterStart.test.ts` through the constants themselves).
-- **Gate B's listening list and answers** (Task 26): —
+- **Checkpoint D** (2026-11-20, after Task 25): full suite 14,930 passed and 4 skipped (the opt-in report cases);
+  `build:types`, `lint` (0 errors, the 4 old warnings) and `build` clean. Task 18's report run again on the wired code:
+  every row identical, so every sim criterion stands as marked above.
+- **The browser runs** (Task 26), 2026-11-20, by the agent: a headless Chrome on `npm run dev` (the repo's
+  `scripts/perf/powered-world.mjs` to open and power on the world, a scratch probe reading the app's own
+  `localeStore`, `audioStore` and `beatClock` modules in the page), world (−200, 80) on a fresh page at its seeded
+  47 BPM.
+  - **The start by groups:** company-0 (four members) began out (its battery 94.4 a bar in) with one exit turn, 14; company-1 (three) began
+    home sharing entrance 38, company-2 (three) home sharing 30; the freelancers one out (exit 24) and one home
+    (entrance 50).
+  - **A tempo drag** from 60 to 200 and back to 60, a step of 10 every 150 ms (measures 1.6 to 4.1): no robot changed
+    docking, and every move was rescaled on the ticks in between (shiftBpm read 90, the tempo at the last tick).
+  - **A company's exit end to end** at 200 BPM: company-0's four members recalled together on measure 54 (exit turn
+    74, the lead 20), from working; they reached their ports between measures 57.7 and 62.4 and waited there,
+    'entering'; all four landed Docked on measure 75.00 with the battery at exactly 10, and all four went 'charging'
+    together at 75.13 (the fade's audio lead past the bar line). The battery fell in a straight line from 94 at the
+    start to 32 at the recall and 10 at the bar line.
+  - **Not done by the agent:** the roster tiles' battery readouts were not looked at (the store's battery, which they
+    show, was read instead); nothing was heard; the `?debug` overlay was not read beyond the world pin.
+- **Gate B** (Task 26): **not held.** Crawford was away (2026-11-20, "do not pause for me"). The eye-and-ear gate is
+  his, on the built branch after a hard reload. **The listening list:**
+  1. **(−200, 80), three companies, a fresh page, at its seeded 47 BPM.** Measures from the world's start (the
+     `?debug` overlay or a count of bars; a bar is about 5.1 s): company-0's four come out together and leave
+     together on bar 14, recalled at bar 9 (the lead is 5 bars at 47 BPM), so from bar 9 they swim home and wait at
+     their ports, still playing, and their sound ends on the bar line of bar 15; company-2's three come out on bar
+     30, company-1's three on bar 38 (each together or 2 bars apart, the draw's); a freelancer leaves on bar 24, one
+     comes out on bar 50.
+  2. **The same world at 40 BPM** (the tempo slider, after a minute): the plans rescale to the new pace; listen for a
+     company leaving as one.
+  3. **A world at 160 BPM or more** (the slider, or any world): the lead is 16 to 20 bars, so a recalled company
+     gathers at the door for most of 24 seconds; is that too long?
+  **His questions** (spec §5.4): does a company read as a group; do exits feel placed; the last bar (Q1: the
+  company is heard through the exit turn's own bar); the gathering at the door, and whether it runs too long at a
+  fast tempo; a staggered entrance (Q2: 2 bars apart); the battery readouts through a shift, a stay and a tempo
+  change. **His answers:** — (to be written here with the date).
