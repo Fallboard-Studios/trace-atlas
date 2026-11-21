@@ -940,7 +940,46 @@ per task.
 
 Filled in by Tasks 18, 19, 20 and 26. Nothing measured yet.
 
-- **Today's row and the new rows** (Task 18): —
+- **Today's row and the new rows** (Task 18), run 2026-11-20 on `feature/companies-together` after Task 17, with
+  `LIFECYCLE_SIM_REPORT=1 npx vitest run src/systems/lifecycleSim.test.ts -t "the report: the grid at 20, 40, 60, 100
+  and 200 BPM"`: the 121-world grid, 2,000 measures a world, spec §4's first-cut constants unchanged. Today's step reads
+  no tempo, so its five rows are one run in bars with the seconds scaled. Pasted as printed:
+
+  | Step | BPM | Silent | Sounding (mean, p10–p90) | Apart | Group exits | Exits on a turn | Entrances on a turn | Time out, bars (median, p90, longest) | Time out, s | Time home, bars | Time home, s | Stays / 1,000 | Stay length | Heard share (lowest–highest) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | today | 20 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 228, 516, 5784 | 17, 27, 29 | 204, 324, 348 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | today | 40 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 114, 258, 2892 | 17, 27, 29 | 102, 162, 174 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | today | 60 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 76, 172, 1928 | 17, 27, 29 | 68, 108, 116 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | today | 100 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 46, 103, 1157 | 17, 27, 29 | 41, 65, 70 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | today | 200 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 23, 52, 578 | 17, 27, 29 | 20, 32, 35 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | shift | 20 | 0.0 % | 5.85, 2–9 | 25.1 % | 82.2 % of 16460 | 100.0 % | 100.0 % | 15, 26, 75 | 180, 312, 900 | 15, 23, 26 | 180, 276, 312 | 40.98 | 3, 9, 22 | 41.1 %–57.5 % |
+  | shift | 40 | 0.0 % | 5.47, 2–9 | 20.4 % | 83.4 % of 12557 | 100.0 % | 100.0 % | 19, 31, 79 | 114, 186, 474 | 23, 31, 36 | 138, 186, 216 | 46.15 | 4, 12, 25 | 38.5 %–54.9 % |
+  | shift | 60 | 0.0 % | 5.36, 2–9 | 15.9 % | 83.6 % of 9426 | 100.0 % | 100.0 % | 25, 40, 91 | 100, 160, 364 | 30, 45, 50 | 120, 180, 200 | 36.89 | 6, 15, 36 | 38.3 %–52.5 % |
+  | shift | 100 | 0.0 % | 5.32, 2–9 | 11.2 % | 84.1 % of 6516 | 100.0 % | 100.0 % | 37, 55, 117 | 89, 132, 281 | 45, 64, 83 | 108, 154, 199 | 26.67 | 8, 23, 50 | 37.2 %–52.4 % |
+  | shift | 200 | 0.0 % | 5.29, 2–9 | 6.3 % | 85.4 % of 3752 | 100.0 % | 100.0 % | 63, 89, 159 | 76, 107, 191 | 80, 106, 167 | 96, 127, 200 | 16.90 | 14, 38, 102 | 37.3 %–52.9 % |
+
+  How to read it: a time out runs from a group's first member out to its last member home, so it holds the drift of a
+  drifting exit and any stay; a time home runs from all home to the first member out. "Group exits" counts company exits
+  only; "Exits on a turn" counts every robot's docking (its exit turn is the bar before). A stay on today's step is an
+  Active robot at or under critical; on the shift step it is an Active robot with no exit turn, counted per robot.
+
+  **Spec §5.5's sim criteria against it, no constant changed:**
+
+  | Criterion | Result |
+  |---|---|
+  | No silent measure in any grid world at any of the five tempos | **Met**: 0.0 % at all five (always on at 60 BPM over the grid, and on six worlds at the other four). |
+  | Every planned exit turn and group entrance turn is a turning measure | **Met**: 100 % of exits and entrances on a turn at all five; no planned exit off a turn (always on). |
+  | Apart share at or under 20 % at every tempo | **Missed at 20 BPM (25.1 %) and 40 BPM (20.4 %)**; met at 60 (15.9 %), 100 (11.2 %) and 200 (6.3 %). Today: 91.9 %. The share falls with tempo because the stagger (2 bars) and the drift (a turn a member) are in bars while a shift at a slow tempo is few bars. |
+  | Group exits at or over 75 % of company exits | **Met**: 82.2 %–85.4 %. Today: 4.2 %. |
+  | Median time out in seconds at 40, 100 and 200 within a third of 60's | **Met**: 60 BPM 100 s; 40 → 114 s, 100 → 89 s, 200 → 76 s (all within 67–133 s). 20 BPM, reported: 180 s (the 8-bar floor). |
+  | No time out past its "most" except in a stay; no time home past its "most" | **Home met**: the longest time home at each tempo is the largest group's "most" (26, 36, 50, 83, 167 bars) or under. **Out not separable from this row**: a time out includes a drifting exit's later turns and any stay, which the tally does not tell apart; the p90 sits at or under the largest group's "most" at 40–200 BPM (31 against 31 at 40, 40 against 40 at 60, 55 against 67, 89 against 133), and over it at 20 BPM (26 against 24). |
+  | Robots sounding: a mean from 4.5 to 6 at every tempo | **Met**: 5.29–5.85 (today 5.42). |
+  | Late members under 5 % of member exits at each loop-sim tempo | Task 19. |
+
+  **Two things to see that no criterion names:** stays are far commoner than today's (17–46 robot-stays per 1,000
+  measures a world against 0.96), and longer at fast tempos in bars (median 14 bars at 200 BPM): when the last group out
+  is due with nobody else out it stays, and groups now move as blocks, so that happens more. And the heard share widens
+  from 44–46 % to about 37–57 %: some robots are out more than others, which the intent welcomed ("unfair airtime").
 - **The loop sim** (Task 19): —
 - **Gate A's picks** (Task 20): —
 - **Gate B's listening list and answers** (Task 26): —
