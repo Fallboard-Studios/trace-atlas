@@ -236,13 +236,15 @@ export const BATTERY_FULL_THRESHOLD = 100;
  * 60bpm and we should scale them for faster and slower tempos"). First cuts for Gate A unless dated.
  */
 export const SHIFT_REFERENCE_BPM = 60;
-/** The least time out and home for a group of battery size 1: today's size-1 robot (15 measures out, 20 from recall to
- *  Active again). A group's size multiplies them. */
-export const SHIFT_OUT_BASE_BARS = 15;
-export const SHIFT_HOME_BASE_BARS = 20;
-/** The most time out and home, whatever the size (Crawford, 2026-11-20: out at most ~40 bars, gone at most ~50). */
-export const SHIFT_OUT_MAX_BARS = 40;
-export const SHIFT_HOME_MAX_BARS = 50;
+/** The least time out and home for a group of battery size 1. A group's size multiplies them. First cut 15 and 20
+ *  (the old size-1 robot); 20 % shorter at Crawford's ear, 2026-11-21 ("robots linger slightly too long, and it takes a
+ *  little too long for them to reappear. by like, 20%"). */
+export const SHIFT_OUT_BASE_BARS = 12;
+export const SHIFT_HOME_BASE_BARS = 16;
+/** The most time out and home, whatever the size. First cut 40 and 50 (Crawford, 2026-11-20); 20 % shorter with the
+ *  bases, 2026-11-21. */
+export const SHIFT_OUT_MAX_BARS = 32;
+export const SHIFT_HOME_MAX_BARS = 40;
 /** No shift is shorter than this, in bars at the live tempo (Crawford, 2026-11-20). */
 export const SHIFT_MIN_BARS = 8;
 /** How many seconds before its exit turn a robot is recalled: the longest trip home on record (~22 s, backlog 84's

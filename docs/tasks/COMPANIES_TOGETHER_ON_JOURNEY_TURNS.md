@@ -1077,3 +1077,25 @@ Filled in by Tasks 18, 19, 20 and 26, and by the review of 2026-11-21.
   tempo drags (`c9d0a881`); one company-id helper, and the tick's fallback for a locale with no coordinates gone
   (`f1955079`). **The sims re-run after the fixes:** Task 18's ten rows and Task 19's six are identical to the tables
   above, value for value. Full suite after fix 2: 14,941 passed, 4 skipped.
+- **The first move at his ear** (2026-11-21): "right now robots linger slightly too long, and it takes a little too
+  long for them to reappear. by like, 20%". The four window lengths each take 20 % off: `SHIFT_OUT_BASE_BARS` 15 → 12,
+  `SHIFT_OUT_MAX_BARS` 40 → 32, `SHIFT_HOME_BASE_BARS` 20 → 16, `SHIFT_HOME_MAX_BARS` 50 → 40. `SHIFT_MIN_BARS` (8,
+  his floor) and the 16-bar window width are unmoved, so the 20 BPM windows do not change and the 40 BPM ones change
+  less. Task 2's window table moved in the same commit. Task 18's report re-run (the shift rows; today's are unchanged):
+
+  | Step | BPM | Silent | Sounding (mean, p10–p90) | Apart | Group exits | Exits on a turn | Entrances on a turn | Time out, bars (median, p90, longest) | Time out, s | Time home, bars | Time home, s | Stays / 1,000 | Stay length | Heard share (lowest–highest) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | shift | 20 | 0.0 % | 5.90, 3–9 | 25.3 % | 82.1 % of 16601 | 100.0 % | 100.0 % | 15, 26, 69 | 180, 312, 828 | 15, 22, 24 | 180, 264, 288 | 40.58 | 3, 9, 20 | 41.9 %–57.5 % |
+  | shift | 40 | 0.0 % | 5.65, 2–9 | 22.5 % | 82.8 % of 14167 | 100.0 % | 100.0 % | 17, 29, 79 | 102, 174, 474 | 19, 27, 32 | 114, 162, 192 | 57.38 | 4, 10, 24 | 38.8 %–54.6 % |
+  | shift | 60 | 0.0 % | 5.48, 2–9 | 17.4 % | 84.6 % of 10990 | 100.0 % | 100.0 % | 21, 36, 86 | 84, 144, 344 | 25, 37, 40 | 100, 148, 160 | 50.29 | 5, 14, 32 | 38.1 %–54.7 % |
+  | shift | 100 | 0.0 % | 5.38, 2–9 | 12.8 % | 84.6 % of 7588 | 100.0 % | 100.0 % | 31, 49, 113 | 74, 118, 271 | 37, 57, 67 | 89, 137, 161 | 36.84 | 8, 20, 45 | 37.6 %–52.8 % |
+  | shift | 200 | 0.0 % | 5.36, 2–9 | 7.8 % | 86.1 % of 4464 | 100.0 % | 100.0 % | 54, 78, 156 | 65, 94, 187 | 66, 90, 133 | 79, 108, 160 | 24.69 | 13, 35, 86 | 37.6 %–54.4 % |
+
+  The median time out falls 14–16 % at 60–200 BPM (25 → 21 bars at 60) and 11 % at 40; the median time home 17–18 %
+  (30 → 25 bars at 60); not quite 20 %, because the wait for a turning measure inside a window is in bars and does not
+  shrink. Against spec §5.5: still no silent measure, every move on a turn, group exits 82.1–86.1 %, sounding 5.36–5.90,
+  and the time-out medians within a third of 60's (84 s; 102, 74 and 65 s at 40, 100, 200). The apart share rises a
+  little (17.4 % at 60), widening its misses at 20 BPM (25.3 %) and 40 BPM (22.5 %), and stays are commoner (25–57 per
+  1,000 measures, from 17–46). Task 19's door report re-run: 0 late members at all three tempos, door waits a median of
+  16.1–18.4 s, nothing charging or Docked while visible. The listening list's bar numbers for (−200, 80) above are the
+  first cut's and no longer hold.

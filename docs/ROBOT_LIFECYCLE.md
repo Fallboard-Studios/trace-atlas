@@ -199,17 +199,18 @@ roster shape beyond what it is handed:
   `JOURNEY_TIME_MAX`, its pair index, its move (the shares' distance, 0 to 2) and whether it is a
   drop. A turn's **weight** is 1 for a drop, else its move up to 1.
 - **The pace** (`shiftWindow`): lengths are written in bars at `SHIFT_REFERENCE_BPM` (60) and scaled
-  by bpm ÷ 60. Out: at least `SHIFT_OUT_BASE_BARS` (15) × size, at most `SHIFT_OUT_MAX_BARS` (40);
-  home: at least `SHIFT_HOME_BASE_BARS` (20) × size, at most `SHIFT_HOME_MAX_BARS` (50); never under
-  `SHIFT_MIN_BARS` (8), and the most never under 16 past the least. A size-1 group:
+  by bpm ÷ 60. Out: at least `SHIFT_OUT_BASE_BARS` (12) × size, at most `SHIFT_OUT_MAX_BARS` (32);
+  home: at least `SHIFT_HOME_BASE_BARS` (16) × size, at most `SHIFT_HOME_MAX_BARS` (40); never under
+  `SHIFT_MIN_BARS` (8), and the most never under 16 past the least. (The four were 15, 40, 20 and 50
+  until 2026-11-21, when Crawford's ear took 20 % off.) A size-1 group:
 
   | Tempo | Out, bars | Home, bars | The lead, bars |
   |---|---|---|---|
   | 20 BPM | 8–24 | 8–24 | 2 |
-  | 40 BPM | 10–27 | 13–33 | 4 |
-  | 60 BPM | 15–40 | 20–50 | 6 |
-  | 100 BPM | 25–67 | 33–83 | 10 |
-  | 200 BPM | 50–133 | 67–167 | 20 |
+  | 40 BPM | 8–24 | 11–27 | 4 |
+  | 60 BPM | 12–32 | 16–40 | 6 |
+  | 100 BPM | 20–53 | 27–67 | 10 |
+  | 200 BPM | 40–107 | 53–133 | 20 |
 
 - **The exit** (`planExit`), drawn when a group's first member lands `Active`: the turns in its out
   window walked in order, leaving on one when its leave draw is under `SHIFT_LEAVE_ODDS_MIN` (0.35)

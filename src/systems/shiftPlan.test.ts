@@ -74,10 +74,10 @@ describe('shiftWindow and paceBars (spec §1.5)', () => {
   it("gives the spec's ten windows for a group of size 1, row by row", () => {
     const table: Record<(typeof TEMPOS)[number], { out: [number, number]; home: [number, number] }> = {
       20: { out: [8, 24], home: [8, 24] },
-      40: { out: [10, 27], home: [13, 33] },
-      60: { out: [15, 40], home: [20, 50] },
-      100: { out: [25, 67], home: [33, 83] },
-      200: { out: [50, 133], home: [67, 167] },
+      40: { out: [8, 24], home: [11, 27] },
+      60: { out: [12, 32], home: [16, 40] },
+      100: { out: [20, 53], home: [27, 67] },
+      200: { out: [40, 107], home: [53, 133] },
     };
     for (const bpm of TEMPOS) {
       const out = shiftWindow('out', 1, bpm);
@@ -88,18 +88,18 @@ describe('shiftWindow and paceBars (spec §1.5)', () => {
   });
 
   it('scales the least by the group size, and leaves the most at its limit', () => {
-    expect(shiftWindow('out', 0.67, 60)).toEqual({ least: 10, most: 40 });
-    expect(shiftWindow('out', 1.5, 60)).toEqual({ least: 23, most: 40 });
-    expect(shiftWindow('home', 0.67, 60)).toEqual({ least: 13, most: 50 });
-    expect(shiftWindow('home', 1.5, 60)).toEqual({ least: 30, most: 50 });
-    expect(shiftWindow('out', 1.5, 200)).toEqual({ least: 75, most: 133 });
-    expect(shiftWindow('home', 1.5, 200)).toEqual({ least: 100, most: 167 });
+    expect(shiftWindow('out', 0.67, 60)).toEqual({ least: 8, most: 32 });
+    expect(shiftWindow('out', 1.5, 100)).toEqual({ least: 30, most: 53 });
+    expect(shiftWindow('home', 0.67, 60)).toEqual({ least: 11, most: 40 });
+    expect(shiftWindow('home', 1.5, 60)).toEqual({ least: 24, most: 40 });
+    expect(shiftWindow('out', 1.5, 200)).toEqual({ least: 60, most: 107 });
+    expect(shiftWindow('home', 1.5, 200)).toEqual({ least: 80, most: 133 });
   });
 
   it('never gives a least under SHIFT_MIN_BARS, at any size and tempo', () => {
     expect(shiftWindow('out', 0.67, 20).least).toBe(SHIFT_MIN_BARS);
     expect(shiftWindow('home', 0.67, 20).least).toBe(SHIFT_MIN_BARS);
-    expect(shiftWindow('home', 0.67, 40).least).toBe(9);
+    expect(shiftWindow('home', 1, 40).least).toBe(11);
     for (const phase of ['out', 'home'] as const) {
       for (const size of [0.67, 1, 1.5]) {
         for (const bpm of [...TEMPOS, 1, 5, 33]) expect(shiftWindow(phase, size, bpm).least).toBeGreaterThanOrEqual(SHIFT_MIN_BARS);
@@ -108,9 +108,9 @@ describe('shiftWindow and paceBars (spec §1.5)', () => {
   });
 
   it('keeps every most at least JOURNEY_TIME_MAX past its least, so a window always holds a turn', () => {
-    // 1.5 at 100 BPM: out least 38, the limit 67 is 29 past it; 1.5 at 20: 8 and 24, exactly 16.
+    // 1.5 at 100 BPM: out least 30, the limit 53 is 23 past it; 1.5 at 20: 8 and 24, exactly 16.
     expect(shiftWindow('out', 1.5, 20)).toEqual({ least: 8, most: 8 + JOURNEY_TIME_MAX });
-    expect(shiftWindow('home', 1.5, 40)).toEqual({ least: 20, most: 36 });
+    expect(shiftWindow('home', 1.5, 40)).toEqual({ least: 16, most: 32 });
     for (const phase of ['out', 'home'] as const) {
       for (const size of [0.67, 1, 1.5, 3]) {
         for (const bpm of TEMPOS) {
@@ -120,7 +120,7 @@ describe('shiftWindow and paceBars (spec §1.5)', () => {
       }
     }
     // A size so big its least passes the limit: the most is still 16 past it.
-    expect(shiftWindow('out', 3, 60)).toEqual({ least: 45, most: 61 });
+    expect(shiftWindow('out', 3, 60)).toEqual({ least: 36, most: 52 });
   });
 
   it('paceBars scales a 60 BPM length by bpm / 60 and rounds', () => {

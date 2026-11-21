@@ -133,8 +133,9 @@ Every length below is written in bars at `SHIFT_REFERENCE_BPM` (60, where a bar 
 
 `SHIFT_OUT_BASE_BARS` 15 and `SHIFT_HOME_BASE_BARS` 20 are today's size-1 robot (15 measures out, 20 from recall to
 `Active` again); `SHIFT_OUT_MAX_BARS` 40 and `SHIFT_HOME_MAX_BARS` 50 are Crawford's stuck limits; `SHIFT_MIN_BARS` 8
-is his floor. The "most" is never less than 16 measures past the "least", so a window always holds a turn. For a
-size-1 group:
+is his floor. The "most" is never less than 16 measures past the "least", so a window always holds a turn. (The four
+lengths became 12, 16, 32 and 40 on 2026-11-21, 20 % shorter at his ear: §8.1. The table below is the first cut.) For
+a size-1 group:
 
 | Tempo | A bar | Out, least to most | Home, least to most | Least out in seconds |
 |---|---|---|---|---|
@@ -416,10 +417,10 @@ The constants, beside the battery's in `src/constants/index.ts`, every value a f
 
 ```typescript
 export const SHIFT_REFERENCE_BPM = 60;
-export const SHIFT_OUT_BASE_BARS = 15;
-export const SHIFT_HOME_BASE_BARS = 20;
-export const SHIFT_OUT_MAX_BARS = 40;   // Crawford, 2026-11-20
-export const SHIFT_HOME_MAX_BARS = 50;  // Crawford, 2026-11-20
+export const SHIFT_OUT_BASE_BARS = 15;  // 12 since 2026-11-21 (§8.1)
+export const SHIFT_HOME_BASE_BARS = 20; // 16 since 2026-11-21
+export const SHIFT_OUT_MAX_BARS = 40;   // Crawford, 2026-11-20; 32 since 2026-11-21
+export const SHIFT_HOME_MAX_BARS = 50;  // Crawford, 2026-11-20; 40 since 2026-11-21
 export const SHIFT_MIN_BARS = 8;        // Crawford, 2026-11-20
 export const SHIFT_LEAVE_ODDS_MIN = 0.35;
 export const SHIFT_LEAVE_ODDS_MAX = 0.95;
@@ -613,6 +614,12 @@ pausing while he was away. The plan's Results holds every measured number.
 `GROUP_EXIT_ODDS_MIN` / `MAX` 0.5 / 0.95, `SHIFT_ENTER_ODDS` 0.5, `ENTRANCE_TOGETHER_ODDS` 0.7,
 `ENTRANCE_STAGGER_BARS` 2, `BATTERY_EASE_SHARE` 0.125, `SHIFT_START_OUT_ODDS` 0.45. The questions of §7.2 stand at
 their defaults; Q3 (the removals) and Q6 (CLAUDE.md, §8.4) wait for his yes.
+
+**2026-11-21, at his ear:** "robots linger slightly too long, and it takes a little too long for them to reappear. by
+like, 20%". `SHIFT_OUT_BASE_BARS` 15 → 12, `SHIFT_OUT_MAX_BARS` 40 → 32, `SHIFT_HOME_BASE_BARS` 20 → 16,
+`SHIFT_HOME_MAX_BARS` 50 → 40. `SHIFT_MIN_BARS` (his floor) and the 16-bar window width stay, so at 20 BPM the windows
+do not move and at 40 BPM they move less than 20 %. The re-run rows are in the plan's Results; §8.2 below is the
+first cut's.
 
 ### 8.2 §5.5, criterion by criterion
 
