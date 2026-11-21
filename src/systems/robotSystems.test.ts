@@ -12,6 +12,7 @@ import {
   replayLifecycle,
   activeDrain,
   stepShiftLifecycle,
+  toLifecycleSnapshot,
 } from './robotSystems';
 import type { RobotLifecycleSnapshot, ShiftLifecycleSnapshot } from './robotSystems';
 import { planEntrance, planExit, rescaleMove, shiftWindow, type ShiftEnv } from './shiftPlan';
@@ -1062,116 +1063,147 @@ describe('robotSystems', () => {
     });
   });
 
-  describe('replayLifecycle (pure, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md Task 5)', () => {
-    function makeSnapshot(overrides: Partial<RobotLifecycleSnapshot> = {}): RobotLifecycleSnapshot {
+  // Roadmap 94 Task 22: replayLifecycle loops the shift step (it took a drain rule for today's step before).
+  describe('replayLifecycle (pure; the shift step since roadmap 94 Task 22)', () => {
+    const ENV: ShiftEnv = { bpm: 60, worldKey: '0:0' };
+    function makeSnapshot(overrides: Partial<ShiftLifecycleSnapshot> = {}): ShiftLifecycleSnapshot {
       return {
         id: overrides.id ?? 'robot-1',
         docking: DockingState.Active,
         batteryLevel: 100,
+        compositionSeed: 0.5,
+        exitsAtMeasure: 30,
+        shiftBpm: 60,
         ...overrides,
       };
     }
+    const keeper = makeSnapshot({ id: 'keeper', compositionSeed: 0.9, exitsAtMeasure: 100_000 });
 
     it('toMeasure < fromMeasure + 1 is a no-op -- returns the roster unchanged', () => {
       const snap = makeSnapshot({ batteryLevel: 50 });
-      const result = replayLifecycle([snap], 10, 10);
-      expect(result).toEqual([snap]);
-
-      const resultBackwards = replayLifecycle([snap], 10, 5);
-      expect(resultBackwards).toEqual([snap]);
+      expect(replayLifecycle([snap], 10, 10, ENV)).toEqual([snap]);
+      expect(replayLifecycle([snap], 10, 5, ENV)).toEqual([snap]);
     });
 
-    it('replaying N measures matches calling stepRobotLifecycle N times in a hand-written loop', () => {
-      const snap = makeSnapshot({ batteryLevel: 50 });
+    it('replaying N measures matches calling stepShiftLifecycle N times in a hand-written loop', () => {
+      const roster = [makeSnapshot({ batteryLevel: 50 }), keeper];
+      let handRolled = roster;
+      for (let m = 1; m <= 40; m++) handRolled = stepShiftLifecycle(handRolled, m, ENV);
 
-      let handRolled = [snap];
-      for (let m = 1; m <= 5; m++) handRolled = stepRobotLifecycle(handRolled, m);
-
-      const replayed = replayLifecycle([snap], 0, 5);
+      const replayed = replayLifecycle(roster, 0, 40, ENV);
       expect(replayed).toEqual(handRolled);
+      // Not vacuous: the robot went in and came back with a plan.
+      expect(replayed[0].docking).toBe(DockingState.Docked);
+      expect(replayed[0].entersAtMeasure).toBeDefined();
     });
 
     it('replays measures fromMeasure+1 .. toMeasure inclusive, not fromMeasure itself', () => {
-      // Starting exactly at the critical threshold: if measure `10` (fromMeasure) were replayed,
-      // one extra drain would apply that shouldn't. Replaying only 11..15 (5 steps) should match
-      // 5 hand-rolled steps starting from measure 11.
-      const snap = makeSnapshot({ batteryLevel: 90 });
-      let handRolled = [snap];
-      for (let m = 11; m <= 15; m++) handRolled = stepRobotLifecycle(handRolled, m);
-
-      const replayed = replayLifecycle([snap], 10, 15);
-      expect(replayed).toEqual(handRolled);
+      // Due for recall from 24 on (exit 30, lead 6): replaying from 23 to 24 steps 24 alone and recalls it; from 22 to 23
+      // steps 23 alone and does not.
+      const roster = [makeSnapshot(), keeper];
+      let handRolled = roster;
+      for (let m = 24; m <= 28; m++) handRolled = stepShiftLifecycle(handRolled, m, ENV);
+      expect(replayLifecycle(roster, 23, 28, ENV)).toEqual(handRolled);
+      expect(replayLifecycle(roster, 23, 24, ENV)[0].docking).toBe(DockingState.Recalled);
+      expect(replayLifecycle(roster, 22, 23, ENV)[0].docking).toBe(DockingState.Active);
     });
 
     it('imports neither useLocaleStore nor getCurrentMeasure -- unaffected by whatever is in the live store', () => {
       useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'unrelated-robot', batteryLevel: 1 })] } } });
-      const snap = makeSnapshot({ batteryLevel: 50 });
-      const [result] = replayLifecycle([snap], 0, 3);
-      expect(result.batteryLevel).toBe(50 - BATTERY_DRAIN_ACTIVE * 3);
+      const roster = [makeSnapshot({ batteryLevel: 50 }), keeper];
+      let handRolled = roster;
+      for (let m = 1; m <= 3; m++) handRolled = stepShiftLifecycle(handRolled, m, ENV);
+      expect(replayLifecycle(roster, 0, 3, ENV)).toEqual(handRolled);
+      expect(getCurrentMeasure).not.toHaveBeenCalled();
     });
 
-    it('forwards an injected drain to every replayed step (Phase 43 Task 2)', () => {
-      const snap = makeSnapshot({ batteryLevel: 50 });
-      const flat3 = () => 3;
-      let handRolled = [snap];
-      for (let m = 1; m <= 4; m++) handRolled = stepRobotLifecycle(handRolled, m, flat3);
-
-      const replayed = replayLifecycle([snap], 0, 4, flat3);
+    it('hands its environment to every replayed step: the tempo and the world change the run', () => {
+      const roster = [makeSnapshot({ exitsAtMeasure: 100 }), keeper];
+      const fast = { bpm: 200, worldKey: '0:0' };
+      let handRolled = roster;
+      for (let m = 1; m <= 82; m++) handRolled = stepShiftLifecycle(handRolled, m, fast);
+      const replayed = replayLifecycle(roster, 0, 82, fast);
       expect(replayed).toEqual(handRolled);
-      expect(replayed[0].batteryLevel).toBe(50 - 3 * 4);
+      expect(replayed).not.toEqual(replayLifecycle(roster, 0, 82, ENV));
     });
   });
 
-  // Roadmap 94 Task 21: the tick runs the shift step, so the World Clock prove-it (live ticks against today's replay)
-  // is re-aimed at the step itself here; Task 22 brings replayLifecycle onto the shift step and the full prove-it.
-  describe('the live tick matches the shift step (roadmap 94 Task 21)', () => {
-    it('N real ticks of a 12-robot roster with two companies leave the store as N steps of stepShiftLifecycle do', () => {
-      useAudioStore.setState({ bpm: 72 });
-      const robots: Robot[] = Array.from({ length: MAX_ROBOTS }, (_, i) =>
-        makeRobot({
-          id: `parity-${i}`,
-          compositionSeed: (i + 1) / 13,
-          companyId: i < 3 ? 'co-a' : i < 6 ? 'co-b' : undefined,
-          docking: i % 3 === 0 ? DockingState.Active : DockingState.Docked,
-          batteryLevel: 40 + i,
-          batterySize: 0.7 + i / 20,
-        }),
-      );
+  // The prove-it (roadmap 94 Task 22, spec §5.1): the live tick and the replay give the same roster, field for field,
+  // the moves included, through a stay and its relief, a group exit and a drifting exit, each checked in the run.
+  describe('prove-it: replay matches realtime on the shift step (roadmap 94 Task 22)', () => {
+    it('N real ticks of a 12-robot roster with two companies and one replay converge, through all four events', () => {
+      const BPM = 60;
+      useAudioStore.setState({ bpm: BPM });
+      const env: ShiftEnv = { bpm: BPM, worldKey: '0:0' };
+      const turns = (companyId: string, from: number) =>
+        journeyTurns(journeyKey('0:0', { kind: 'company', companyId }), from, from + 200).map((t) => t.measure);
+      // Company A is the only group out, so it stays when it is due (exit tA, due tA - 6). Freelancer K lands four
+      // measures later, the relief; A then leaves together on the first turn the lead allows. Company B comes out after
+      // K, carrying exits on three successive turns of its journey: it drifts home. Everyone else stays home.
+      const tA = turns('co-a', 12)[0];
+      const relief = tA - 6 + 4;
+      const [b0, b1, b2] = turns('co-b', relief + 30);
+      const SIZES = [0.71, 1.12, 0.93, 1.31, 0.84, 1.07, 1.44, 0.68, 1.19, 0.97, 1.26, 0.79];
+      // A's founder's size decides A's entrance window when A docks after its relief exit: pick one whose entrance a
+      // size-1 robot would not draw, so a tick that dropped the size would part from the replay.
+      const reliefExit = turns('co-a', relief + 1 + 7)[0];
+      const aEntrance = (size: number) =>
+        planEntrance({
+          worldKey: '0:0',
+          members: [0, 1, 2].map((i) => ({ id: `a${i}`, companyId: 'co-a', compositionSeed: (i + 1) / 17, ...(i === 0 ? { batterySize: size } : {}) })),
+          from: reliefExit + 1,
+          bpm: BPM,
+        })[0];
+      SIZES[0] = [1.5, 0.67, 1.4, 0.75, 1.3, 0.8].find((s) => aEntrance(s) !== aEntrance(1))!;
+      expect(SIZES[0]).toBeDefined();
+      const robots: Robot[] = [
+        ...[0, 1, 2].map((i) => makeRobot({ id: `a${i}`, companyId: 'co-a', compositionSeed: (i + 1) / 17, exitsAtMeasure: tA, shiftBpm: BPM, batteryLevel: 100, batterySize: SIZES[i] })),
+        makeRobot({ id: 'k', compositionSeed: 0.61, docking: DockingState.Undocking, dockingHoldUntilMeasure: relief, entersAtMeasure: relief, exitsAtMeasure: 100_000, shiftBpm: BPM, batteryLevel: 90, batterySize: SIZES[3] }),
+        ...[0, 1, 2].map((i) =>
+          makeRobot({ id: `b${i}`, companyId: 'co-b', compositionSeed: (i + 5) / 17, docking: DockingState.Docked, entersAtMeasure: relief + 3, exitsAtMeasure: [b0, b1, b2][i], shiftBpm: BPM, batteryLevel: 30 + i, batterySize: SIZES[4 + i] }),
+        ),
+        ...[0, 1, 2, 3, 4].map((i) => makeRobot({ id: `f${i}`, compositionSeed: (i + 10) / 17, docking: DockingState.Docked, entersAtMeasure: 5_000, shiftBpm: BPM, batteryLevel: 20 + i, batterySize: SIZES[7 + i] })),
+      ];
+      expect(robots).toHaveLength(MAX_ROBOTS);
       setupLocaleWithRobots(robots);
-      let stepped: ShiftLifecycleSnapshot[] = robots.map((r) => ({
-        id: r.id,
-        docking: r.docking,
-        batteryLevel: r.batteryLevel,
-        batterySize: r.batterySize,
-        companyId: r.companyId,
-        compositionSeed: r.compositionSeed,
-      }));
-      for (let m = 1; m <= 200; m++) {
+      const initial = robots.map(toLifecycleSnapshot);
+
+      const N = b2 + 4;
+      const timeline: Robot[][] = [];
+      for (let m = 1; m <= N; m++) {
         tickRobotLifecycle(DEFAULT_LOCALE_ID, m);
-        stepped = stepShiftLifecycle(stepped, m, { bpm: 72, worldKey: '0:0' });
+        timeline.push(useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots);
       }
-      const live = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
-      stepped.forEach((s, i) => {
-        const r = live[i];
-        expect({
-          docking: r.docking,
-          batteryLevel: r.batteryLevel,
-          dockingHoldUntilMeasure: r.dockingHoldUntilMeasure,
-          entersAtMeasure: r.entersAtMeasure,
-          exitsAtMeasure: r.exitsAtMeasure,
-          shiftBpm: r.shiftBpm,
-        }, s.id).toEqual({
-          docking: s.docking,
-          batteryLevel: s.batteryLevel,
-          dockingHoldUntilMeasure: s.dockingHoldUntilMeasure,
-          entersAtMeasure: s.entersAtMeasure,
-          exitsAtMeasure: s.exitsAtMeasure,
-          shiftBpm: s.shiftBpm,
-        });
-      });
-      // Not vacuous: the run moved robots both ways.
-      expect(seam.mock.calls.some(([, , to]) => to === 'recalled')).toBe(true);
-      expect(seam.mock.calls.some(([, , to]) => to === 'active')).toBe(true);
+      const live = timeline[N - 1];
+      const replayed = replayLifecycle(initial, 0, N, env);
+
+      // Field for field, the moves and the battery included.
+      expect(live.map(toLifecycleSnapshot)).toEqual(replayed);
+
+      // The four events happened, read off the live run.
+      const at = (m: number, id: string) => timeline[m - 1].find((r) => r.id === id)!;
+      const dockedOn = (id: string) => {
+        for (let m = 2; m <= N; m++) if (at(m - 1, id).docking === DockingState.Recalled && at(m, id).docking === DockingState.Docked) return m;
+        return -1;
+      };
+      // The stay: A was due on tA - 6 and Active with no exit turn after it, all three.
+      for (const id of ['a0', 'a1', 'a2']) {
+        expect(at(tA - 6, id).docking).toBe(DockingState.Active);
+        expect(at(tA - 6, id).exitsAtMeasure).toBeUndefined();
+      }
+      // Its relief: K landed on `relief`; it is later in the roster, so A took one new exit turn the tick after.
+      expect(at(relief, 'k').docking).toBe(DockingState.Active);
+      expect(at(relief, 'a0').exitsAtMeasure).toBeUndefined();
+      const newExit = at(relief + 1, 'a0').exitsAtMeasure!;
+      expect(newExit).toBeGreaterThan(relief + 1 + 6);
+      expect(['a1', 'a2'].map((id) => at(relief + 1, id).exitsAtMeasure)).toEqual([newExit, newExit]);
+      // A group exit: all three docked on one measure, the bar line after the new exit turn.
+      expect(['a0', 'a1', 'a2'].map(dockedOn)).toEqual([newExit + 1, newExit + 1, newExit + 1]);
+      expect(newExit).toBe(reliefExit);
+      // Its entrance, drawn as it docked, on the founder's size.
+      expect(at(newExit + 1, 'a0').entersAtMeasure).toBe(aEntrance(SIZES[0]));
+      // A drifting exit: B's three docked on three measures, after their three turns.
+      expect(['b0', 'b1', 'b2'].map(dockedOn)).toEqual([b0 + 1, b1 + 1, b2 + 1]);
     });
   });
 });

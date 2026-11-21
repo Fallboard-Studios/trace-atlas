@@ -139,21 +139,21 @@ export function stepRobotLifecycle(
 }
 
 /**
- * Replays fromMeasure+1 .. toMeasure inclusive via stepRobotLifecycle, in a tight loop -- zero
- * side effects, zero store access. toMeasure < fromMeasure + 1 is a no-op (returns roster
- * unchanged). Always called with fromMeasure = the locale's own createdAtMeasure in practice (per
- * the "always replay from creation" decision) -- this function itself doesn't enforce that,
- * callers do. The one caller-facing entry point for headless lifecycle replay.
+ * Replays fromMeasure+1 .. toMeasure inclusive via stepShiftLifecycle (roadmap 94 Task 22), in a tight loop, at one
+ * environment for the whole span (spec §7.1 A7: one tempo, as the journey's settings are read as if they had always
+ * held) -- zero side effects, zero store access. toMeasure < fromMeasure + 1 is a no-op (returns roster unchanged).
+ * Callers choose fromMeasure (the locale's own createdAtMeasure, per the "always replay from creation" decision); this
+ * function doesn't enforce it. The one caller-facing entry point for headless lifecycle replay.
  */
 export function replayLifecycle(
-  roster: RobotLifecycleSnapshot[],
+  roster: ShiftLifecycleSnapshot[],
   fromMeasure: number,
   toMeasure: number,
-  drain: DrainRule = activeDrain,
-): RobotLifecycleSnapshot[] {
+  env: ShiftEnv,
+): ShiftLifecycleSnapshot[] {
   let working = roster;
   for (let measure = fromMeasure + 1; measure <= toMeasure; measure++) {
-    working = stepRobotLifecycle(working, measure, drain);
+    working = stepShiftLifecycle(working, measure, env);
   }
   return working;
 }

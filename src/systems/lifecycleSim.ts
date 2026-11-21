@@ -144,8 +144,8 @@ export const DRAIN_CANDIDATES: readonly DrainCandidate[] = [
 // SIMULATION
 // ========================================
 
-/** Active-robot count after each of measures 1..`measures` (stepRobotLifecycle, the step
- *  replayLifecycle loops over, run one measure at a time so every count is observed). */
+/** Active-robot count after each of measures 1..`measures` (stepRobotLifecycle, today's battery step, run one measure
+ *  at a time so every count is observed). */
 export function activeCountsOverTime(roster: RobotLifecycleSnapshot[], drain: DrainRule, measures: number): number[] {
   const counts: number[] = [];
   let working = roster;
