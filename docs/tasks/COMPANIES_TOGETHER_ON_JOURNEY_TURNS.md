@@ -5,8 +5,13 @@ Source spec: [docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md](../specs/COMPAN
 [docs/intent/companies-together-on-journey-turns.md](../intent/companies-together-on-journey-turns.md). Roadmap
 [94](../todo/roadmap.md#94-companies-together-a-company-leaves-as-one-and-comings-and-goings-land-on-the-journeys-turns).
 
-**Status:** plan written 2026-11-20. Not started. Awaiting Crawford's approval. Roadmap 93 is on main since
-2026-11-20, so nothing blocks the build: it is on `feature/companies-together`, from main (spec §6).
+**Status:** built 2026-11-20 on `feature/companies-together` (from main, unpushed), Tasks 1 to 26 and 28 to 29, one
+commit each, at Crawford's word to build the whole plan without pausing while he was away. **Gate A and Gate B were
+not held**: the numbers and the listening list are in Results for his read, and every first-cut constant ships
+unmoved. **Waiting for him:** Gate A, Gate B, Task 27 (the removals, on his yes), CLAUDE.md's lifecycle line (the
+wording is in the spec's §8.4), and Task 30 (the archive, after the merge). A ticked task box means the task was
+built and committed; its acceptance criteria are checked in its commit message. The checkpoints' "reviewed with
+Crawford" boxes are open.
 
 ## Overview
 
@@ -106,7 +111,7 @@ per task.
 
 ### Phase 1: Turns and pace (pure; nothing calls them)
 
-- [ ] **Task 1: `melodyJourney.ts` — `journeyTurns`, the turns of a key in a range**
+- [x] **Task 1: `melodyJourney.ts` — `journeyTurns`, the turns of a key in a range**
 
   **Description:** One pure read (spec §1.4): `journeyTurns(key, fromMeasure, toMeasure)` returns each turning
   measure in the range at `JOURNEY_TIME_MAX`, with its pair `index`, its `move` (the shares' distance, the first
@@ -134,7 +139,7 @@ per task.
 
   **Estimated scope:** S (one export, one test block)
 
-- [ ] **Task 2: `shiftPlan.ts` and the constants — the pace at a tempo, the windows, the recall's lead**
+- [x] **Task 2: `shiftPlan.ts` and the constants — the pace at a tempo, the windows, the recall's lead**
 
   **Description:** The new file's first functions (spec §1.5, §1.11, §4): `paceBars`, `shiftWindow(phase, size, bpm)`
   returning `{ least, most }`, and `recallLeadBars(bpm)`. Adds §4's pace constants (`SHIFT_REFERENCE_BPM`,
@@ -159,7 +164,7 @@ per task.
 
   **Estimated scope:** S (a new file with three functions)
 
-- [ ] **Task 3: `shiftPlan.ts` — a robot's group, its journey key, its size, its draws**
+- [x] **Task 3: `shiftPlan.ts` — a robot's group, its journey key, its size, its draws**
 
   **Description:** Spec §1.3. `groupIdOf(robot)` (the `companyId`, else the robot's own id); `groupJourneyKey(worldKey,
   robot)` (the company key or the fleet key, never read from `Robot.journey`); `groupSize(members)` (the
@@ -185,7 +190,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 4: `shiftPlan.ts` — `planExit`: the walk, and together or drifting**
+- [x] **Task 4: `shiftPlan.ts` — `planExit`: the walk, and together or drifting**
 
   **Description:** Spec §1.6. `planExit({ worldKey, members, from, bpm })` returns each member's exit turn. It lists
   the group's turns in the out window counted from `from`, walks them with the leave odds on each turn's weight
@@ -214,7 +219,7 @@ per task.
 
   **Estimated scope:** M (the core of the plan)
 
-- [ ] **Task 5: `shiftPlan.ts` — `planEntrance`: the walk, and together or staggered**
+- [x] **Task 5: `shiftPlan.ts` — `planEntrance`: the walk, and together or staggered**
 
   **Description:** Spec §1.7. `planEntrance({ worldKey, members, from, bpm })` returns each member's entrance
   measure: the home window's turns walked at `SHIFT_ENTER_ODDS`, the last taken if none; together under
@@ -238,7 +243,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 6: `shiftPlan.ts` — `rescaleMove`: a move after a tempo change**
+- [x] **Task 6: `shiftPlan.ts` — `rescaleMove`: a move after a tempo change**
 
   **Description:** Spec §1.12. `rescaleMove({ worldKey, robot, move, measure, fromBpm, toBpm, least })`: the bars
   still to go times `toBpm ÷ fromBpm`, rounded, then the first turn of the group's journey at or after that, never
@@ -263,15 +268,15 @@ per task.
   **Estimated scope:** S
 
 ### Checkpoint A: Turns and pace
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] `shiftPlan.ts` and `journeyTurns` are pure and have no caller outside their tests; the live world is unchanged.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] `shiftPlan.ts` and `journeyTurns` are pure and have no caller outside their tests; the live world is unchanged.
 - [ ] Reviewed with Crawford before Phase 2.
 
 ---
 
 ### Phase 2: The step, beside today's (pure; the live tick untouched)
 
-- [ ] **Task 7: `Robot.ts`, `robotSystems.ts` — the three fields, and the four transitions on robots that carry moves**
+- [x] **Task 7: `Robot.ts`, `robotSystems.ts` — the three fields, and the four transitions on robots that carry moves**
 
   **Description:** Adds `entersAtMeasure`, `exitsAtMeasure` and `shiftBpm` to `Robot` (spec §4) and a snapshot type
   for the new step (today's snapshot plus those three, `companyId` and `compositionSeed`). Adds
@@ -300,7 +305,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 8: `robotSystems.ts` — the exit is drawn when a group's first member lands `Active`**
+- [x] **Task 8: `robotSystems.ts` — the exit is drawn when a group's first member lands `Active`**
 
   **Description:** Spec §1.6, §1.8. On the tick a robot lands `Active` and no mate carries an exit turn, the step
   calls `planExit` from that measure and writes each member's exit turn and `shiftBpm`, members still home included
@@ -323,7 +328,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 9: `robotSystems.ts` — the entrance is drawn when a group's last member lands `Docked`**
+- [x] **Task 9: `robotSystems.ts` — the entrance is drawn when a group's last member lands `Docked`**
 
   **Description:** Spec §1.7, §1.8. On the tick after which no member of a group is `Active` or `Recalled`, the step
   calls `planEntrance` from that measure and writes every member's entrance and `shiftBpm`, and clears their exit
@@ -347,7 +352,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 10: `robotSystems.ts` — the stay: a group is recalled only while a robot outside it is `Active`**
+- [x] **Task 10: `robotSystems.ts` — the stay: a group is recalled only while a robot outside it is `Active`**
 
   **Description:** Spec §1.9. A member due for recall with no robot outside its group `Active` (read on the working
   array, in roster order) is not recalled, and every `Active` member of its group loses its exit turn. On a later
@@ -373,7 +378,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 11: `robotSystems.ts` — the battery is a gauge**
+- [x] **Task 11: `robotSystems.ts` — the battery is a gauge**
 
   **Description:** Spec §1.10. After the transitions, each robot's level steps a straight line to its target: 10 on
   the bar line after its exit turn while out, 100 on its entrance while home. A staying robot, and one that has
@@ -399,7 +404,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 12: `robotSystems.ts` — a tempo change rescales the moves**
+- [x] **Task 12: `robotSystems.ts` — a tempo change rescales the moves**
 
   **Description:** Spec §1.12. At the top of the step, a robot whose `shiftBpm` differs from `env.bpm` has its
   entrance or exit turn passed through `rescaleMove` and its `shiftBpm` updated. A `Recalled` or `Undocking` robot
@@ -423,7 +428,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 13: `robotSystems.ts` — a robot out of step takes its group's move**
+- [x] **Task 13: `robotSystems.ts` — a robot out of step takes its group's move**
 
   **Description:** Spec §1.14. An `Active` robot with no exit turn takes a mate's if it can still make it, else is
   treated as staying. A `Docked` robot with no entrance takes a home mate's; with its group out it waits; with its
@@ -451,15 +456,15 @@ per task.
   **Estimated scope:** M
 
 ### Checkpoint B: The step
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] The new step is complete and pure. `tickRobotLifecycle` still calls today's step; the live world is unchanged.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] The new step is complete and pure. `tickRobotLifecycle` still calls today's step; the live world is unchanged.
 - [ ] Reviewed with Crawford before Phase 3.
 
 ---
 
 ### Phase 3: The start and the sims (no live change)
 
-- [ ] **Task 14: `spawnSystem.ts` — the start of a world, as a pure function**
+- [x] **Task 14: `spawnSystem.ts` — the start of a world, as a pure function**
 
   **Description:** Spec §1.13. `generateRosterStart(noiseMap, { bpm, worldKey, startMeasure })` returns, per roster
   index, the docking, the battery and the first move: each group's start from its even draw
@@ -487,7 +492,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 15: `lifecycleSim.ts` — sim rosters carry their groups**
+- [x] **Task 15: `lifecycleSim.ts` — sim rosters carry their groups**
 
   **Description:** `buildSimRoster` gains each robot's `companyId` and `compositionSeed` (seeded as spawn seeds
   them), which today's step ignores, and a second builder, `buildShiftSimRoster(noiseMap, env)`, returns
@@ -510,7 +515,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 16: `lifecycleSim.ts` — a group tally: apart, group exits, on a turn, time out and home**
+- [x] **Task 16: `lifecycleSim.ts` — a group tally: apart, group exits, on a turn, time out and home**
 
   **Description:** A pure accumulator beside the cover tally (spec §5.3), fed one post-tick roster per measure and a
   turn reader. Per company it counts the measures with any member sounding and those with not every member sounding
@@ -537,7 +542,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 17: `lifecycleSim.ts` — the cover sim on either step at a tempo, and its report**
+- [x] **Task 17: `lifecycleSim.ts` — the cover sim on either step at a tempo, and its report**
 
   **Description:** `runShiftCoverSim({ coords, measures, bpms, step })` runs the cover tally and the group tally over
   the grid on today's step or the new one at each tempo and pools one row per (step, tempo): silent measures, robots
@@ -564,7 +569,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 18: Run — today's row and the new rows at five tempos**
+- [x] **Task 18: Run — today's row and the new rows at five tempos**
 
   **Description:** Run the report and write the table into Results: today's step (one row in bars, its seconds at
   each tempo) and the new step at 20, 40, 60, 100 and 200 BPM, beside spec §5.5's first-cut bars.
@@ -584,7 +589,7 @@ per task.
 
   **Estimated scope:** XS
 
-- [ ] **Task 19: `lifecycleSim.ts` — the loop sim counts late members and door waits; run it**
+- [x] **Task 19: `lifecycleSim.ts` — the loop sim counts late members and door waits; run it**
 
   **Description:** Spec §1.11, §5.3. `runLoopSim` learns the wait at the port: a returning robot that arrives while
   `Recalled` waits until its hold's last bar and goes in on the hold's bar line; one that arrives with under half a
@@ -612,11 +617,11 @@ per task.
   **Estimated scope:** M
 
 ### Checkpoint C = Gate A: the numbers (stop)
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Results holds Task 18's and Task 19's tables beside today's rows.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] Results holds Task 18's and Task 19's tables beside today's rows.
 - [ ] **Crawford reads them and keeps or moves spec §4's constants and §5.5's bars.** Nothing is wired or heard yet.
 
-- [ ] **Task 20: The picks, pinned**
+- [x] **Task 20: The picks, pinned**
 
   **Description:** Whatever Gate A moved is changed in `src/constants/index.ts`, the rows are run again into Results,
   and the always-on pins that name a value are moved in the same commit. With nothing moved, this task is a line in
@@ -643,7 +648,7 @@ per task.
 
 ### Phase 4: Wiring (the live world changes here)
 
-- [ ] **Task 21: `robotSystems.ts` — the tick moves to the new step**
+- [x] **Task 21: `robotSystems.ts` — the tick moves to the new step**
 
   **Description:** `tickRobotLifecycle` reads the tempo (`useAudioStore`) and the world's key (`worldKeyOf` on the
   locale's coordinates), calls `stepShiftLifecycle`, writes each changed robot's battery and three fields, and fires
@@ -673,7 +678,7 @@ per task.
 
   **Estimated scope:** L (one source file, but many tick cases re-aimed; not splittable with the suite green)
 
-- [ ] **Task 22: `robotSystems.ts` — the replay on the new step, and the prove-it**
+- [x] **Task 22: `robotSystems.ts` — the replay on the new step, and the prove-it**
 
   **Description:** `replayLifecycle(roster, from, to, env)` loops the new step. The prove-it runs a real 12-robot
   roster with two companies for N real ticks and replays it once at the same tempo, identical field for field, new
@@ -697,7 +702,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 23: `spawnSystem.ts` — a world starts by groups**
+- [x] **Task 23: `spawnSystem.ts` — a world starts by groups**
 
   **Description:** `spawnInitialRoster` takes each robot's docking, battery and first move from
   `generateRosterStart` (the live tempo, the world's key, the current measure) in place of the roster-index start.
@@ -723,7 +728,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 24: `stationFadeSystem.ts` — a `Recalled` robot waits at its port, and its fade ends on its hold**
+- [x] **Task 24: `stationFadeSystem.ts` — a `Recalled` robot waits at its port, and its fade ends on its hold**
 
   **Description:** Spec §1.11. For an `'entering'` robot that is `Recalled`, the sixteenths left are counted to the
   bar line of its `dockingHoldUntilMeasure`, not to the next bar line: with more than a measure left it holds; with a
@@ -750,7 +755,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 25: `workLoop.integration.test.ts` — a company goes in on one bar line**
+- [x] **Task 25: `workLoop.integration.test.ts` — a company goes in on one bar line**
 
   **Description:** Spec §5.1's integration cases: the real tick, the real loop and the real fade system at 60 and 200
   BPM. A company of three is recalled on one measure from a swim, a job and a wait; each reaches its port and waits;
@@ -776,12 +781,12 @@ per task.
   **Estimated scope:** S
 
 ### Checkpoint D: Wired
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every sim criterion of spec §5.5 still holds on the wired code (re-run Task 18's report; note any row that
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] Every sim criterion of spec §5.5 still holds on the wired code (re-run Task 18's report; note any row that
       moved).
 - [ ] Reviewed with Crawford before the gate.
 
-- [ ] **Task 26: The browser runs, then Gate B: Crawford's eye and ear (stop)**
+- [x] **Task 26: The browser runs, then Gate B: Crawford's eye and ear (stop)**
 
   **Description:** Spec §5.3's browser runs, then §5.4's Gate B. Runs first, with `?debug`: a company's exit watched
   end to end; the roster tiles' batteries reading 10 as the bodies go in; a tempo drag from 60 to 200 and back with
@@ -834,7 +839,7 @@ per task.
 
   **Estimated scope:** M (deletions only)
 
-- [ ] **Task 28: `docs/ROBOT_LIFECYCLE.md` — the lifecycle as shipped**
+- [x] **Task 28: `docs/ROBOT_LIFECYCLE.md` — the lifecycle as shipped**
 
   **Description:** Principle 3 (the plan decides, the battery is a gauge), the docking machine's triggers and holds,
   the stay as a group's, the Battery section (the gauge; the pace table; the rates gone), Roster Creation (the start
@@ -857,7 +862,7 @@ per task.
 
   **Estimated scope:** S (docs only)
 
-- [ ] **Task 29: The other docs, CLAUDE.md's line, and the spec's "As built"**
+- [x] **Task 29: The other docs, CLAUDE.md's line, and the spec's "As built"**
 
   **Description:** `MELODY_SYSTEM.md` (`journeyTurns`; the lifecycle reads the journey), `COMPANIES.md` (a company
   comes and goes as one), `PROCEDURAL_GENERATION.md` (the two new dataIds, the retired one, the `:shifts` streams),
