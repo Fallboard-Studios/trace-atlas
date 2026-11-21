@@ -246,7 +246,7 @@ function generateRobotId(noiseMap: NoiseFunction2D, spawnCount: number): string 
  * per robot: computed unconditionally in spawnRobot, a company member's included, never inherited
  * from its founder (same treatment as id/name/melody itself).
  */
-function generateCompositionSeed(noiseMap: NoiseFunction2D, spawnCount: number): number {
+export function generateCompositionSeed(noiseMap: NoiseFunction2D, spawnCount: number): number {
   return getUniformSeededVal(noiseMap, 'robot.compositionSeed', spawnCount, 0, 1);
 }
 

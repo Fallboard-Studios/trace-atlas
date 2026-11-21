@@ -8,9 +8,16 @@ import { DockingState, type JobType, type RobotActivity } from '../types/Robot';
 import type { Actor } from '../types/Actor';
 import type { Vec2 } from '../types/Vec2';
 import { getUniformSeededVal } from '../utils/getSeededVal';
-import { generateBatterySize } from './spawnSystem';
+import {
+  generateBatterySize,
+  generateCompanyId,
+  generateCompanyMembership,
+  generateCompositionSeed,
+  generateRosterStart,
+} from './spawnSystem';
 import { stepRobotLifecycle } from './robotSystems';
-import type { DrainRule, RobotLifecycleSnapshot } from './robotSystems';
+import type { DrainRule, RobotLifecycleSnapshot, ShiftLifecycleSnapshot } from './robotSystems';
+import type { ShiftEnv } from './shiftPlan';
 import { isWorkSiteEligible } from './jobHosts';
 import { getWorkSite } from './workSites';
 import { assignStationsAtLoad, deriveStations, hostObstacles, nearestFreeStation, type Station } from './stations';
@@ -74,10 +81,11 @@ export type SimBand = readonly [min: number, max: number] | 'flat';
  * at its spawn count, on the shipped band unless `band` names another; 'flat' sets no size
  * (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, §1.5).
  */
-export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): RobotLifecycleSnapshot[] {
+export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): ShiftLifecycleSnapshot[] {
   const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
     getUniformSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1),
   );
+  const companyOf = simCompanies(noiseMap);
   return Array.from({ length: MAX_ROBOTS }, (_, i) => {
     const active = i < activeCount;
     return {
@@ -85,8 +93,29 @@ export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): Robot
       docking: active ? DockingState.Active : DockingState.Docked,
       batteryLevel: active ? 100 : Math.floor(getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)),
       ...(band === 'flat' ? {} : { batterySize: band ? generateBatterySize(noiseMap, i, band[0], band[1]) : generateBatterySize(noiseMap, i) }),
+      // Its group (roadmap 94 Task 15), as spawn seeds it; today's step reads neither.
+      ...(companyOf.has(i) ? { companyId: companyOf.get(i) } : {}),
+      compositionSeed: generateCompositionSeed(noiseMap, i),
     };
   });
+}
+
+/** Each seeded company member's company id, by roster index (generateCompanyMembership, generateCompanyId). */
+function simCompanies(noiseMap: NoiseFunction2D): Map<number, string> {
+  const companyOf = new Map<number, string>();
+  generateCompanyMembership(noiseMap, MAX_ROBOTS).forEach((members, c) => {
+    const id = generateCompanyId(noiseMap, c);
+    for (const i of members) companyOf.set(i, id);
+  });
+  return companyOf;
+}
+
+/**
+ * The roster a fresh locale on this noise map starts with under the shift plan (roadmap 94 Task 15, spec §1.13):
+ * generateRosterStart's start at `env`'s tempo and world from measure 0, as snapshots for stepShiftLifecycle.
+ */
+export function buildShiftSimRoster(noiseMap: NoiseFunction2D, env: ShiftEnv): ShiftLifecycleSnapshot[] {
+  return generateRosterStart(noiseMap, { ...env, startMeasure: 0 }).map((start, i) => ({ id: `sim-${i}`, ...start }));
 }
 
 // ========================================
@@ -352,7 +381,7 @@ function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: 
   let worldsWithStay = 0;
 
   for (const { x, y } of coords) {
-    let roster = buildSimRoster(simNoiseMap(x, y), band);
+    let roster: RobotLifecycleSnapshot[] = buildSimRoster(simNoiseMap(x, y), band);
     const tally = createCoverTally(roster);
     for (let measure = 1; measure <= measures; measure++) {
       roster = stepRobotLifecycle(roster, measure);

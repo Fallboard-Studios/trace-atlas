@@ -16,6 +16,7 @@ import {
   DRAIN_CANDIDATES,
   simNoiseMap,
   buildSimRoster,
+  buildShiftSimRoster,
   flatDrain,
   activeCountsOverTime,
   percentile,
@@ -45,7 +46,14 @@ import {
   type SimBand,
 } from './lifecycleSim';
 import { activeDrain, stepRobotLifecycle, type RobotLifecycleSnapshot } from './robotSystems';
-import { generateBatterySize, spawnInitialRoster } from './spawnSystem';
+import {
+  generateBatterySize,
+  generateCompanyId,
+  generateCompanyMembership,
+  generateRosterStart,
+  spawnInitialCompanies,
+  spawnInitialRoster,
+} from './spawnSystem';
 import { placeDistrict } from './districts';
 import { getWorkSite } from './workSites';
 import { isWorkSiteEligible } from './jobHosts';
@@ -222,6 +230,55 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       const live = getLocaleNoiseMap('lifecycle-sim-noise-check', 120, 160);
       const sim = simNoiseMap(120, 160);
       for (const [a, b] of [[0, 0], [3.7, -12.1], [100, 42]]) expect(sim(a, b)).toBe(live(a, b));
+    });
+
+    // Roadmap 94 Task 15: the sim robots carry their groups, which today's step ignores.
+    it("carries each robot's company and composition seed as the real spawn seeds them", () => {
+      for (const [i, { x, y }] of [{ x: 40, y: -80 }, { x: -200, y: 80 }, { x: 160, y: 0 }].entries()) {
+        const localeId = `lifecycle-sim-groups-${i}`;
+        registerLocale(localeId, x, y);
+        spawnInitialRoster(localeId);
+        spawnInitialCompanies(localeId);
+        const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+        const sim = buildSimRoster(simNoiseMap(x, y));
+        const group = (r: { companyId?: string; compositionSeed: number }) => ({ companyId: r.companyId, compositionSeed: r.compositionSeed });
+        expect(sim.map(group), `${x}:${y}`).toEqual(real.map(group));
+        // Not vacuous: the world has companies and freelancers.
+        expect(sim.some((r) => r.companyId !== undefined)).toBe(true);
+        expect(sim.some((r) => r.companyId === undefined)).toBe(true);
+        // generateCompanyMembership's indices, company by company.
+        const noiseMap = simNoiseMap(x, y);
+        generateCompanyMembership(noiseMap, MAX_ROBOTS).forEach((members, c) => {
+          for (const m of members) expect(sim[m].companyId).toBe(generateCompanyId(noiseMap, c));
+        });
+      }
+    });
+  });
+
+  describe('buildShiftSimRoster (roadmap 94 Task 15)', () => {
+    it('is generateRosterStart, robot for robot, as snapshots for the new step', () => {
+      for (const { x, y } of FEW_COORDS) {
+        for (const bpm of [20, 60, 200]) {
+          const env = { bpm, worldKey: `${x}:${y}` };
+          const roster = buildShiftSimRoster(simNoiseMap(x, y), env);
+          const start = generateRosterStart(simNoiseMap(x, y), { ...env, startMeasure: 0 });
+          expect(roster).toHaveLength(MAX_ROBOTS);
+          roster.forEach((r, i) => {
+            expect(r.id).toBe(`sim-${i}`);
+            const { id: _id, ...rest } = r;
+            expect(rest).toEqual(start[i]);
+          });
+        }
+      }
+    });
+
+    it('carries the same groups as buildSimRoster', () => {
+      const noiseMap = simNoiseMap(-120, 40);
+      const today = buildSimRoster(noiseMap);
+      const shift = buildShiftSimRoster(noiseMap, { bpm: 60, worldKey: '-120:40' });
+      expect(shift.map((r) => [r.id, r.companyId, r.compositionSeed, r.batterySize])).toEqual(
+        today.map((r) => [r.id, r.companyId, r.compositionSeed, r.batterySize]),
+      );
     });
   });
 
@@ -574,7 +631,7 @@ describe('runCoverSim (no-silence Task 2)', () => {
     const SOUNDING = new Set<DockingState>([DockingState.Active, DockingState.Recalled]);
     let stayWorlds = 0;
     for (const { x, y } of SIM_SEED_COORDS) {
-      let roster = buildSimRoster(simNoiseMap(x, y));
+      let roster: RobotLifecycleSnapshot[] = buildSimRoster(simNoiseMap(x, y));
       let silent = 0;
       let soundingTotal = 0;
       let stays = 0;
