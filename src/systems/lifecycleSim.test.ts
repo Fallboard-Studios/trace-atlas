@@ -31,6 +31,10 @@ import {
   runReadinessSim,
   formatReadinessReport,
   createCoverTally,
+  createGroupTally,
+  type GroupSnapshot,
+  type GroupTallyResult,
+  type TurnReader,
   runCoverSim,
   formatCoverReport,
   type CoverSimRow,
@@ -593,6 +597,115 @@ const REPORT_BANDS: ReadonlyArray<{ label: string; band: SimBand }> = [
   { label: '0.8–1.25', band: [0.8, 1.25] },
   { label: '0.67–1.5', band: [0.67, 1.5] },
 ];
+
+// Roadmap 94 Task 16 (spec §5.3): the group tally, on hand-built series.
+describe('createGroupTally (roadmap 94 Task 16)', () => {
+  /** A roster for the group tally: id, docking and company. */
+  const grp = (...robots: [string, DockingState, string?][]): GroupSnapshot[] =>
+    robots.map(([id, docking, companyId]) => ({ id, docking, ...(companyId ? { companyId } : {}) }));
+  const noTurns = () => false;
+  const run = (start: GroupSnapshot[], series: GroupSnapshot[][], isTurn: TurnReader = noTurns): GroupTallyResult => {
+    const tally = createGroupTally(start, isTurn);
+    for (const roster of series) tally.observe(roster);
+    return tally.result();
+  };
+
+  it('a company of three with one member home for 4 of its 10 sounding measures is 40 % apart', () => {
+    const series: GroupSnapshot[][] = [];
+    for (let m = 1; m <= 10; m++) series.push(grp(['a', A, 'co'], ['b', m <= 4 ? D : A, 'co'], ['c', R, 'co'], ['f', A]));
+    // Then two measures with the whole company home: not sounding, so neither apart nor together.
+    series.push(grp(['a', D, 'co'], ['b', D, 'co'], ['c', D, 'co'], ['f', A]));
+    series.push(grp(['a', D, 'co'], ['b', D, 'co'], ['c', D, 'co'], ['f', A]));
+    const result = run(grp(['a', A, 'co'], ['b', A, 'co'], ['c', A, 'co'], ['f', A]), series);
+    expect(result.companySounding).toBe(10);
+    expect(result.companyApart).toBe(4);
+  });
+
+  it('three members docking on one measure are one group exit; on two measures, one exit that is not', () => {
+    const together = run(grp(['a', R, 'co'], ['b', R, 'co'], ['c', R, 'co'], ['f', A]), [
+      grp(['a', D, 'co'], ['b', D, 'co'], ['c', D, 'co'], ['f', A]),
+    ]);
+    expect(together.companyExits).toBe(1);
+    expect(together.groupExits).toBe(1);
+    const apart = run(grp(['a', R, 'co'], ['b', R, 'co'], ['c', A, 'co'], ['f', A]), [
+      grp(['a', D, 'co'], ['b', D, 'co'], ['c', R, 'co'], ['f', A]),
+      grp(['a', D, 'co'], ['b', D, 'co'], ['c', D, 'co'], ['f', A]),
+    ]);
+    expect(apart.companyExits).toBe(1);
+    expect(apart.groupExits).toBe(0);
+  });
+
+  it("an exit on a turning measure counts as on a turn and one a bar off does not: a robot docks on the bar line after its exit turn", () => {
+    // Turns at 3 and 9 for every group.
+    const isTurn: TurnReader = (_robot, measure) => measure === 3 || measure === 9;
+    const series = [
+      grp(['a', R], ['f', A]), // 1
+      grp(['a', R], ['f', A]), // 2
+      grp(['a', R], ['f', A]), // 3
+      grp(['a', D], ['f', R]), // 4: a docks after its exit turn 3, on a turn
+      grp(['a', D], ['f', R]), // 5
+      grp(['a', D], ['f', D]), // 6: f docks after 5, no turn
+    ];
+    const result = run(grp(['a', A], ['f', A]), series, isTurn);
+    expect(result.exits).toBe(2);
+    expect(result.exitsOnTurn).toBe(1);
+  });
+
+  it("a group's first entrance counts on a turn; a staggered member's later landing is not another entrance", () => {
+    const isTurn: TurnReader = (_robot, measure) => measure === 2;
+    const result = run(grp(['a', D, 'co'], ['b', D, 'co']), [
+      grp(['a', U, 'co'], ['b', D, 'co']), // 1
+      grp(['a', A, 'co'], ['b', U, 'co']), // 2: the company comes out on a turn
+      grp(['a', A, 'co'], ['b', U, 'co']), // 3
+      grp(['a', A, 'co'], ['b', A, 'co']), // 4: the second member, staggered
+    ], isTurn);
+    expect(result.entrances).toBe(1);
+    expect(result.entrancesOnTurn).toBe(1);
+    // A company landing together is one entrance too.
+    const together = run(grp(['a', U, 'co'], ['b', U, 'co']), [grp(['a', A, 'co'], ['b', A, 'co'])], isTurn);
+    expect(together.entrances).toBe(1);
+  });
+
+  it('measures each group span out and home, counting only spans that began after the start', () => {
+    const series = [
+      grp(['a', A], ['b', D]), // 1
+      grp(['a', R], ['b', U]), // 2
+      grp(['a', D], ['b', A]), // 3: a home; b out from 3
+      grp(['a', D], ['b', A]), // 4
+      grp(['a', U], ['b', R]), // 5
+      grp(['a', A], ['b', D]), // 6: a out from 6 (home 3 -> 6 = 3); b home from 6 (out 3 -> 6 = 3)
+      grp(['a', A], ['b', D]), // 7
+      grp(['a', R], ['b', D]), // 8
+      grp(['a', D], ['b', D]), // 9: a home from 9 (out 6 -> 9 = 3)
+      grp(['a', D], ['b', U]), // 10
+      grp(['a', D], ['b', A]), // 11: b out from 11 (home 6 -> 11 = 5)
+    ];
+    const result = run(grp(['a', A], ['b', D]), series);
+    expect([...result.timesOut].sort((x, y) => x - y)).toEqual([3, 3]);
+    expect([...result.timesHome].sort((x, y) => x - y)).toEqual([3, 5]);
+  });
+
+  it('reads a company as one group: a span out runs from its first member out to its last member home', () => {
+    const series = [
+      grp(['a', A, 'co'], ['b', D, 'co'], ['f', A]), // 1: co out from 1
+      grp(['a', A, 'co'], ['b', A, 'co'], ['f', A]), // 2
+      grp(['a', D, 'co'], ['b', A, 'co'], ['f', A]), // 3
+      grp(['a', D, 'co'], ['b', D, 'co'], ['f', A]), // 4: co home from 4 (out 1 -> 4 = 3)
+    ];
+    const result = run(grp(['a', D, 'co'], ['b', D, 'co'], ['f', A]), series);
+    expect(result.timesOut).toEqual([3]);
+  });
+
+  it('does not mutate what it is handed, and gives the same result twice', () => {
+    const start = grp(['a', A, 'co'], ['b', A, 'co'], ['f', D]);
+    const series = [grp(['a', R, 'co'], ['b', A, 'co'], ['f', U]), grp(['a', D, 'co'], ['b', R, 'co'], ['f', A])];
+    const copy = structuredClone([start, series]);
+    const tally = createGroupTally(start, noTurns);
+    for (const r of series) tally.observe(r);
+    expect(tally.result()).toEqual(tally.result());
+    expect([start, series]).toEqual(copy);
+  });
+});
 
 describe('runCoverSim (no-silence Task 2)', () => {
   it('one row with every field finite, shares inside 0-1, p10 <= mean <= p90, and stays counted with their lengths in order', () => {

@@ -320,6 +320,130 @@ export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTa
 }
 
 // ========================================
+// GROUP TALLY (roadmap 94 Task 16, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §5.3)
+// ========================================
+
+/** What the group tally reads off a roster: id, docking and the group. */
+export type GroupSnapshot = Pick<ShiftLifecycleSnapshot, 'id' | 'docking' | 'companyId'>;
+
+/** Whether `measure` is a turning measure of `robot`'s group's journey. */
+export type TurnReader = (robot: Pick<GroupSnapshot, 'companyId'>, measure: number) => boolean;
+
+export interface GroupTallyResult {
+  /** Measures, summed over companies, with any member sounding (Active or Recalled). */
+  companySounding: number;
+  /** Of those, the measures with not every member sounding. */
+  companyApart: number;
+  /** A company going from out (any member sounding) to home (none). */
+  companyExits: number;
+  /** Of those, the ones whose members all docked on one measure. */
+  groupExits: number;
+  /** Every robot docking from out. */
+  exits: number;
+  /** Of those, the ones whose exit turn, the bar before the landing, is a turning measure of the group's journey. */
+  exitsOnTurn: number;
+  /** Every group coming out (its first member sounding after none was). */
+  entrances: number;
+  /** Of those, the ones landing on a turning measure. */
+  entrancesOnTurn: number;
+  /** Every group span out, from coming out to the measure it is all home, in bars; spans begun before the start are
+   *  not counted, nor one still open at the end. */
+  timesOut: number[];
+  /** Every group span home, from all home to coming out again, in bars; counted as timesOut is. */
+  timesHome: number[];
+}
+
+export interface GroupTally {
+  /** One post-tick roster: measure 1 first, then 2, and so on. */
+  observe(roster: readonly GroupSnapshot[]): void;
+  result(): GroupTallyResult;
+}
+
+const isOutDocking = (d: DockingState) => d === DockingState.Active || d === DockingState.Recalled;
+
+/**
+ * The group tally (spec §5.3), beside the cover tally: fed one post-tick roster per measure and a turn reader, it
+ * counts each company's apart share and group exits, each exit's and group entrance's landing on a turn, and every
+ * group's spans out and home. A group is a company (`companyId`) or one robot alone. Reads id, docking and the group
+ * only, so it runs on either step; keeps its own state, so the rosters it is handed are never touched.
+ */
+export function createGroupTally(startRoster: readonly GroupSnapshot[], isTurn: TurnReader): GroupTally {
+  const groupOf = (r: GroupSnapshot) => r.companyId ?? r.id;
+  let measure = 0;
+  const wasOut = new Map(startRoster.map((r) => [r.id, isOutDocking(r.docking)]));
+  /** Per group: out now, the measure its current span began (undefined if before the start), the first member docking
+   *  in its current span out. */
+  const groups = new Map<string, { out: boolean; since?: number; firstDock?: number }>();
+  for (const r of startRoster) {
+    const g = groups.get(groupOf(r)) ?? { out: false };
+    g.out = g.out || isOutDocking(r.docking);
+    groups.set(groupOf(r), g);
+  }
+  const totals = {
+    companySounding: 0,
+    companyApart: 0,
+    companyExits: 0,
+    groupExits: 0,
+    exits: 0,
+    exitsOnTurn: 0,
+    entrances: 0,
+    entrancesOnTurn: 0,
+  };
+  const timesOut: number[] = [];
+  const timesHome: number[] = [];
+
+  return {
+    observe(roster) {
+      measure++;
+      const members = new Map<string, GroupSnapshot[]>();
+      for (const r of roster) {
+        const list = members.get(groupOf(r)) ?? [];
+        list.push(r);
+        members.set(groupOf(r), list);
+        const out = isOutDocking(r.docking);
+        if (wasOut.get(r.id) && !out) {
+          totals.exits++;
+          if (isTurn(r, measure - 1)) totals.exitsOnTurn++;
+          const g = groups.get(groupOf(r));
+          if (g && g.firstDock === undefined) g.firstDock = measure;
+        }
+        wasOut.set(r.id, out);
+      }
+      for (const [id, list] of members) {
+        const g = groups.get(id) ?? { out: false };
+        groups.set(id, g);
+        const sounding = list.filter((r) => isOutDocking(r.docking)).length;
+        const out = sounding > 0;
+        if (list[0].companyId !== undefined && out) {
+          totals.companySounding++;
+          if (sounding < list.length) totals.companyApart++;
+        }
+        if (out && !g.out) {
+          totals.entrances++;
+          if (isTurn(list[0], measure)) totals.entrancesOnTurn++;
+          if (g.since !== undefined) timesHome.push(measure - g.since);
+          g.since = measure;
+          g.firstDock = undefined;
+        } else if (!out && g.out) {
+          if (list[0].companyId !== undefined) {
+            totals.companyExits++;
+            if (g.firstDock === undefined || g.firstDock === measure) totals.groupExits++;
+          }
+          if (g.since !== undefined) timesOut.push(measure - g.since);
+          g.since = measure;
+          g.firstDock = undefined;
+        }
+        g.out = out;
+      }
+    },
+
+    result() {
+      return { ...totals, timesOut: [...timesOut], timesHome: [...timesHome] };
+    },
+  };
+}
+
+// ========================================
 // COVER SIM (no-silence Task 2)
 // ========================================
 
