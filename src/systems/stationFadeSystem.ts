@@ -20,6 +20,7 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { cancelSchedule, getTickSeconds, positionAt, scheduleRepeat } from '../engine/beatClock';
 import { useLocaleStore } from '../stores/localeStore';
 import { BEATS_PER_MEASURE, STATION_FADE_MIN_STEPS } from '../constants';
+import { DockingState } from '../types/Robot';
 
 // ========================================
 // STATE
@@ -48,6 +49,12 @@ function onTick(localeId: string, time: number): void {
     const fading = AudioEngine.hasStationFade(robot.id);
     if (fading && soloed) AudioEngine.cancelStationFade(robot.id, time); // a Solo mid-fade: heard at its regular volume (spec §1.5)
     if (fading || arcRunning(robot.id) || left < STATION_FADE_MIN_STEPS) continue; // started, or the hold
+    // The door (roadmap 94, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.11): a Recalled robot's fade ends on its
+    // hold's bar line, the one after its exit turn, so before the hold's last bar (measure hold − 1) it waits at its
+    // port, still playing. Inside that bar, and from the hold on, the rule above stands.
+    if (robot.docking === DockingState.Recalled && robot.dockingHoldUntilMeasure !== undefined && at.measure < robot.dockingHoldUntilMeasure - 1) {
+      continue;
+    }
     const seconds = left * tick;
     if (!soloed) AudioEngine.scheduleStationFade(robot.id, time, seconds);
     // The tick runs a lookahead ahead of its audio: the arc, which starts now, runs on until the fade is heard to end.

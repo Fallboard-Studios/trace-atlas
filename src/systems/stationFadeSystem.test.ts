@@ -342,3 +342,80 @@ describe('stationFadeSystem — the grid starts each entry on the half-measure r
     });
   });
 });
+
+// Roadmap 94 Task 24 (docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.11): a Recalled robot at its port waits for
+// its hold, the bar line after its exit turn, and its fade ends there. Measure m runs from bar line m to bar line m + 1,
+// so a hold of H fades over measure H − 1, the exit turn's own bar.
+describe('stationFadeSystem — a Recalled robot waits at its port for its hold (roadmap 94 Task 24)', () => {
+  /** A tick on `step` of `measure`. */
+  const tickIn = (measure: number, step: number, time = 100 + measure * SIXTEENTHS * TICK + step * TICK): number => {
+    vi.mocked(positionAt).mockReturnValue({ step, sixteenth: measure * SIXTEENTHS + step - 1, measure });
+    vi.mocked(scheduleRepeat).mock.calls.at(-1)![1](time);
+    return time;
+  };
+  const recalled = (hold: number) => setRoster([makeRobot('r1', { docking: DockingState.Recalled, dockingHoldUntilMeasure: hold, exitsAtMeasure: hold - 1 })]);
+
+  it('a hold two or more bars ahead gets nothing on any tick', () => {
+    recalled(12);
+    startStationFades(DEFAULT_LOCALE_ID);
+    for (const measure of [9, 10]) for (let step = 1; step <= SIXTEENTHS; step++) tickIn(measure, step);
+    expect(fade).not.toHaveBeenCalled();
+    expect(enterOnBar).not.toHaveBeenCalled();
+  });
+
+  it('on the bar line of the hold\'s last bar it gets the fade and the arc over the whole measure', () => {
+    recalled(12);
+    startStationFades(DEFAULT_LOCALE_ID);
+    for (let step = 1; step <= SIXTEENTHS; step++) tickIn(10, step);
+    const time = tickIn(11, 1);
+    expect(fade).toHaveBeenCalledTimes(1);
+    expect(fade).toHaveBeenCalledWith('r1', time, SIXTEENTHS * TICK);
+    expect(enterOnBar).toHaveBeenCalledWith('r1', SIXTEENTHS * TICK);
+  });
+
+  it.each([
+    [5, 12],
+    [9, 8],
+  ])('arriving in the last bar on step %i (half a measure or more left) it gets both over the %i sixteenths left', (step, left) => {
+    recalled(12);
+    startStationFades(DEFAULT_LOCALE_ID);
+    const time = tickIn(11, step);
+    expect(fade).toHaveBeenCalledWith('r1', time, left * TICK);
+    expect(enterOnBar).toHaveBeenCalledWith('r1', left * TICK);
+  });
+
+  it('arriving in the last bar with under half a measure left gets nothing until it is Docked, then today\'s rule', () => {
+    recalled(12);
+    startStationFades(DEFAULT_LOCALE_ID);
+    for (let step = 10; step <= SIXTEENTHS; step++) tickIn(11, step);
+    expect(fade).not.toHaveBeenCalled();
+    // The hold lands: Docked on bar line 12, and the whole of measure 12 is its fade.
+    update('r1', { docking: DockingState.Docked, dockingHoldUntilMeasure: undefined });
+    const bar = tickIn(12, 1);
+    expect(fade).toHaveBeenCalledWith('r1', bar, SIXTEENTHS * TICK);
+  });
+
+  it('on the hold\'s own bar line, still Recalled (the lifecycle tick not run yet), it takes today\'s rule: the whole measure', () => {
+    recalled(12);
+    startStationFades(DEFAULT_LOCALE_ID);
+    const bar = tickIn(12, 1);
+    expect(fade).toHaveBeenCalledWith('r1', bar, SIXTEENTHS * TICK);
+  });
+
+  it('only a Recalled robot waits: one already Undocking while still entering (a hidden tab) keeps today\'s rule', () => {
+    setRoster([makeRobot('r1', { docking: DockingState.Undocking, dockingHoldUntilMeasure: 12 })]);
+    startStationFades(DEFAULT_LOCALE_ID);
+    const time = tickIn(9, 1);
+    expect(fade).toHaveBeenCalledWith('r1', time, SIXTEENTHS * TICK);
+  });
+
+  it('a soloed Recalled robot waits the same and then gets the arc alone', () => {
+    setRoster([makeRobot('r1', { docking: DockingState.Recalled, dockingHoldUntilMeasure: 12, audioMode: 'solo' })]);
+    startStationFades(DEFAULT_LOCALE_ID);
+    tickIn(10, 1);
+    expect(enterOnBar).not.toHaveBeenCalled();
+    tickIn(11, 1);
+    expect(fade).not.toHaveBeenCalled();
+    expect(enterOnBar).toHaveBeenCalledWith('r1', SIXTEENTHS * TICK);
+  });
+});
