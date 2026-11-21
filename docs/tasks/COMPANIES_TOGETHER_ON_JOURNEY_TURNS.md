@@ -1008,5 +1008,13 @@ Filled in by Tasks 18, 19, 20 and 26. Nothing measured yet.
   every tempo (the lead is in seconds). Crawford said gathering at the door is fine to see (2026-11-20); spec A6's
   per-robot lead is the follow-up if it reads as too long, and `RECALL_LEAD_SECONDS` is his to lower (no member was
   late, so there is room).
-- **Gate A's picks** (Task 20): —
+- **Gate A's picks** (Task 20), 2026-11-20: **Gate A was not held.** Crawford was away and asked for the whole plan
+  built without pausing ("do not pause for me, just build the whole thing and i'll look at it all at once later"), so
+  nothing was moved: every constant of spec §4 ships at its first cut, and spec §4 and §5.5 still carry the same
+  numbers as `src/constants/index.ts`. The rows above are for his read when he is back, with three things to weigh:
+  the apart share misses 20 % at 20 BPM (25.1 %) and 40 BPM (20.4 %); stays are far commoner than today's; and the
+  wait at the door runs a median of 16–18 s. A constant he moves then is changed with its date, Tasks 18 and 19 are run
+  again into this section, and the always-on pins that name a value move in that commit (none of today's pins names a
+  first-cut value except the windows of Task 2's table and the 0.45 / 0.7 / 0.5 odds read in `shiftPlan.test.ts` and
+  `spawnSystem.rosterStart.test.ts` through the constants themselves).
 - **Gate B's listening list and answers** (Task 26): —
