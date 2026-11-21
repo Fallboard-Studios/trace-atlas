@@ -1440,6 +1440,35 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
       expect(roster.slice(0, 2).map((r) => r.entersAtMeasure)).toEqual(want);
     });
 
+    it('a straggler still Undocking when its mates dock keeps the group exit, goes in on it, and the entrance waits for it', () => {
+      // Mates a and bb go in on exit 29's bar line (30); ccc, the last of a stagger, is still Undocking until 31 and
+      // carries the group's exit, drawn when a landed. 60 BPM: the lead is 6.
+      let roster: ShiftLifecycleSnapshot[] = [
+        member('a', { docking: DockingState.Recalled, dockingHoldUntilMeasure: 30, exitsAtMeasure: 29 }),
+        member('bb', { docking: DockingState.Recalled, dockingHoldUntilMeasure: 30, exitsAtMeasure: 29 }),
+        member('ccc', { docking: DockingState.Undocking, dockingHoldUntilMeasure: 31, entersAtMeasure: 31, exitsAtMeasure: 29 }),
+        keeper,
+      ];
+      roster = stepShiftLifecycle(roster, 30, ENV_60);
+      expect(roster.slice(0, 2).map((r) => r.docking)).toEqual([DockingState.Docked, DockingState.Docked]);
+      // ccc is not home yet: no entrance for anyone, and its exit stands.
+      expect(roster.slice(0, 3).map((r) => r.entersAtMeasure)).toEqual([undefined, undefined, 31]);
+      expect(roster[2].exitsAtMeasure).toBe(29);
+      roster = stepShiftLifecycle(roster, 31, ENV_60);
+      expect(roster[2].docking).toBe(DockingState.Active);
+      expect(roster.slice(0, 3).map((r) => r.exitsAtMeasure)).toEqual([29, 29, 29]); // spent, and no second draw
+      expect(roster.slice(0, 2).map((r) => r.entersAtMeasure)).toEqual([undefined, undefined]);
+      // Its exit is past: recalled on the next tick, in on the bar line after.
+      roster = stepShiftLifecycle(roster, 32, ENV_60);
+      expect(roster[2].docking).toBe(DockingState.Recalled);
+      expect(roster[2].dockingHoldUntilMeasure).toBe(33);
+      roster = stepShiftLifecycle(roster, 33, ENV_60);
+      expect(roster.slice(0, 3).map((r) => r.docking)).toEqual([DockingState.Docked, DockingState.Docked, DockingState.Docked]);
+      // Then one entrance draw for all three, from the measure the last went in.
+      const want = planEntrance({ worldKey: '0:0', members: roster.slice(0, 3).map(asPlan), from: 33, bpm: 60 });
+      expect(roster.slice(0, 3).map((r) => r.entersAtMeasure)).toEqual(want);
+    });
+
     it('a whole shift runs from hand-set starting moves through exit, entrance and the next exit, nothing set by hand after', () => {
       for (const env of [ENV_60, { bpm: 140, worldKey: '-4:4' }]) {
         let roster: ShiftLifecycleSnapshot[] = [

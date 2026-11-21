@@ -176,6 +176,10 @@ export interface ShiftLifecycleSnapshot extends RobotLifecycleSnapshot {
 const isOut = (r: Pick<ShiftLifecycleSnapshot, 'docking'>): boolean =>
   r.docking === DockingState.Active || r.docking === DockingState.Recalled;
 
+/** Home: Docked. An Undocking robot is neither out nor home: it lands Active on its hold, whatever its group does, so
+ *  a group's entrance waits for it to come back in (review 2026-11-21). */
+const isHome = (r: Pick<ShiftLifecycleSnapshot, 'docking'>): boolean => r.docking === DockingState.Docked;
+
 /** One measure of a straight line from `level` to `target`, arriving on measure `at` (spec §1.10). */
 function stepToward(level: number, target: number, at: number, measure: number): number {
   const remaining = at - measure + 1;
@@ -261,8 +265,8 @@ export function stepShiftLifecycle(
         if (robot.entersAtMeasure !== undefined && robot.exitsAtMeasure === undefined && othersOf(robot).some(isOut)) {
           robot.entersAtMeasure = undefined;
         }
-        if (robot.entersAtMeasure === undefined && !othersOf(robot).some(isOut)) {
-          // Home with none: a home mate's entrance, or with none, the group's drawn now.
+        if (robot.entersAtMeasure === undefined && othersOf(robot).every(isHome)) {
+          // Home with none, and the whole group home: a mate's entrance, or with none, the group's drawn now.
           const mateEnters = othersOf(robot).find((m) => m.entersAtMeasure !== undefined)?.entersAtMeasure;
           if (mateEnters !== undefined) {
             robot.entersAtMeasure = mateEnters;
@@ -339,9 +343,10 @@ export function stepShiftLifecycle(
         if (robot.dockingHoldUntilMeasure === undefined || measure >= robot.dockingHoldUntilMeasure) {
           robot.docking = DockingState.Docked;
           robot.dockingHoldUntilMeasure = undefined;
-          // The group's last member home draws the entrance for every member, and the exits are spent (spec §1.7).
+          // The group's last member home draws the entrance for every member, and the exits are spent (spec §1.7). A
+          // member still Undocking (the last of a stagger) is not home: it keeps the group's exit and goes in on it.
           const members = mates(robot);
-          if (!members.some(isOut)) {
+          if (members.every(isHome)) {
             const entrances = planEntrance({ worldKey: env.worldKey, members, from: measure, bpm: env.bpm });
             members.forEach((m, i) => {
               m.entersAtMeasure = entrances[i];

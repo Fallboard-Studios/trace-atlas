@@ -251,14 +251,15 @@ export function rescaleMove({ worldKey, robot, move, measure, fromBpm, toBpm, le
  * Each member's entrance, the measure it lands Active on, in `members`' order (spec §1.7). The group's turns in its
  * home window from `from` are walked in order: it comes out on one when that turn's enter draw is under
  * SHIFT_ENTER_ODDS, whatever the move, and on the last if on none before. Together when the together draw is under
- * ENTRANCE_TOGETHER_ODDS; otherwise the members, in an order drawn on that turn, land ENTRANCE_STAGGER_BARS apart from
- * the turn on. A group of one takes the turn. Pure.
+ * ENTRANCE_TOGETHER_ODDS; otherwise the members, in an order drawn on that turn, land `staggerBars` apart from the turn
+ * on. A group of one takes the turn. Pure.
  */
 export function planEntrance({ worldKey, members, from, bpm }: ShiftPlanInput): number[] {
   if (members.length === 0) return [];
   const lead = members[0];
   const key = groupJourneyKey(worldKey, lead);
-  const window = shiftWindow('home', groupSize(members), bpm);
+  const size = groupSize(members);
+  const window = shiftWindow('home', size, bpm);
   const candidates = journeyTurns(key, from + window.least, from + window.most);
   if (candidates.length === 0) candidates.push(...turnsFrom(key, from + window.least, 1));
 
@@ -267,9 +268,20 @@ export function planEntrance({ worldKey, members, from, bpm }: ShiftPlanInput): 
     candidates[candidates.length - 1];
   const draws = groupDraws(worldKey, lead, chosen.index);
   if (members.length === 1 || draws[TOGETHER_DRAW] < ENTRANCE_TOGETHER_ODDS) return members.map(() => chosen.measure);
+  const spacing = staggerBars(members.length, size, bpm);
   const entrances = new Array<number>(members.length);
   drawnOrder(members.length, draws[ORDER_DRAW]).forEach((member, n) => {
-    entrances[member] = chosen.measure + n * ENTRANCE_STAGGER_BARS;
+    entrances[member] = chosen.measure + n * spacing;
   });
   return entrances;
+}
+
+/**
+ * How far apart a staggered company's members land: ENTRANCE_STAGGER_BARS, narrowed for a big company so its last
+ * member is out by the out window's least (review 2026-11-21). The first member's landing draws the exit at least that
+ * far on, so the last member lands before its mates can be home again; a wider stagger left it landing alone and
+ * drawing a second exit for the company. 0 when even one bar is too wide: the company comes out together.
+ */
+function staggerBars(count: number, size: number, bpm: number): number {
+  return Math.min(ENTRANCE_STAGGER_BARS, Math.floor(shiftWindow('out', size, bpm).least / (count - 1)));
 }

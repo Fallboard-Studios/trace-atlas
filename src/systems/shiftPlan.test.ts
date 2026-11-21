@@ -395,6 +395,28 @@ describe('planEntrance (spec §1.7)', () => {
     expect(staggered).toBeGreaterThan(20);
   });
 
+  it("narrows a big company's stagger so its last member is out by the out window's least, never past the first exit", () => {
+    for (const bpm of TEMPOS) {
+      const least = shiftWindow('out', 1, bpm).least;
+      for (const n of [5, 6, 8, 12]) {
+        const spacing = Math.min(ENTRANCE_STAGGER_BARS, Math.floor(least / (n - 1)));
+        let staggered = 0;
+        for (let k = 0; k < 60; k++) {
+          const c = { worldKey: `${k}:big`, members: company('co-big', n), from: 0, bpm };
+          const t = walked(c);
+          const entrances = planEntrance(c);
+          expect(Math.max(...entrances) - t.measure, `${bpm} BPM, ${n} members`).toBeLessThanOrEqual(least);
+          if (groupDraws(c.worldKey, c.members[0], t.index)[1] >= ENTRANCE_TOGETHER_ODDS) {
+            staggered++;
+            const want = Array.from({ length: n }, (_, i) => t.measure + i * spacing);
+            expect([...entrances].sort((a, b) => a - b), `${bpm} BPM, ${n} members`).toEqual(want);
+          }
+        }
+        expect(staggered).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it('staggers in a drawn order, not the roster order', () => {
     const firsts = new Set<number>();
     for (let n = 0; n < 200; n++) {
