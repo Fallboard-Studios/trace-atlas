@@ -221,6 +221,18 @@ function gaugeLevel(level: number, out: boolean, exit: number | undefined, enter
 }
 
 /**
+ * How the step groups a roster's robots: by company, a freelancer alone (groupIdOf), except when one company holds
+ * every robot. Then no robot outside the group could ever relieve its stay, so it would stay out for ever; each member
+ * comes and goes as its own group instead, and the last Active robot stays, today's rule (review 2026-11-21, Crawford:
+ * "last robot stays"). Its journey and draws stay the company's.
+ */
+function lifecycleGroupOf(roster: readonly ShiftLifecycleSnapshot[]): (robot: ShiftLifecycleSnapshot) => string {
+  const companyId = roster[0]?.companyId;
+  const wholeRoster = companyId !== undefined && roster.every((r) => r.companyId === companyId);
+  return wholeRoster ? (robot) => robot.id : groupIdOf;
+}
+
+/**
  * One measure of the docking machine for a whole roster when a group's plan on its journey's turns decides when a
  * robot comes and goes (spec §1.8). Pure: one pass over a working copy in roster order, so within-measure ordering
  * matches a real tick; imports no store and no clock. Per robot, with the recall lead in bars at `env.bpm`
@@ -236,11 +248,12 @@ export function stepShiftLifecycle(
 ): ShiftLifecycleSnapshot[] {
   const working = roster.map((r) => ({ ...r }));
   const lead = recallLeadBars(env.bpm);
+  const groupOf = lifecycleGroupOf(working);
   /** `robot`'s group in `working`, itself included, in roster order. */
-  const mates = (robot: ShiftLifecycleSnapshot) => working.filter((m) => groupIdOf(m) === groupIdOf(robot));
+  const mates = (robot: ShiftLifecycleSnapshot) => working.filter((m) => groupOf(m) === groupOf(robot));
   /** Whether a robot outside `robot`'s group is Active right now, on the working array. */
   const outsideActive = (robot: ShiftLifecycleSnapshot) =>
-    working.some((m) => m.docking === DockingState.Active && groupIdOf(m) !== groupIdOf(robot));
+    working.some((m) => m.docking === DockingState.Active && groupOf(m) !== groupOf(robot));
   /** `robot`'s mates, itself left out. */
   const othersOf = (robot: ShiftLifecycleSnapshot) => mates(robot).filter((m) => m !== robot);
   /** An exit turn a robot brought from another group (spec §1.14): no mate shares it, it is no turn of the group's

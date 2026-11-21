@@ -1348,13 +1348,15 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
     const undocking = (id: string, companyId: string, hold: number, o: Partial<ShiftLifecycleSnapshot> = {}) =>
       member(id, companyId, { docking: DockingState.Undocking, dockingHoldUntilMeasure: hold, entersAtMeasure: hold, shiftBpm: 60, ...o });
     const asPlan = (r: ShiftLifecycleSnapshot) => ({ id: r.id, companyId: r.companyId, compositionSeed: r.compositionSeed, batterySize: r.batterySize });
+    /** A freelancer home, so the company is not the whole roster (a whole-roster company comes and goes robot by robot). */
+    const outsider = shift({ id: 'outsider', compositionSeed: 0.95, docking: DockingState.Docked, entersAtMeasure: 100_000, shiftBpm: 60 });
 
     it('a company landing together gets the exit turns planExit gives for the same inputs, on that tick', () => {
       for (const worldKey of ['0:0', '4:-2', '-9:13']) {
         const env = { bpm: 60, worldKey };
-        const roster = [undocking('a', 'co-x', 40, { batterySize: 1.3 }), undocking('bb', 'co-x', 40), undocking('ccc', 'co-x', 40)];
-        const after = stepShiftLifecycle(roster, 40, env);
-        const want = planExit({ worldKey, members: roster.map(asPlan), from: 40, bpm: 60 });
+        const company = [undocking('a', 'co-x', 40, { batterySize: 1.3 }), undocking('bb', 'co-x', 40), undocking('ccc', 'co-x', 40)];
+        const after = stepShiftLifecycle([...company, outsider], 40, env).slice(0, 3);
+        const want = planExit({ worldKey, members: company.map(asPlan), from: 40, bpm: 60 });
         expect(after.map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Active, DockingState.Active]);
         expect(after.map((r) => r.exitsAtMeasure)).toEqual(want);
         expect(after.every((r) => r.shiftBpm === 60)).toBe(true);
@@ -1373,18 +1375,19 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
         return JSON.stringify(planExit({ worldKey: k, members: m, from: 40, bpm: 60 })) !== JSON.stringify(planExit({ worldKey: k, members: m, from: 42, bpm: 60 }));
       })!;
       const env = { bpm: 60, worldKey };
-      let roster: ShiftLifecycleSnapshot[] = [
+      const company: ShiftLifecycleSnapshot[] = [
         undocking('a', 'co-s', 40),
         member('bb', 'co-s', { docking: DockingState.Docked, entersAtMeasure: 42, shiftBpm: 60 }),
         member('ccc', 'co-s', { docking: DockingState.Docked, entersAtMeasure: 44, shiftBpm: 60 }),
       ];
-      const want = planExit({ worldKey, members: roster.map(asPlan), from: 40, bpm: 60 });
-      roster = stepShiftLifecycle(roster, 40, env);
-      expect(roster.map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Docked, DockingState.Docked]);
-      expect(roster.map((r) => r.exitsAtMeasure)).toEqual(want);
+      const want = planExit({ worldKey, members: company.map(asPlan), from: 40, bpm: 60 });
+      let roster = stepShiftLifecycle([...company, outsider], 40, env);
+      const members = () => roster.slice(0, 3);
+      expect(members().map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Docked, DockingState.Docked]);
+      expect(members().map((r) => r.exitsAtMeasure)).toEqual(want);
       for (let m = 41; m <= 44; m++) roster = stepShiftLifecycle(roster, m, env);
-      expect(roster.map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Active, DockingState.Active]);
-      expect(roster.map((r) => r.exitsAtMeasure)).toEqual(want);
+      expect(members().map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Active, DockingState.Active]);
+      expect(members().map((r) => r.exitsAtMeasure)).toEqual(want);
     });
 
     it("a freelancer landing draws on the fleet turns with its own draws; another company's exit is not its own", () => {
@@ -1545,6 +1548,40 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
         expect(r[0].docking).toBe(DockingState.Active);
         expect(r[2].docking).toBe(DockingState.Active);
       }
+    });
+
+    it('a company that is the whole roster comes and goes robot by robot, the last Active robot staying (review 2026-11-21)', () => {
+      // No robot outside it can ever relieve it, so a whole-group stay would hold it out for ever. Crawford: "last robot
+      // stays", today's rule, member by member.
+      for (const bpm of [20, 60, 200]) {
+        const env = { bpm, worldKey: '0:0' };
+        let roster = Array.from({ length: 12 }, (_, i) => co(`r${i}`, 'co-all', { batteryLevel: 100, batterySize: 1, shiftBpm: bpm }));
+        const exits = planExit({ worldKey: '0:0', members: roster, from: 0, bpm });
+        roster = roster.map((r, i) => ({ ...r, exitsAtMeasure: exits[i] }));
+        const docked = new Set<string>();
+        let recalls = 0;
+        for (let m = 1; m <= 600; m++) {
+          const next = stepShiftLifecycle(roster, m, env);
+          next.forEach((r, i) => {
+            if (roster[i].docking === DockingState.Active && r.docking === DockingState.Recalled) recalls++;
+            if (r.docking === DockingState.Docked) docked.add(r.id);
+          });
+          expect(next.filter((r) => r.docking === DockingState.Active).length, `${bpm} BPM, measure ${m}`).toBeGreaterThan(0);
+          roster = next;
+        }
+        expect(recalls, `${bpm} BPM`).toBeGreaterThan(12);
+        expect(docked.size, `${bpm} BPM: every robot goes in`).toBe(12);
+      }
+    });
+
+    it('a company of all but one robot still stays whole until that robot is Active', () => {
+      const [t0] = twoTurns('co-big', 50);
+      const roster = [
+        ...Array.from({ length: 11 }, (_, i) => co(`m${i}`, 'co-big', { exitsAtMeasure: t0 })),
+        home('free', { entersAtMeasure: 5_000 }),
+      ];
+      const after = stepShiftLifecycle(roster, t0 - 6, ENV_60);
+      expect(after.slice(0, 11).every((r) => r.docking === DockingState.Active && r.exitsAtMeasure === undefined)).toBe(true);
     });
 
     it('relief landing earlier in the roster gives the staying group its new exit the same tick, one turn for all', () => {
@@ -1971,6 +2008,8 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
       const roster = [
         bare('a', DockingState.Active, 'co-w', { exitsAtMeasure: 100_000, shiftBpm: 60 }),
         bare('b', DockingState.Docked, 'co-w'),
+        // A freelancer home, so the company is not the whole roster.
+        bare('f', DockingState.Docked, undefined, { entersAtMeasure: 100_000, shiftBpm: 60 }),
       ];
       const after = stepShiftLifecycle(roster, 5, env);
       expect(after[1].entersAtMeasure).toBeUndefined();
