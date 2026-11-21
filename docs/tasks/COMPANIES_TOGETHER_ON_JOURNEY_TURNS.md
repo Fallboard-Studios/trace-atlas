@@ -980,6 +980,33 @@ Filled in by Tasks 18, 19, 20 and 26. Nothing measured yet.
   measures a world against 0.96), and longer at fast tempos in bars (median 14 bars at 200 BPM): when the last group out
   is due with nobody else out it stays, and groups now move as blocks, so that happens more. And the heard share widens
   from 44–46 % to about 37–57 %: some robots are out more than others, which the intent welcomed ("unfair airtime").
-- **The loop sim** (Task 19): —
+- **The loop sim** (Task 19), run 2026-11-20 after Task 19 with `LIFECYCLE_SIM_REPORT=1 npx vitest run
+  src/systems/lifecycleSim.test.ts -t "the door report"`: the 121-world grid, 10 minutes a world at 20, 110 and 200 BPM,
+  the shift step with the door on (`runReadinessSim({ step: 'shift' })`), the shipped cooldown. Pasted as printed:
+
+  | BPM | Member exits | Late members | Door wait (median, p90, longest) | Turn-backs | Charging visible | Longest Docked visible |
+  |---|---|---|---|---|---|---|
+  | 20 | 1320 | 0 (0.0 %) | 16.0 s, 20.7 s, 23.3 s | 0 | 0 | 0.0 s |
+  | 110 | 2812 | 0 (0.0 %) | 17.1 s, 21.0 s, 23.5 s | 0 | 0 | 0.0 s |
+  | 200 | 3124 | 0 (0.0 %) | 18.2 s, 21.2 s, 23.6 s | 0 | 0 | 0.0 s |
+
+  | Cooldown | BPM | Mean waiting | p95 waiting | Longest wait | p95 wait | Switches / stint | Turn-backs | Charging visible | Longest Docked visible |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 0.3/2/30 | 20 | 0.0 % | 0.1 % | 4.0 s | 4.0 s | 0.28 | 0 | 0 | 0.0 s |
+  | 0.3/2/30 | 110 | 0.0 % | 0.0 % | 4.0 s | 4.0 s | 0.12 | 0 | 0 | 0.0 s |
+  | 0.3/2/30 | 200 | 0.0 % | 0.0 % | 4.0 s | 4.0 s | 0.12 | 0 | 0 | 0.0 s |
+
+  A "member exit" is a company member reaching its port on the way in; "late" is under half a measure before its hold's
+  bar line, or Docked already. A door wait is the time from reaching the port to the start of the fade (the hold's last
+  bar), freelancers included.
+
+  **Against spec §5.5:** late members under 5 % of member exits at each loop-sim tempo: **met**, 0 at all three. No
+  robot charges while visible, and none is visible while Docked (the fade now ends on the hold's bar line).
+
+  **To see at Gate B:** the wait at the door is long. Most robots are near home when recalled, so they spend most of
+  the 24-second lead (`RECALL_LEAD_SECONDS`) at the port, visible and playing: a median of 16–18 s and up to 23.6 s, at
+  every tempo (the lead is in seconds). Crawford said gathering at the door is fine to see (2026-11-20); spec A6's
+  per-robot lead is the follow-up if it reads as too long, and `RECALL_LEAD_SECONDS` is his to lower (no member was
+  late, so there is room).
 - **Gate A's picks** (Task 20): —
 - **Gate B's listening list and answers** (Task 26): —

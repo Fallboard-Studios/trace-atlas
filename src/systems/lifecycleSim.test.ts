@@ -30,6 +30,7 @@ import {
   runLoopSim,
   runReadinessSim,
   formatReadinessReport,
+  formatDoorReport,
   createCoverTally,
   createGroupTally,
   type GroupSnapshot,
@@ -1167,6 +1168,81 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
     });
   });
 
+  // Roadmap 94 Task 19 (spec §1.11): with the door on, a Recalled robot at its port waits for its hold's last bar and
+  // goes in on the hold's bar line; one arriving with under half a measure left, or Docked already, is late.
+  describe('runLoopSim — the wait at the door (roadmap 94 Task 19)', () => {
+    const port: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [] };
+    const far: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [{ id: 'a', jobs: [VENT], park: { x: 1200, y: 0 } }] };
+    /** A member of 'co', Active. */
+    const member = (id: string): RobotLifecycleSnapshot => ({ ...snap(id, DockingState.Active), companyId: 'co' } as RobotLifecycleSnapshot);
+    /** A lifecycle that sets docking and the hold where the script says, at that measure. */
+    const holds = (plan: Record<number, Record<string, [DockingState, number?]>>): LifecycleStep => (roster, measure) =>
+      roster.map((r) => {
+        const s = plan[measure]?.[r.id];
+        return s ? { ...r, docking: s[0], dockingHoldUntilMeasure: s[1] } : r;
+      });
+    const entering = (trace: LoopSimEvent[]) => eventsOf(trace, 'r0').filter((e) => e.activity === 'entering' || e.activity === 'charging').map((e) => [e.activity, +e.t.toFixed(3)]);
+
+    it('an early arrival waits at the door, visible, until the last bar of its hold, and goes in on the bar line', () => {
+      // 240 BPM, a measure a second. Recalled at 3 with its hold at 6 (its exit turn 5), at its port already: it
+      // enters at 3, waits to 5, fades over the last bar and is charging at 6, as the hold lands.
+      const step = holds({ 3: { r0: [DockingState.Recalled, 6] }, 6: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: port, roster: [member('r0')], step, door: true });
+      expect(entering(trace)).toEqual([['entering', 3], ['charging', 6]]);
+      expect(result.doorWaits.map((w) => +w.toFixed(3))).toEqual([2]);
+      expect(result.memberExits).toBe(1);
+      expect(result.lateMembers).toBe(0);
+      expect(result.chargingWhileVisible).toBe(0);
+      expect(result.longestDockedVisible).toBe(0);
+    });
+
+    it('an arrival inside the first half of the last bar fades over what is left and goes in on the bar line', () => {
+      // 192 BPM, a measure 1.25 s. Recalled at measure 2 (2.5 s) 180 px out: home at 4.0, inside the last bar
+      // 3.75 to 5.0 with 1.0 s left (over half). Its hold is 4: charging at 5.0, no wait.
+      const step = holds({ 2: { r0: [DockingState.Recalled, 4] }, 4: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: far, roster: [member('r0')], step, bpm: 192, door: true });
+      expect(entering(trace)).toEqual([['entering', 4], ['charging', 5]]);
+      expect(result.doorWaits).toEqual([0]);
+      expect(result.lateMembers).toBe(0);
+    });
+
+    it('a late arrival, Docked already, takes the next bar line: at once with half a measure or more left', () => {
+      // As above with its hold at 3 (3.75 s): home at 4.0, Docked already; 1.0 s to the next bar line, so at once.
+      const step = holds({ 2: { r0: [DockingState.Recalled, 3] }, 3: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: far, roster: [member('r0')], step, bpm: 192, door: true });
+      expect(entering(trace)).toEqual([['entering', 4], ['charging', 5]]);
+      expect(result.doorWaits).toEqual([0]);
+      expect(result.memberExits).toBe(1);
+      expect(result.lateMembers).toBe(1);
+    });
+
+    it('a late arrival with under half a measure left before its hold holds to that bar line, then fades over the next measure', () => {
+      // 300 BPM, a measure 0.8 s. Recalled at measure 2 (1.6 s) 72 px out with its hold at 3 (2.4 s): home at 2.2,
+      // 0.2 s before the hold's bar line (under 0.4), so it is late: it holds to 2.4 and goes in on 3.2.
+      const step = holds({ 2: { r0: [DockingState.Recalled, 3] }, 3: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: far, roster: [member('r0')], step, bpm: 300, door: true });
+      expect(entering(trace)).toEqual([['entering', 2.2], ['charging', 3.2]]);
+      expect(result.doorWaits.map((w) => +w.toFixed(3))).toEqual([0.2]);
+      expect(result.lateMembers).toBe(1);
+    });
+
+    it('counts a freelancer arrival, but not as a member exit', () => {
+      const step = holds({ 3: { r0: [DockingState.Recalled, 6] }, 6: { r0: [DockingState.Docked] } });
+      const { result } = runScenario({ world: port, roster: [snap('r0', DockingState.Active)], step, door: true });
+      expect(result.arrivals).toBe(1);
+      expect(result.memberExits).toBe(0);
+      expect(result.doorWaits).toHaveLength(1);
+    });
+
+    it('with the door off, nothing changes: the entry is the arc, and no door is counted', () => {
+      const step = holds({ 3: { r0: [DockingState.Recalled, 6] }, 6: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: port, roster: [member('r0')], step });
+      expect(entering(trace)).toEqual([['entering', 3], ['charging', 3 + STATION_ARC_SECONDS]]);
+      expect(result.doorWaits).toEqual([]);
+      expect(result.arrivals).toBe(0);
+    });
+  });
+
   describe('runLoopSim — recall and handoff', () => {
     const world: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [{ id: 'a', jobs: [VENT], park: { x: 120, y: 0 } }] };
     const d = jobDuration(ONE_SECOND_MEASURES);
@@ -1411,12 +1487,29 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
         console.log(`\n### Band ${label}\n\n${formatReadinessReport(rows, seeds)}`);
       }
     }, 600_000);
+
+    // Roadmap 94 Task 19: the shift step with the door on.
+    it('on the shift step, a few worlds at 110 BPM: members reach their ports, nobody charges while visible', () => {
+      const few = SIM_SEED_COORDS.slice(0, 121).filter((_, i) => i % 30 === 0).map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
+      const { rows } = runReadinessSim({ worlds: few, bpms: [110], candidates: COOLDOWN_CANDIDATES.slice(0, 1), step: 'shift' });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].memberExits).toBeGreaterThan(0);
+      expect(rows[0].chargingWhileVisible).toBe(0);
+      expect(rows[0].doorWait.longest).toBeGreaterThan(0);
+      expect(formatDoorReport(rows).split('\n')).toHaveLength(3);
+    }, 120_000);
+
+    it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)('the door report: the full grid at 20, 110 and 200 BPM for 10 minutes on the shift step', () => {
+      const grid = SIM_SEED_COORDS.map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
+      const { rows } = runReadinessSim({ worlds: grid, candidates: COOLDOWN_CANDIDATES.slice(0, 1), step: 'shift' });
+      console.log(`\n${formatDoorReport(rows)}\n\n${formatReadinessReport(rows, [])}`);
+    }, 600_000);
   });
 
   describe('formatReadinessReport', () => {
     it('renders the overall table, then the worst seeds by waiting share', () => {
       const rows: ReadinessRow[] = [
-        { label: 'c', bpm: 20, meanWaitingShare: 0.05, p95WaitingShare: 0.12, longestWait: 14, p95Wait: 6, switchesPerStint: 1.5, turnBacks: 0, chargingWhileVisible: 0, longestDockedVisible: 0 },
+        { label: 'c', bpm: 20, meanWaitingShare: 0.05, p95WaitingShare: 0.12, longestWait: 14, p95Wait: 6, switchesPerStint: 1.5, turnBacks: 0, chargingWhileVisible: 0, longestDockedVisible: 0, memberExits: 0, lateMembers: 0, doorWait: { median: 0, p90: 0, longest: 0 } },
       ];
       const seeds: ReadinessSeedRow[] = [
         { label: 'c', bpm: 20, x: 0, y: 0, sites: 9, waitingShare: 0.01, longestWait: 2, switchesPerStint: 1, turnBacks: 0 },

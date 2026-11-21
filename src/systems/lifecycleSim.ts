@@ -816,6 +816,11 @@ export interface LoopSimOptions {
   cooldown?: (eligibleSiteCount: number) => number;
   /** Called on every activity change. */
   trace?: (event: LoopSimEvent) => void;
+  /** The wait at the door (roadmap 94 Task 19, spec §1.11): a robot reaching its port while Recalled waits there,
+   *  'entering' and visible, until the last bar of its hold and goes in on the hold's bar line; one arriving with under
+   *  half a measure left, or Docked already, is late and takes today's rule, the next bar line (at once with half a
+   *  measure or more left, after a hold to it otherwise). Off: the entry is STATION_ARC_SECONDS from arrival. */
+  door?: boolean;
 }
 
 export interface LoopSimEvent {
@@ -847,6 +852,14 @@ export interface LoopSimResult {
   /** Seconds a robot was still visible while the lifecycle had it Docked or Undocking. */
   dockedVisibleSeconds: number;
   longestDockedVisible: number;
+  /** With the door on: every robot reaching its port on the way in. */
+  arrivals: number;
+  /** Of those, the company members (a robot with a companyId). */
+  memberExits: number;
+  /** Of the members, the late ones: under half a measure before the hold's bar line, or Docked already. */
+  lateMembers: number;
+  /** Every arrival's wait at the door before its fade begins, in seconds. */
+  doorWaits: number[];
 }
 
 /** Activities that count as out on shift (they hold a job — plan correction 4). */
@@ -881,7 +894,7 @@ interface SimRobot {
  * the measure, then to roster order. Pure: no store, no BeatClock, no GSAP.
  */
 export function runLoopSim(options: LoopSimOptions): LoopSimResult {
-  const { world, roster, bpm, seconds, rand, step, cooldown = siteCooldown, trace } = options;
+  const { world, roster, bpm, seconds, rand, step, cooldown = siteCooldown, trace, door = false } = options;
   const measureSeconds = (BEATS_PER_MEASURE * 60) / bpm;
   const rest = cooldown(world.sites.length);
   const siteState = new Map(world.sites.map((s) => [s.id, { heldBy: undefined as string | undefined, readyAt: 0 }]));
@@ -898,6 +911,10 @@ export function runLoopSim(options: LoopSimOptions): LoopSimResult {
     chargingWhileVisible: 0,
     dockedVisibleSeconds: 0,
     longestDockedVisible: 0,
+    arrivals: 0,
+    memberExits: 0,
+    lateMembers: 0,
+    doorWaits: [],
   };
 
   let lifecycle = roster;
@@ -1044,6 +1061,28 @@ export function runLoopSim(options: LoopSimOptions): LoopSimResult {
     setActivity(r, 'transit', t);
   };
 
+  /** The door (roadmap 94 Task 19): when a robot reaching its port at `t` goes in, counting its wait and whether it is
+   *  late. On time: the bar line of its hold, its fade over the hold's last bar (or what is left of it). Late: the next
+   *  bar line with half a measure or more left, else the one after. */
+  const atTheDoor = (r: SimRobot, t: number): number => {
+    const snapshot = lifecycle[robots.indexOf(r)] as ShiftLifecycleSnapshot;
+    const member = snapshot.companyId !== undefined;
+    const half = measureSeconds / 2;
+    result.arrivals++;
+    if (member) result.memberExits++;
+    const hold = snapshot.dockingHoldUntilMeasure;
+    if (snapshot.docking === DockingState.Recalled && hold !== undefined && hold * measureSeconds - t >= half - 1e-9) {
+      const end = hold * measureSeconds;
+      result.doorWaits.push(Math.max(0, end - measureSeconds - t));
+      return end;
+    }
+    if (member) result.lateMembers++;
+    const nextBar = (Math.floor(t / measureSeconds + 1e-9) + 1) * measureSeconds;
+    const atOnce = nextBar - t >= half - 1e-9;
+    result.doorWaits.push(atOnce ? 0 : nextBar - t);
+    return atOnce ? nextBar : nextBar + measureSeconds;
+  };
+
   /** The current activity ran out. */
   const finish = (r: SimRobot, t: number) => {
     r.until = Infinity;
@@ -1064,7 +1103,7 @@ export function runLoopSim(options: LoopSimOptions): LoopSimResult {
       case 'returning':
         land(r);
         setActivity(r, 'entering', t);
-        r.until = t + STATION_ARC_SECONDS;
+        r.until = door ? atTheDoor(r, t) : t + STATION_ARC_SECONDS;
         break;
       case 'entering':
         r.visible = false;
@@ -1183,6 +1222,11 @@ export interface ReadinessRow {
   turnBacks: number;
   chargingWhileVisible: number;
   longestDockedVisible: number;
+  /** The shift step only (the door on, roadmap 94 Task 19): company members reaching their port, the late ones, and
+   *  every arrival's wait at the door in seconds. 0 on today's step. */
+  memberExits: number;
+  lateMembers: number;
+  doorWait: Spread;
 }
 
 export interface ReadinessSeedRow {
@@ -1209,11 +1253,14 @@ export function runReadinessSim(options: {
   bpms?: readonly number[];
   candidates?: readonly CooldownCandidate[];
   band?: SimBand;
+  /** Today's step (the default) or the shift step (roadmap 94): buildShiftSimRoster at each tempo, stepShiftLifecycle,
+   *  and the door on. */
+  step?: SimStep;
 }): { rows: ReadinessRow[]; seeds: ReadinessSeedRow[] } {
-  const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES, band } = options;
+  const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES, band, step = 'today' } = options;
   const prepared = worlds.map(({ x, y, actors }) => {
     const noiseMap = simNoiseMap(x, y);
-    return { x, y, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap, band) };
+    return { x, y, noiseMap, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap, band) };
   });
 
   const rows: ReadinessRow[] = [];
@@ -1227,16 +1274,27 @@ export function runReadinessSim(options: {
       let turnBacks = 0;
       let chargingWhileVisible = 0;
       let longestDockedVisible = 0;
+      let memberExits = 0;
+      let lateMembers = 0;
+      const doorWaits: number[] = [];
       for (const w of prepared) {
+        const env = { bpm, worldKey: `${w.x}:${w.y}` };
         const r = runLoopSim({
           world: w.world,
-          roster: w.roster,
+          roster: step === 'shift' ? buildShiftSimRoster(w.noiseMap, env) : w.roster,
           bpm,
           seconds,
           rand: alea(`loop-sim:${w.x}:${w.y}:${bpm}`),
-          step: (roster, measure) => stepRobotLifecycle(roster, measure),
+          step:
+            step === 'shift'
+              ? (roster, measure) => stepShiftLifecycle(roster as ShiftLifecycleSnapshot[], measure, env)
+              : (roster, measure) => stepRobotLifecycle(roster, measure),
           cooldown,
+          door: step === 'shift',
         });
+        memberExits += r.memberExits;
+        lateMembers += r.lateMembers;
+        doorWaits.push(...r.doorWaits);
         const share = r.activeSeconds > 0 ? r.waitingSeconds / r.activeSeconds : 0;
         shares.push(share);
         waits.push(...r.waits);
@@ -1268,10 +1326,32 @@ export function runReadinessSim(options: {
         turnBacks,
         chargingWhileVisible,
         longestDockedVisible,
+        memberExits,
+        lateMembers,
+        doorWait:
+          doorWaits.length > 0
+            ? { median: percentile(doorWaits, 50), p90: percentile(doorWaits, 90), longest: percentile(doorWaits, 100) }
+            : { median: 0, p90: 0, longest: 0 },
       });
     }
   }
   return { rows, seeds };
+}
+
+/** The door rows (roadmap 94 Task 19) as a markdown table — for Results. */
+export function formatDoorReport(rows: readonly ReadinessRow[]): string {
+  const sec = (v: number) => `${v.toFixed(1)} s`;
+  const lines = [
+    '| BPM | Member exits | Late members | Door wait (median, p90, longest) | Turn-backs | Charging visible | Longest Docked visible |',
+    '|---|---|---|---|---|---|---|',
+  ];
+  for (const r of rows) {
+    const late = r.memberExits > 0 ? `${r.lateMembers} (${((r.lateMembers / r.memberExits) * 100).toFixed(1)} %)` : '0';
+    lines.push(
+      `| ${r.bpm} | ${r.memberExits} | ${late} | ${sec(r.doorWait.median)}, ${sec(r.doorWait.p90)}, ${sec(r.doorWait.longest)} | ${r.turnBacks} | ${r.chargingWhileVisible} | ${sec(r.longestDockedVisible)} |`,
+    );
+  }
+  return lines.join('\n');
 }
 
 /** Seeds listed per candidate × tempo in the report. */
