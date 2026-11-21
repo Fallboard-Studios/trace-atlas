@@ -4,6 +4,7 @@
 import { DockingState } from '../types/Robot';
 import type { Robot } from '../types/Robot';
 import useLocaleStore from '../stores/localeStore';
+import { useAudioStore } from '../stores/audioStore';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { AudioEngine } from '../engine/AudioEngine';
 import { onLifecycleChange } from './workLoop';
@@ -16,7 +17,7 @@ import {
   rescaleMove,
   type ShiftEnv,
 } from './shiftPlan';
-import { journeyTurns } from '../engine/melodyJourney';
+import { journeyTurns, worldKeyOf } from '../engine/melodyJourney';
 import {
   BATTERY_DRAIN_ACTIVE,
   BATTERY_RECHARGE_RATE,
@@ -37,22 +38,24 @@ let lifecycleUnsubscribe: (() => void) | null = null;
 // ========================================
 
 /**
- * Begin the Recalled hold. The visual consequence (the work loop sends it home) is the
- * onLifecycleChange seam's — this writes docking state only (Phase 43, spec §1.1).
+ * Begin the Recalled hold, until `holdUntil` (the step's: the bar line after the exit turn, roadmap 94). The visual
+ * consequence (the work loop sends it home) is the onLifecycleChange seam's — this writes docking state only
+ * (Phase 43, spec §1.1).
  */
-function beginRecall(localeId: string, robotId: string, measure: number): void {
+function beginRecall(localeId: string, robotId: string, holdUntil: number | undefined): void {
   useLocaleStore.getState().updateRobot(localeId, robotId, {
     docking: DockingState.Recalled,
-    dockingHoldUntilMeasure: measure + 1,
+    dockingHoldUntilMeasure: holdUntil,
   });
 
   onLifecycleChange(localeId, robotId, 'recalled');
 }
 
-function beginUndocking(localeId: string, robotId: string, measure: number): void {
+/** Begin the Undocking hold, until `holdUntil` (the step's: the robot's entrance). */
+function beginUndocking(localeId: string, robotId: string, holdUntil: number | undefined): void {
   useLocaleStore.getState().updateRobot(localeId, robotId, {
     docking: DockingState.Undocking,
-    dockingHoldUntilMeasure: measure + 1,
+    dockingHoldUntilMeasure: holdUntil,
   });
 }
 
@@ -365,14 +368,19 @@ export function stepShiftLifecycle(
   return working;
 }
 
-/** Builds this robot's RobotLifecycleSnapshot from live store state. */
-function toLifecycleSnapshot(robot: Robot): RobotLifecycleSnapshot {
+/** Builds this robot's ShiftLifecycleSnapshot from live store state: every field the shift step reads or writes. */
+export function toLifecycleSnapshot(robot: Robot): ShiftLifecycleSnapshot {
   return {
     id: robot.id,
     docking: robot.docking,
     batteryLevel: robot.batteryLevel,
     dockingHoldUntilMeasure: robot.dockingHoldUntilMeasure,
     batterySize: robot.batterySize,
+    companyId: robot.companyId,
+    compositionSeed: robot.compositionSeed,
+    entersAtMeasure: robot.entersAtMeasure,
+    exitsAtMeasure: robot.exitsAtMeasure,
+    shiftBpm: robot.shiftBpm,
   };
 }
 
@@ -382,35 +390,41 @@ function toLifecycleSnapshot(robot: Robot): RobotLifecycleSnapshot {
  * drive it without a real transport — see startRobotLifecycle for the BeatClock-wired entry
  * point.
  *
- * Delegates the actual battery/docking arithmetic to stepRobotLifecycle (World
- * Clock, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md) — this function's own job is
- * comparing pre/post snapshots and firing the landing effects (beginRecall/beginUndocking/
- * landOnActive/landOnDocked) exactly where a transition happened. Those write docking + audio
- * only; anything visual goes through the onLifecycleChange seam (Phase 43). The job never enters
- * the comparison: it is live visual state the seam writes, and the replay never reads it.
+ * Delegates the docking arithmetic to stepShiftLifecycle (roadmap 94: the group's plan on its journey's turns), handed
+ * the live tempo (useAudioStore, as the work loop reads it) and the world's key (worldKeyOf on the locale's
+ * coordinates). This function's own job is writing each robot's battery and its next moves, then comparing pre/post
+ * snapshots and firing the landing effects (beginRecall/beginUndocking/landOnActive/landOnDocked) exactly where a
+ * transition happened. Those write docking + audio only; anything visual goes through the onLifecycleChange seam
+ * (Phase 43). The job never enters the comparison: it is live visual state the seam writes, and the replay never
+ * reads it.
  */
 export function tickRobotLifecycle(localeId: string, measure: number): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
   if (!locale) return;
   const robots = locale.robots;
+  const env: ShiftEnv = { bpm: useAudioStore.getState().bpm, worldKey: worldKeyOf(locale.coordinates ?? { x: 0, y: 0 }) };
 
   const before = robots.map(toLifecycleSnapshot);
-  const after = stepRobotLifecycle(before, measure);
+  const after = stepShiftLifecycle(before, measure, env);
 
   robots.forEach((robot, i) => {
     const preState = before[i];
     const postState = after[i];
 
-    if (preState.docking === DockingState.Active || preState.docking === DockingState.Docked) {
-      useLocaleStore.getState().updateRobot(localeId, robot.id, { batteryLevel: postState.batteryLevel });
-    }
+    // The gauge moves every measure (spec §1.10), and the step may have written the robot's next moves.
+    useLocaleStore.getState().updateRobot(localeId, robot.id, {
+      batteryLevel: postState.batteryLevel,
+      entersAtMeasure: postState.entersAtMeasure,
+      exitsAtMeasure: postState.exitsAtMeasure,
+      shiftBpm: postState.shiftBpm,
+    });
 
     if (preState.docking === postState.docking) return;
 
     if (preState.docking === DockingState.Active && postState.docking === DockingState.Recalled) {
-      beginRecall(localeId, robot.id, measure);
+      beginRecall(localeId, robot.id, postState.dockingHoldUntilMeasure);
     } else if (preState.docking === DockingState.Docked && postState.docking === DockingState.Undocking) {
-      beginUndocking(localeId, robot.id, measure);
+      beginUndocking(localeId, robot.id, postState.dockingHoldUntilMeasure);
     } else if (preState.docking === DockingState.Undocking && postState.docking === DockingState.Active) {
       landOnActive(localeId, robot.id);
     } else if (preState.docking === DockingState.Recalled && postState.docking === DockingState.Docked) {

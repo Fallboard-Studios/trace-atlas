@@ -28,7 +28,7 @@ import { chargingColorsKey } from '../components/stations/stationOccupancy';
 import { setRef, clearRefs } from '../utils/refs';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
-import { BATTERY_CRITICAL_THRESHOLD, BATTERY_DRAIN_ACTIVE, BATTERY_FULL_THRESHOLD, BATTERY_RECHARGE_RATE } from '../constants';
+import { recallLeadBars, shiftWindow } from './shiftPlan';
 import type { Actor } from '../types/Actor';
 import type { Locale } from '../types/locale';
 import type { DockingState, Robot, RobotActivity } from '../types/Robot';
@@ -66,8 +66,11 @@ const gem = getRobotGem(GEM_SEED);
 const COLOR = '#88ccff';
 /** One frame of GSAP time. */
 const DT = 1 / 30;
-/** Measures from a critical recall back to Active: the Recalled hold, the recharge, the Undocking hold. */
-const MEASURES_TO_ACTIVE = 1 + Math.ceil((BATTERY_FULL_THRESHOLD - BATTERY_CRITICAL_THRESHOLD) / BATTERY_RECHARGE_RATE) + 1;
+/** Measures from a recall back to Active at `bpm` (roadmap 94: the plan, not the battery): the lead to the exit turn,
+ *  the bar after it, the longest home window for a size-1 robot, and the Undocking hold. */
+const measuresToActive = (bpm: number) => recallLeadBars(bpm) + 2 + shiftWindow('home', 1, bpm).most + 1;
+/** Far enough off that the plan never recalls a robot during a case. */
+const FAR = 100_000;
 
 let WORLD: Actor[] = [];
 /** The placed world's locale record, kept so each test can rebuild LOCALE from it. */
@@ -124,10 +127,11 @@ function simulate(bpm: number) {
   useLocaleStore.setState({ locales: { [LOCALE]: { ...locale, id: LOCALE, name: LOCALE, actors: WORLD, robots: [] } } });
   const [s0, s1] = getStations(LOCALE);
   useLocaleStore.getState().setLocaleData(LOCALE, {
+    // Exit turns far off (roadmap 94): nobody is recalled until a case sets r1's exit turn near.
     robots: [
-      robot('r1', s0.port, { activity: 'exiting', stationId: s0.id }),
-      robot('r2', s1.port, { activity: 'exiting', stationId: s1.id }),
-      robot('r3', s1.port, { activity: 'exiting', stationId: s1.id }),
+      robot('r1', s0.port, { activity: 'exiting', stationId: s0.id, exitsAtMeasure: FAR, shiftBpm: bpm }),
+      robot('r2', s1.port, { activity: 'exiting', stationId: s1.id, compositionSeed: 0.25, exitsAtMeasure: FAR, shiftBpm: bpm }),
+      robot('r3', s1.port, { activity: 'exiting', stationId: s1.id, compositionSeed: 0.75, exitsAtMeasure: FAR, shiftBpm: bpm }),
     ],
   });
 
@@ -198,8 +202,13 @@ function simulate(bpm: number) {
     return done();
   };
   const activity = () => get('r1').activity;
+  /** Sets r1's exit turn so the next measure's tick recalls it (r2 and r3 are still Active). */
+  const recallNext = () => {
+    const next = Math.floor(sixteenth / 16) + 1;
+    useLocaleStore.getState().updateRobot(LOCALE, 'r1', { exitsAtMeasure: next + recallLeadBars(bpm), shiftBpm: bpm });
+  };
 
-  return { el, row, trace, charging, decorate, runUntil, activity, measureSeconds, unsubscribe };
+  return { el, row, trace, charging, decorate, runUntil, activity, measureSeconds, unsubscribe, recallNext };
 }
 
 /** `wanted` appears in order (not necessarily adjacent) among the trace's activities. */
@@ -273,10 +282,10 @@ describe('the work loop under the real lifecycle tick (Phase 43 Task 24)', () =>
       sim = simulate(bpm);
       expect(sim.runUntil(() => sim!.activity() === 'working', 120)).toBe(true);
       // The next measure crosses critical: a recall, with r2 and r3 still Active.
-      useLocaleStore.getState().updateRobot(LOCALE, 'r1', { batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
+      sim.recallNext();
       const recalledFrom = sim.trace.length;
       expect(sim.runUntil(() => sim!.activity() === 'charging', 120)).toBe(true);
-      expect(sim.runUntil(() => sim!.activity() === 'working', (MEASURES_TO_ACTIVE + 4) * sim!.measureSeconds + 60)).toBe(true);
+      expect(sim.runUntil(() => sim!.activity() === 'working', (measuresToActive(bpm) + 4) * sim!.measureSeconds + 60)).toBe(true);
 
       expect(hasSubsequence(sim.trace, ['exiting', 'transit', 'working', 'returning', 'entering', 'charging', 'exiting', 'transit', 'working'])).toBe(true);
       // It goes home only once the tick has recalled it.
@@ -300,14 +309,14 @@ describe('the work loop under the real lifecycle tick (Phase 43 Task 24)', () =>
   it('200 BPM, a hidden tab on the swim home: Active lands before it gets there, and it turns back to work without entering', () => {
     sim = simulate(200);
     expect(sim.runUntil(() => sim!.activity() === 'working', 120)).toBe(true);
-    useLocaleStore.getState().updateRobot(LOCALE, 'r1', { batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
+    sim.recallNext();
     expect(sim.runUntil(() => sim!.activity() === 'returning', 60)).toBe(true);
     const home = getTimeline('swim-r1')!.duration();
     expect(home).toBeGreaterThan(0.5); // a real swim, so there's time to turn back in
     const from = sim.trace.length - 1;
 
     // Throttled until it lands Active: the whole recharge passes in the first half of the swim.
-    const rate = Math.ceil((MEASURES_TO_ACTIVE + 1) * sim.measureSeconds / (home / 2));
+    const rate = Math.ceil((measuresToActive(200) + 1) * sim.measureSeconds / (home / 2));
     expect(sim.runUntil(() => get('r1').docking === 'active', home * 0.9, rate)).toBe(true);
     expect(sim.activity()).not.toBe('returning'); // turned back on the spot
     expect(sim.runUntil(() => sim!.activity() === 'working', 60)).toBe(true);
@@ -321,13 +330,13 @@ describe('the work loop under the real lifecycle tick (Phase 43 Task 24)', () =>
   it('200 BPM, a hidden tab during the entry: it turns back from the port to work, never exiting or charging (backlog 84 Task 13)', () => {
     sim = simulate(200);
     expect(sim.runUntil(() => sim!.activity() === 'working', 120)).toBe(true);
-    useLocaleStore.getState().updateRobot(LOCALE, 'r1', { batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
+    sim.recallNext();
     expect(sim.runUntil(() => sim!.activity() === 'entering', 120)).toBe(true);
     const from = sim.trace.length - 1;
 
     // Throttled only until it lands Active (in the hold or the arc) — any longer and the fast Transport would drain it
     // into a second recall before it is back at work.
-    const rate = Math.ceil((MEASURES_TO_ACTIVE + 1) * sim.measureSeconds / 0.5);
+    const rate = Math.ceil((measuresToActive(200) + 1) * sim.measureSeconds / 0.5);
     expect(sim.runUntil(() => get('r1').docking === 'active', 0.9, rate)).toBe(true);
     // At once from the hold; from the arc, once the reverse has run back to its start (at most the arc's length).
     expect(sim.runUntil(() => sim!.activity() !== 'entering', sim.measureSeconds + 0.5)).toBe(true);
