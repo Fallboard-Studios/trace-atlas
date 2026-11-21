@@ -810,6 +810,20 @@ export function rosterGroupDraws(noiseMap: NoiseFunction2D, earliest: number): {
   };
 }
 
+/** Each seeded company member's company id, by roster index: generateCompanyMembership's companies (handed in when
+ *  the caller has them) named by generateCompanyId, as spawnInitialCompanies names them. Pure. */
+export function companyIdsByIndex(
+  noiseMap: NoiseFunction2D,
+  membership: readonly (readonly number[])[] = generateCompanyMembership(noiseMap, MAX_ROBOTS),
+): Map<number, string> {
+  const companyOf = new Map<number, string>();
+  membership.forEach((members, c) => {
+    const id = generateCompanyId(noiseMap, c);
+    for (const i of members) companyOf.set(i, id);
+  });
+  return companyOf;
+}
+
 /**
  * The start of a world by groups, per roster index (spec §1.13). Pure, from the noise map alone. The groups are
  * generateCompanyMembership's companies and each freelancer alone. A group starts out when its startsOut draw is under
@@ -823,11 +837,7 @@ export function generateRosterStart(
   { bpm, worldKey, startMeasure }: { bpm: number; worldKey: string; startMeasure: number },
 ): RosterStartEntry[] {
   const membership = generateCompanyMembership(noiseMap, MAX_ROBOTS);
-  const companyOf = new Map<number, string>();
-  membership.forEach((members, c) => {
-    const id = generateCompanyId(noiseMap, c);
-    for (const i of members) companyOf.set(i, id);
-  });
+  const companyOf = companyIdsByIndex(noiseMap, membership);
   const robots = Array.from({ length: MAX_ROBOTS }, (_, i) => ({
     id: `roster-${i}`,
     companyId: companyOf.get(i),

@@ -9,9 +9,8 @@ import type { Actor } from '../types/Actor';
 import type { Vec2 } from '../types/Vec2';
 import { getUniformSeededVal } from '../utils/getSeededVal';
 import {
+  companyIdsByIndex,
   generateBatterySize,
-  generateCompanyId,
-  generateCompanyMembership,
   generateCompositionSeed,
   generateRosterStart,
 } from './spawnSystem';
@@ -86,7 +85,7 @@ export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): Shift
   const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
     getUniformSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1),
   );
-  const companyOf = simCompanies(noiseMap);
+  const companyOf = companyIdsByIndex(noiseMap);
   return Array.from({ length: MAX_ROBOTS }, (_, i) => {
     const active = i < activeCount;
     return {
@@ -99,16 +98,6 @@ export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): Shift
       compositionSeed: generateCompositionSeed(noiseMap, i),
     };
   });
-}
-
-/** Each seeded company member's company id, by roster index (generateCompanyMembership, generateCompanyId). */
-function simCompanies(noiseMap: NoiseFunction2D): Map<number, string> {
-  const companyOf = new Map<number, string>();
-  generateCompanyMembership(noiseMap, MAX_ROBOTS).forEach((members, c) => {
-    const id = generateCompanyId(noiseMap, c);
-    for (const i of members) companyOf.set(i, id);
-  });
-  return companyOf;
 }
 
 /**

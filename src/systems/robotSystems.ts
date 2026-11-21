@@ -476,7 +476,7 @@ export function tickRobotLifecycle(localeId: string, measure: number): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
   if (!locale) return;
   const robots = locale.robots;
-  const env: ShiftEnv = { bpm: useAudioStore.getState().bpm, worldKey: worldKeyOf(locale.coordinates ?? { x: 0, y: 0 }) };
+  const env: ShiftEnv = { bpm: useAudioStore.getState().bpm, worldKey: worldKeyOf(locale.coordinates) };
 
   const before = robots.map(toLifecycleSnapshot);
   const after = stepShiftLifecycle(before, measure, env);

@@ -289,10 +289,10 @@ describe('robotSystems', () => {
       expect(robotIn('b').audioMode).toBe('mute');
     });
 
-    it('does not throw for a locale with no coordinates, nor for robots with no moves at all', () => {
-      useLocaleStore.setState({
-        locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, coordinates: undefined as never, robots: [makeRobot({ id: 'a' }), makeRobot({ id: 'b', compositionSeed: 0.3, docking: DockingState.Docked })] } },
-      });
+    it('does not throw for robots with no moves at all', () => {
+      // A locale always has coordinates (Locale.coordinates is required); the no-coordinates half of this case, and the
+      // tick's fallback to (0, 0) for it, went with review 2026-11-21.
+      setupLocaleWithRobots([makeRobot({ id: 'a' }), makeRobot({ id: 'b', compositionSeed: 0.3, docking: DockingState.Docked })]);
       expect(() => {
         for (let m = 1; m <= 30; m++) tickRobotLifecycle(DEFAULT_LOCALE_ID, m);
       }).not.toThrow();
