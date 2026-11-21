@@ -7,7 +7,15 @@ doing on screen, on wall-clock time: work sites, charging stations, recall and t
 Robot Lifecycle (Roadmap Phase 7) replaced the dynamic spawn/despawn/persistence machinery that
 existed through Phases 4–6 as test scaffolding. A locale's roster is created once, in full, at
 locale load. Every robot cycles between `Docked` and `Active` for the rest of the session, driven
-purely by its own battery level. Nothing is ever removed from the roster.
+by its group's plan on its journey's turns (roadmap 94, below). Nothing is ever removed from the roster.
+
+Companies Together (Roadmap 94, [spec](specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md),
+[plan](tasks/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md)) moved when a robot comes and goes from its own
+battery to its **group** (a company, or one freelancer): each group's exit and entrance are planned on
+turning measures of its journey, ahead, at a pace written for 60 BPM and scaled by the tempo; a
+company is recalled together and waits at its ports so its sound ends on one bar line; the battery is
+a gauge that follows the plan. Until 2026-11-20 a robot was recalled when its own battery reached 10
+and undocked when it reached 100, each member of a company on its own cycle.
 
 Robot Jobs and Stations (Roadmap Phase 43, [spec](specs/ROBOT_JOBS_AND_STATIONS.md)) split what a
 robot *is* from what it *looks like it's doing*. J1 renamed the docking states, made the drain flat,
@@ -23,13 +31,13 @@ either state machine.
 ## Core Principles
 
 1. **Fixed roster, created once**: every locale spawns exactly `MAX_ROBOTS` (12) robots at load — no dynamic spawn scheduler, no manual spawn action, no removal.
-2. **Two state machines, two clocks**: `Robot.docking` (Docked/Undocking/Active/Recalled) is battery-driven and ticks once per measure. `Robot.activity` (charging/exiting/transit/working/waiting/returning/entering) is the work loop's and runs on wall-clock GSAP time. The docking machine never reads `activity`; the work loop reads `docking` at every decision. One exception, outside both machines: audibility reads whether the robot is in its station from `activity` (rule 6, backlog 84), because the battery lands a robot on `Docked` while it is still swimming home.
-3. **Battery-driven, not job-driven**: every Active robot drains at its own rate, the flat base divided by its seeded battery size, whatever it is doing, and charges the same way (see "Battery size"). The job, the site, the station and the position are live visual state; nothing in the lifecycle reads them.
-4. **Measure-quantized transitions**: every docking change is evaluated once per measure via BeatClock — never `setTimeout`/`setInterval`. This is what makes battery and docking headlessly replayable — see "Deterministic Replay" below.
+2. **Two state machines, two clocks**: `Robot.docking` (Docked/Undocking/Active/Recalled) is plan-driven and ticks once per measure. `Robot.activity` (charging/exiting/transit/working/waiting/returning/entering) is the work loop's and runs on wall-clock GSAP time. The docking machine never reads `activity`; the work loop reads `docking` at every decision. One exception, outside both machines: audibility reads whether the robot is in its station from `activity` (rule 6, backlog 84), because the lifecycle can land a robot on `Docked` while it is still on its way in (a late member, below).
+3. **The plan decides; the battery is a gauge** (roadmap 94): a group's exit turn and entrance are drawn on its journey's turns when it comes out and when it is home (see "The plan"), and the docking machine moves on them. The battery follows: it falls in a straight line to 10 on the bar line after the exit turn and rises to 100 on the entrance (see "Battery"). It is never the cause of a recall or an undocking. The job, the site, the station and the position are live visual state; nothing in the lifecycle reads them.
+4. **Measure-quantized transitions**: every docking change is evaluated once per measure via BeatClock — never `setTimeout`/`setInterval`. The step reads the tempo and the world's key, both handed in, and nothing else outside the roster. This is what makes the battery, the plans and the docking headlessly replayable — see "Deterministic Replay" below.
 5. **One seam to the visuals**: the tick writes docking and battery, then calls `onLifecycleChange(localeId, robotId, to)` for the transitions that have a visual consequence. It never starts a swim, writes a position or picks a job itself.
 6. **The dock mutes; Solo beats it**: a robot in its station (`Docked`, or `Undocking` on its way out, and `'charging'`) is silent because of where it is (`isDockMuted(docking, activity)` in `src/utils/robotAudibility.ts`), never because of its `audioMode`. The silence begins at `'charging'`, not at the `Docked` landing: a recalled robot is heard all the way home, through the swim and its station fade, and a `Docked` robot that is `'returning'` or `'entering'` still sounds (backlog 84, [specs/PLAY_UNTIL_IN_THE_STATION.md](specs/PLAY_UNTIL_IN_THE_STATION.md) §1.3; `activity` is a required parameter, so no reader can leave it out). `audioMode` is the user's alone (Robot Options' and the company screen's Monitor Mode: Auto, Mute, Solo, Highlight; Auto is `'none'`), and nothing in the lifecycle writes it, so a Solo, Mute or Highlight survives every dock and undock (Crawford, 2026-11-11; until then the landings wrote `'mute'` and `'none'` over it). A soloed robot is heard even in its station; Auto and Highlight never make a robot in its station heard. A Highlight counts only while its robot is heard: one in its station, silenced by another robot's Solo, or standing by is not in the live Highlight set the Audio Load budget pushes, so it dips nobody (backlog 81, [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). The melody stays registered the whole time, exactly like an `Active` robot's. The `AudioEngine` voice does not: the Audio Load budget stands every muted robot by — muted by the user, or by the dock unless soloed — so the voice is released after its last note and rebuilt when the budget admits the robot again (backlog 67's G1, [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). The rule is enforced at the note trigger (`isRobotAudible` in `triggerWithCap`).
 7. **Animation never touches audio**: every work-loop timeline callback calls only work-loop functions or store writes, never `AudioEngine` (the Strict Separation guardrail). Animation speed doesn't follow the music, except that a job's length is read from the tempo when it starts (`jobDuration(bpm)`).
-8. **A pause freezes measures; the day runs**: the power rocker pauses the world rather than tearing it down (`docs/specs/OFF_SCREEN.md` assumption 5; [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause)). The AudioContext is suspended, so the measure tick, and with it battery drain and recharge, the transition hold, the harmony and the melody journey, stop where they are and continue from there on resume — a replay by elapsed measures is unaffected, since no measure elapsed. The work loop's clock is shifted by the paused span and its `'world'` timelines are paused in place, so every robot is where it was and every site cooldown means what it did. The in-world day is wall clock (`DAY_DURATION_MS` from `dayStartTimestamp`) and is never gated: the light moves on while the tablet is off, and a world resumed after ten minutes resumes into a later hour.
+8. **A pause freezes measures; the day runs**: the power rocker pauses the world rather than tearing it down (`docs/specs/OFF_SCREEN.md` assumption 5; [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause)). The AudioContext is suspended, so the measure tick, and with it every group's plan, the battery gauge, the transition hold, the harmony and the melody journey, stop where they are and continue from there on resume — a replay by elapsed measures is unaffected, since no measure elapsed. The work loop's clock is shifted by the paused span and its `'world'` timelines are paused in place, so every robot is where it was and every site cooldown means what it did. The in-world day is wall clock (`DAY_DURATION_MS` from `dayStartTimestamp`) and is never gated: the light moves on while the tablet is off, and a world resumed after ten minutes resumes into a later hour.
 
 ## Data Structures
 
@@ -67,10 +75,18 @@ Fields on `Robot`:
 docking: DockingState;
 /** Measure at which an Undocking/Recalled hold ends. Undefined when docking is Docked or Active. */
 dockingHoldUntilMeasure?: number;
-/** 0-100, fractional. Drains while Active, recharges while Docked. Seeded at spawn. */
+/** 0-100, fractional. A gauge (roadmap 94): falls while out, rises while home. Seeded at spawn. */
 batteryLevel: number;
-/** Divides both the drain and the charge. Seeded at spawn, never edited, shown or saved. */
+/** Seeded at spawn, never edited, shown or saved. Only the group's earliest member's is read: it scales the group's
+ *  windows (see "The plan"). */
 batterySize?: number;
+/** The measure this robot next lands Active on: its group's entrance, or a staggered bar after it. Set while home. */
+entersAtMeasure?: number;
+/** The turning measure this robot fades over; its sound ends on the bar line after. Set while out; absent on an
+ *  Active robot means it is staying. */
+exitsAtMeasure?: number;
+/** The tempo the two above were last scaled at. */
+shiftBpm?: number;
 /** Taken with a site (chooseNextSite) and kept across sites until none ready hosts it. Undefined
  *  until the first site; stale while charging. */
 job?: JobType;
@@ -85,50 +101,114 @@ position: Vec2;
 ```
 
 All of these are plain JSON. None of `job`, `activity`, `stationId`, `siteId` or `position` is
-replayed or saved in a session (see [SESSION_STORAGE.md](SESSION_STORAGE.md)). Timelines, site
-cooldowns and DOM refs live outside the store.
+replayed or saved in a session (see [SESSION_STORAGE.md](SESSION_STORAGE.md)). The three move
+fields are live lifecycle state like `docking`: replayed, never saved, linked or shown; a loaded
+world starts again from "Roster Creation". Timelines, site cooldowns and DOM refs live outside the
+store.
 
 ## The Docking State Machine
 
 ```
-        battery ≥ 100%
-Docked ─────────────────▶ Undocking
-  ▲                          │
-  │                          │ hold elapses (up to 1 measure)
-  │                          ▼
-  └─────────── Recalled ◀── Active
-       hold elapses            battery ≤ 10%
-       (up to 1 measure)
+        measure ≥ entrance − 1
+Docked ─────────────────────▶ Undocking
+  ▲                              │
+  │                              │ hold: the entrance
+  │                              ▼
+  └─────────── Recalled ◀────── Active
+   hold: the bar line     measure ≥ exit turn − lead,
+   after the exit turn    and a robot outside the group is Active
 ```
 
-- **`Docked` → `Undocking`**: triggered the measure a `Docked` robot's battery reaches
-  `BATTERY_FULL_THRESHOLD` (100). Not an immediate jump to `Active` — `Undocking` is a real held
-  state, and a silent one: `beginUndocking` writes the hold only and calls no seam. The robot stays
-  hidden in its station.
-- **`Active` → `Recalled`**: triggered the measure an `Active` robot's battery reaches
-  `BATTERY_CRITICAL_THRESHOLD` (10) or below **while another robot is `Active`**. `beginRecall`
-  writes the docking state and hold, then calls `onLifecycleChange(…, 'recalled')` (see "Recall"
-  below).
-  - **The last Active robot stays up** ([backlog 60](todo/archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging),
-    [spec](specs/NO_SILENCE_AND_COMPANY_FAMILIES.md) §1.2; 2026-11-11). A robot at or below critical
-    with no other robot `Active` stays `Active` — a **stay** — and drains on to the floor of 0 until
-    another lands on `Active`. So the fleet is never silent: a roster with an `Active` robot before a
-    tick has one after it. The rule reads docking only, never `audioMode` (a muted last robot stays
-    too) and never the Audio Load budget. A staying robot's docking doesn't change, so no landing
-    effect and no seam call fire, and the work loop keeps it working. The step mutates its working
-    roster in order, so roster order decides two cases: a robot landing on `Active` earlier in the
-    roster relieves a staying one the same measure, one later in the roster the next measure; and of
-    two robots crossing critical in one measure with no third `Active`, the earlier is recalled and
-    the later stays. (From 2026-10-12 to 2026-11-11 there was no such guard, and the fleet went silent
-    in 3.39 % of measures across 79 of 121 worlds; the original guard is `beb6abc0`.)
-- **The hold**: `dockingHoldUntilMeasure` is set to `measure + 1` at the moment of triggering. The
-  robot lands (`Undocking` → `Active`, `Recalled` → `Docked`) the first measure tick at or after
-  that value — "up to one measure," not always a full one: a threshold crossed right after a
-  measure boundary waits nearly a full measure, one crossed right before it lands almost
-  immediately. No visual's duration governs a landing: a recalled robot can land on `Docked` while
-  it is still swimming home, and the work loop simply finishes the trip.
+The step is `stepShiftLifecycle(roster, measure, env)` (`robotSystems.ts`, roadmap 94), `env` the
+tempo and the world's key; one pass over a working copy in roster order, pure. A robot moves at most
+one state a tick.
+
+- **`Docked` → `Undocking`**: the measure before a `Docked` robot's entrance (`entersAtMeasure`),
+  holding until the entrance. `Undocking` is a real held state, and a silent one: `beginUndocking`
+  writes the hold only and calls no seam. The robot stays hidden in its station.
+- **`Undocking` → `Active`**: on its hold, the entrance. If no member of its group carries an exit
+  turn, it is the group's first out and the **exit is drawn** for every member, those still home
+  included (`planExit`, see "The plan").
+- **`Active` → `Recalled`**: the lead before its exit turn (`exitsAtMeasure − recallLeadBars(bpm)`),
+  **while a robot outside its group is `Active`**; then every `Active` member of its group due on
+  that measure is recalled in the same pass, each held until the bar line after its own exit turn.
+  `beginRecall` writes the docking state and hold, then calls `onLifecycleChange(…, 'recalled')` (see
+  "Recall" below).
+  - **The stay: the last group out stays up, whole** (roadmap 94, spec §1.9; before it, the last
+    *robot*, [backlog 60](todo/archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging)).
+    A member due for recall with no robot outside its group `Active` is not recalled, and every
+    `Active` member of its group loses its exit turn: the group **stays**, whole. Once a robot
+    outside the group is `Active` (one freelancer is enough), the staying members all take the first
+    turn of their journey the lead allows, together. So the fleet is never silent: a roster with an
+    `Active` robot before a tick has one after it. The rule reads docking only, never `audioMode` (a
+    muted last group stays too) and never the Audio Load budget. A staying robot's docking doesn't
+    change, so no landing effect and no seam call fire, and the work loop keeps it working. Roster
+    order decides two cases: relief landing earlier in the roster gives the new exit the same
+    measure, later in the roster the next; and of two groups due on one measure with no third
+    `Active`, the earlier in the roster is recalled whole and the later stays whole.
+- **`Recalled` → `Docked`**: on its hold. If no member of its group is still out (`Active` or
+  `Recalled`), it is the group's last home and the **entrance is drawn** for every member, and the
+  exit turns are spent (`planEntrance`).
+- **The holds**: an `Undocking` robot's is its entrance; a `Recalled` robot's is the bar line after its
+  exit turn, so its sound can end there (see "Recall"). A move that is overdue (a hand-built robot, a
+  tempo change on a slow world) holds until the next measure, never fires twice in one tick. No
+  visual's duration governs a landing: a late member can land on `Docked` while it is still on its
+  way in, and the work loop simply finishes the trip.
+- **A tempo change** (spec §1.12): at the top of the step, a robot whose `shiftBpm` differs from the
+  live tempo has its moves rescaled (`rescaleMove`): the bars still to go times new ÷ old, rounded,
+  then the first turn of its group's journey at or after that, an exit never nearer than the lead + 1
+  and an entrance never nearer than 2, so nothing changes docking on the tick of the change. A
+  `Recalled` or `Undocking` robot keeps its hold.
+- **A robot out of step** (spec §1.14: company edits, hand-built robots): an `Active` robot with no
+  exit turn takes the earliest a mate can still make, else the stay's rule; a `Docked` robot with no
+  entrance waits while its group is out, takes a home mate's, or with its whole group home and none,
+  draws the group's now. A move brought from another group is dropped: a `Docked` robot's entrance
+  while a mate is out and it carries no exit (a staggered member always carries the group's), and an
+  `Active` robot's exit turn that no mate shares and that is no turn of the group's journey, while a
+  mate is out on an exit of its own.
 - **Landing effects** (`landOnActive`/`landOnDocked` in `robotSystems.ts`) are where audio and
   docking authoritatively change; each then calls the seam.
+
+### The plan (roadmap 94)
+
+The arithmetic is [`src/systems/shiftPlan.ts`](../src/systems/shiftPlan.ts), pure and knowing no
+roster shape beyond what it is handed:
+
+- **A group** is a company (`companyId`) or one robot alone (`groupIdOf`). Its journey is its
+  company's journey key, whatever each member's own Journey setting says, or the fleet's for a
+  freelancer (`groupJourneyKey`). Its size is the `batterySize` of its member earliest in the roster
+  (`groupSize`). Its draws are four per turn of its journey, from `${worldKey}:${companyId}:shifts` or
+  `${worldKey}:${compositionSeed}:shifts`, memoised, so a turn's draws never depend on what was asked
+  first (`groupDraws`).
+- **The turns** are `journeyTurns(key, from, to)` in `melodyJourney.ts`: each turning measure at
+  `JOURNEY_TIME_MAX`, its pair index, its move (the shares' distance, 0 to 2) and whether it is a
+  drop. A turn's **weight** is 1 for a drop, else its move up to 1.
+- **The pace** (`shiftWindow`): lengths are written in bars at `SHIFT_REFERENCE_BPM` (60) and scaled
+  by bpm ÷ 60. Out: at least `SHIFT_OUT_BASE_BARS` (15) × size, at most `SHIFT_OUT_MAX_BARS` (40);
+  home: at least `SHIFT_HOME_BASE_BARS` (20) × size, at most `SHIFT_HOME_MAX_BARS` (50); never under
+  `SHIFT_MIN_BARS` (8), and the most never under 16 past the least. A size-1 group:
+
+  | Tempo | Out, bars | Home, bars | The lead, bars |
+  |---|---|---|---|
+  | 20 BPM | 8–24 | 8–24 | 2 |
+  | 40 BPM | 10–27 | 13–33 | 4 |
+  | 60 BPM | 15–40 | 20–50 | 6 |
+  | 100 BPM | 25–67 | 33–83 | 10 |
+  | 200 BPM | 50–133 | 67–167 | 20 |
+
+- **The exit** (`planExit`), drawn when a group's first member lands `Active`: the turns in its out
+  window walked in order, leaving on one when its leave draw is under `SHIFT_LEAVE_ODDS_MIN` (0.35)
+  plus up to `SHIFT_LEAVE_ODDS_MAX` (0.95) by weight (always on a drop), the last if none; at the
+  chosen turn a **group exit** (every member on it) under `GROUP_EXIT_ODDS_MIN` (0.5) plus up to
+  `GROUP_EXIT_ODDS_MAX` (0.95) by weight (always after a drop), else a **drifting exit**: the
+  members, in a drawn order, on the turns from it on, one each.
+- **The entrance** (`planEntrance`), drawn when a group's last member lands `Docked`: the turns in
+  its home window walked at `SHIFT_ENTER_ODDS` (0.5) whatever the move, the last if none; together
+  under `ENTRANCE_TOGETHER_ODDS` (0.7), else the members in a drawn order `ENTRANCE_STAGGER_BARS`
+  (2) apart from the turn on.
+- **The lead** (`recallLeadBars`): `RECALL_LEAD_SECONDS` (24) in bars at the tempo, rounded up.
+
+Every number above is spec §4's first cut; Gate A was not held (the plan's Results).
 
 ## The Activity State Machine
 
@@ -266,9 +346,13 @@ and the art are in [BUILDING_DESIGN.md](BUILDING_DESIGN.md#robot-jobs--hosts-wor
 - **Entering** (`'entering'`, backlog 84): on arrival the robot **holds** at the port, visible at full
   size and still playing, its slot held. The station fade system
   ([`stationFadeSystem.ts`](../src/systems/stationFadeSystem.ts)), a `'16n'` repeat started and stopped
-  with the work loop, decides on the next sixteenth: with `STATION_FADE_MIN_STEPS` (8, half a measure,
-  inclusive) or more sixteenths left to the bar line, the robot goes in at once; with fewer, it holds
-  until the bar-line tick and takes the whole next measure. Either way the system starts the robot's
+  with the work loop, decides on the next sixteenth. A **`Recalled`** robot waits at the port, still
+  playing, until the last bar of its hold (roadmap 94: the hold is the bar line after its exit turn,
+  so its last bar is the exit turn's own); from then on, and for a `Docked` or `Undocking` robot: with
+  `STATION_FADE_MIN_STEPS` (8, half a measure, inclusive) or more sixteenths left to the bar line, the
+  robot goes in at once; with fewer, it holds until the bar-line tick and takes the whole next
+  measure. So the members of a company recalled together fade over one bar and go in on one bar line;
+  a member arriving with under half a measure left (a **late member**) is a bar behind. Either way the system starts the robot's
   volume ramp to 0 (`AudioEngine.scheduleStationFade`, none for a soloed robot) and the entry arc
   (`enterOnBar(robotId, seconds)`) over the same seconds plus the lead until the tick's audio is heard
   (`AudioEngine.secondsUntilHeard`), so the body is gone when the ramp is heard to end on the bar line. The arc vanishes
@@ -292,7 +376,10 @@ The arcs, eases and timeline keys are in [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.
 
 ### Recall
 
-The measure tick recalls a robot (`'recalled'`). What happens depends on what it is doing:
+The measure tick recalls a robot (`'recalled'`) the lead before its exit turn: `RECALL_LEAD_SECONDS`
+(24) in bars at the tempo, a little over the longest trip home on record, so the members of a company
+reach their ports before the exit turn's bar and wait there (roadmap 94; a median of 16–18 s and up to
+24 s at the door in the loop sim, at every tempo). What happens depends on what it is doing:
 
 - **Working**: the job runs to its full length (the orbiters reattach and the bob ends at rest),
   then the job's own `next()` sees `docking` isn't Active and sends it home. The site gets its
@@ -316,10 +403,10 @@ If a robot lands on `Active` again before it is inside its station, it turns bac
   `landOnActive` cancels the station fade (see "Landing Effects"). The arc's own end keeps an
   `Active` guard (exit again) for a landing that skipped the seam.
 
-**A turn-back can't happen on its own.** From a critical recall back to Active takes at least 16
-measures (the smallest battery, size 0.67: the hold, 14 measures of recharge, and the undocking
-hold; a size-1 robot takes 20), longer than any robot's swim home at any tempo — the loop sim
-measures 0 turn-backs at 20, 110 and 200 BPM. The only real path is
+**A turn-back can't happen on its own.** From a recall back to Active takes the lead, the exit turn's
+bar and a home window of at least `SHIFT_MIN_BARS` (8) bars, longer than any robot's trip home at any
+tempo — the loop sim measures 0 turn-backs at 20, 110 and 200 BPM on the shift step. The only real
+path is
 a **hidden tab**: the browser slows GSAP, but the Transport keeps ticking, so the lifecycle runs
 ahead of the visuals. Because every decision reads `docking`, the visuals converge however far
 behind they fall. `workLoop.integration.test.ts` drives both turn-back cases at 200 BPM by running
@@ -328,53 +415,59 @@ the Transport ahead of GSAP.
 ## Battery
 
 Evaluated once per measure by `tickRobotLifecycle(localeId, measure)`, called from a
-`subscribeToMeasure` callback registered by `startRobotLifecycle`/`stopRobotLifecycle`:
+`subscribeToMeasure` callback registered by `startRobotLifecycle`/`stopRobotLifecycle`. Since roadmap
+94 the battery is a **gauge** (spec §1.10): it follows the plan and never causes a move. After the
+transitions, each robot's level steps a straight line to its target, read as the robot stood at the
+top of the tick (so a robot landing this tick finishes its phase on its target):
 
-| State | Per-measure change |
+| Robot (its docking at the top of the tick) | Each measure |
 |---|---|
-| `Active` | `-BATTERY_DRAIN_ACTIVE / batterySize` (6 ÷ size), whatever its job or activity, floored at 0 |
-| `Docked` | `+BATTERY_RECHARGE_RATE / batterySize` (5 ÷ size), capped at 100 |
-| `Undocking`, `Recalled` | none (the hold) |
+| Out (`Active` or `Recalled`) with an exit turn, above 10 | a straight line to `BATTERY_CRITICAL_THRESHOLD` (10) on the bar line after the exit turn |
+| Out with no exit turn (a stay), or at or under 10 (it has stayed) | loses `BATTERY_EASE_SHARE` (⅛) of its level; never reaches 0 |
+| Home (`Docked` or `Undocking`) with an entrance | a straight line to `BATTERY_FULL_THRESHOLD` (100) on the entrance |
+| Home with no entrance yet | gains ⅛ of what is missing; never reaches 100 |
+
+So the battery falls on every measure a robot is out and rises on every measure it is home, holds
+included, reads 10 as its sound ends and 100 as it comes out, and never jumps or sits still. A tempo
+change re-aims it by itself, as the moves are rescaled.
 
 ```typescript
 // src/constants/index.ts
-BATTERY_DRAIN_ACTIVE = 6;      // the base; the robot's size divides it
-BATTERY_RECHARGE_RATE = 5;     // the base; the robot's size divides it
-BATTERY_CRITICAL_THRESHOLD = 10;
-BATTERY_FULL_THRESHOLD = 100;
-DEFAULT_BATTERY_SIZE = 1;      // a robot or snapshot with no size: the base rates
-BATTERY_SIZE_MIN = 0.67;       // Gate A's band (Crawford, 2026-11-11)
+BATTERY_CRITICAL_THRESHOLD = 10;  // the gauge's empty, on the bar line after the exit turn
+BATTERY_FULL_THRESHOLD = 100;     // the gauge's full, on the entrance
+BATTERY_EASE_SHARE = 0.125;       // a stay's fall and a waiting robot's rise, a share a measure
+DEFAULT_BATTERY_SIZE = 1;         // a robot or snapshot with no size
+BATTERY_SIZE_MIN = 0.67;          // Gate A's band (Crawford, 2026-11-11)
 BATTERY_SIZE_MAX = 1.5;
+BATTERY_DRAIN_ACTIVE = 6;         // today's step only (stepRobotLifecycle), kept for the sims until the removals
+BATTERY_RECHARGE_RATE = 5;        // the same
 ```
 
 The battery is a plain fractional number: `localeStore.ts`'s `updateRobot` clamps it to 0–100 (and
-drops a `NaN`) but no longer truncates it, so the live tick and the replay hold the same value
+drops a `NaN`) but does not truncate it, so the live tick and the replay hold the same value
 between measures. Spawn's start batteries stay whole; only the tick makes fractions. The readouts
-round it.
+round it, and the body's dimming tiers read it as before.
 
 ### Battery size
 
 Every robot draws one seeded `Robot.batterySize` at spawn — `generateBatterySize(noiseMap,
 spawnCount)` in `spawnSystem.ts`, an even draw (`getUniformSeededVal`) at `'robot.batterySize'` on
-`[BATTERY_SIZE_MIN, BATTERY_SIZE_MAX)` — and the step divides both its drain and its charge by it:
-a big battery is a long shift and a long charge, a small one a short shift and a short charge, and
-every robot keeps about the same share of airtime (44.4–45.9 % heard, measured). It is a seeded fact,
-not a control: never edited, never shown, never saved in a session (regenerated from the world seed),
-never inherited on the copy path. Absent, it reads as `DEFAULT_BATTERY_SIZE`, so hand-built test
-robots keep the base rates.
+`[BATTERY_SIZE_MIN, BATTERY_SIZE_MAX)`. Since roadmap 94 only one size per group is read, its member
+earliest in the roster's (the founder, for a seeded company): it multiplies the least of the group's
+out and home windows, so a big battery is a long least shift and a long least charge. Every robot
+keeps drawing its own (spec Q5's default), so a robot made freelance later has one. It is a seeded
+fact, not a control: never edited, never shown, never saved in a session (regenerated from the world
+seed), never inherited on the copy path. Absent, it reads as `DEFAULT_BATTERY_SIZE`.
 
-**Cycle lengths are whole measures, so there are fifteen, not a continuum.** A shift always starts at
-exactly 100 and transitions are checked once a measure, so a robot that needs *n* Active measures to
-reach critical then needs ⌈1.2·*n*⌉ Docked ones (the size divides both rates, so it cancels), plus the
-two one-measure holds. On 0.67–1.5, *n* runs from 11 to 23, so a cycle runs from 27 measures to 53.
-Where 1.2·*n* is a whole number (*n* = 15 or 20) the charge lands on 100 or a hair under, depending on
-the size's low bits, and a hair under costs one more measure: deterministic, the same in the live tick
-and the replay. That is fifteen lengths (Crawford accepted it at Gate A, spec open question A2).
-Robots of one length stay in step until a stay moves one: measured over the grid, the median world
-has 3 robots sharing a length and the worst 5. The fleet as a whole no longer loops: before battery
-size every robot's cycle was 35 measures and every world repeated every 35.
+Before roadmap 94 the size divided both the drain and the charge of each robot, every member of a
+company on its own cycle of 27 to 53 measures (fifteen whole-measure lengths on the 0.67–1.5 band).
+Today's step, `stepRobotLifecycle`, still does that, for the sims' "today" rows, until the removals
+(the plan's Task 27, on Crawford's yes).
 
 ### Why 6 — the drain sim (Phase 43 Task 2)
+
+History: the rule the tick ran until roadmap 94, kept because `stepRobotLifecycle` and its sims are
+still in the code.
 
 Before Phase 43 an Active robot drained `BATTERY_DRAIN_BASE` (2) plus a per-job surcharge (vent
 extraction 1, acoustic survey 3, structural inspection 5, fluid monitoring 7). The job is live
@@ -438,7 +531,7 @@ so the lifecycle has no part in it.
 
 ## Deterministic Replay (Roadmap Phase 20.5 — World Clock)
 
-Battery and docking are replayable headlessly — given a roster's seeded spawn state and
+Battery, plans and docking are replayable headlessly — given a roster's seeded spawn state, a tempo and
 a target elapsed-measures count, the exact end state a real measure-by-measure run would have
 produced can be computed in a tight loop, with zero BeatClock subscription and zero
 AudioEngine/GSAP side effects. This is the same "store the recipe, not the derived state" principle
@@ -452,26 +545,29 @@ that moment. Elapsed measures for replay purposes is always
 `getCurrentMeasure() - locale.createdAtMeasure`; no per-measure counter is stored on the locale
 (the old per-measure mirror on the locale was removed with the One Day Clock phase, roadmap 48).
 
-**`RobotLifecycleSnapshot`** (`robotSystems.ts`) — the subset of `Robot` a replay reads or writes,
-deliberately narrower than `Robot`: `id`, `docking`, `batteryLevel`, `dockingHoldUntilMeasure`,
-`batterySize` (both rates read it; `toLifecycleSnapshot` carries it, and absent it reads as 1).
-Phase 43 dropped `job`, `octaveRange`, `rhythmicDensity` and `rhythmicMotifLength`, which only fed
-job scoring; roadmap 92 dropped `melody`, `dockCycleCount` and `noteVariance` with pitch drift.
+**`ShiftLifecycleSnapshot`** (`robotSystems.ts`, roadmap 94) — the subset of `Robot` a replay reads
+or writes, deliberately narrower than `Robot`: `id`, `docking`, `batteryLevel`,
+`dockingHoldUntilMeasure`, `batterySize`, the group (`companyId`, `compositionSeed`) and the three
+moves (`entersAtMeasure`, `exitsAtMeasure`, `shiftBpm`). `toLifecycleSnapshot` builds it from a live
+robot. It extends `RobotLifecycleSnapshot`, today's step's (`id`, `docking`, `batteryLevel`,
+`dockingHoldUntilMeasure`, `batterySize`). Phase 43 dropped `job`, `octaveRange`, `rhythmicDensity`
+and `rhythmicMotifLength`, which only fed job scoring; roadmap 92 dropped `melody`, `dockCycleCount`
+and `noteVariance` with pitch drift.
 
-**`stepRobotLifecycle(roster, measure, drain = activeDrain): RobotLifecycleSnapshot[]`**
-(`robotSystems.ts`) — one measure's worth of transition for an entire roster, pure. Mirrors
-`tickRobotLifecycle`'s battery/docking arithmetic exactly
-(mutates a local working array in roster order, so within-measure ordering effects match a real
-tick bit for bit — the stay-up rule reads that working array, which is the one place the step reads
-joint roster state). `drain` is a `DrainRule` (`(snapshot) => number`) returning the
-base drain, before the robot's size divides it, defaulting to `activeDrain` (`BATTERY_DRAIN_ACTIVE`
-for every Active robot); only the drain sim passes another. It takes no noise map: nothing in a
-measure's transition is drawn.
+**`stepShiftLifecycle(roster, measure, env): ShiftLifecycleSnapshot[]`** (`robotSystems.ts`) — one
+measure's worth of transition for an entire roster, pure: "The Docking State Machine" and "Battery"
+above. `env` is `{ bpm, worldKey }`. It mutates a local working array in roster order, so
+within-measure ordering effects match a real tick bit for bit — the stay and the group draws read
+that working array. It takes no noise map: its draws are the groups' own streams, read by turn.
 
-**`replayLifecycle(roster, fromMeasure, toMeasure, drain = activeDrain)`**
-(`robotSystems.ts`) — calls `stepRobotLifecycle` once per measure from `fromMeasure + 1` through
-`toMeasure` inclusive; a no-op if `toMeasure < fromMeasure + 1`. The one caller-facing entry point
-for headless replay. In practice always called with `fromMeasure` = the locale's own
+**`stepRobotLifecycle(roster, measure, drain = activeDrain)`** — today's battery step, which the tick
+ran until roadmap 94: the drain and charge divided by the robot's size, recall at 10, undock at 100,
+holds of one measure. Kept for the sims' "today" rows until the removals (the plan's Task 27).
+
+**`replayLifecycle(roster, fromMeasure, toMeasure, env)`** (`robotSystems.ts`) — calls
+`stepShiftLifecycle` once per measure from `fromMeasure + 1` through `toMeasure` inclusive, at one
+tempo for the whole span (spec §7.1 A7); a no-op if `toMeasure < fromMeasure + 1`. The one
+caller-facing entry point for headless replay. In practice always called with `fromMeasure` = the locale's own
 `createdAtMeasure` — replay always fully re-simulates from roster creation, never resumes from a
 mid-point checkpoint. The melody needs no replay: the melody of any measure is worked out from the
 home melody, the robot's journey settings and the measure
@@ -486,8 +582,9 @@ their station, Active ones decide from where they are.
 **No consumer wires this in yet.** Session Storage's `SessionPayload`, the shareable link (roadmap
 Phase 21), and a future configuration scrubber (roadmap Phase 32) are all real candidates, but none
 of them call `replayLifecycle` today — this phase is the foundation, proven by a dedicated test
-(`robotSystems.test.ts`'s "prove-it: replay matches realtime") that N real ticks and one
-`replayLifecycle` call converge on identical state, not a live UI feature.
+(`robotSystems.test.ts`'s "prove-it: replay matches realtime on the shift step") that N real ticks
+and one `replayLifecycle` call converge on identical state, field for field, the moves included,
+through a stay and its relief, a group exit and a drifting exit — not a live UI feature.
 
 A short, non-blocking audit of other timing-dependent systems (audio swells, LFO drift, ping
 variance) — whether they're similarly replayable — is recorded in `docs/todo/backlog.md` item 17.
@@ -497,13 +594,28 @@ by design) and would need a different, not-yet-built primitive if a future phase
 
 ## Headless Sims (`lifecycleSim.ts`, Phase 43)
 
-`src/systems/lifecycleSim.ts` is pure: real seeded rosters (`buildSimRoster`, matching
-`spawnInitialRoster` robot for robot), the real `stepRobotLifecycle`, no store, no BeatClock, no
-GSAP. It runs over `SIM_SEED_COORDS`, the districts tests' 121-coordinate grid.
+`src/systems/lifecycleSim.ts` is pure: real seeded rosters, the real steps, no store, no BeatClock,
+no GSAP. It runs over `SIM_SEED_COORDS`, the districts tests' 121-coordinate grid. Two rosters:
+`buildShiftSimRoster(noiseMap, env)` is `generateRosterStart`'s start (matching `spawnInitialRoster`
+robot for robot since roadmap 94) for `stepShiftLifecycle`; `buildSimRoster(noiseMap, band?)` is the
+roster-index start today's `stepRobotLifecycle` ran on, each robot carrying its group too.
 
-- **Drain sim** (`runDrainSim`, Task 2) — the tables above.
+- **Shift cover sim** (`runShiftCoverSim` / `formatShiftCoverReport`, roadmap 94 Task 17) — each
+  world on either step at a tempo, through the cover tally and a **group tally**
+  (`createGroupTally`: each company's apart share, its group exits, each exit and group entrance on
+  a turn or not, every group's time out and home). Always on: the shift step has no silent measure
+  over the grid at 60 BPM for 2,000 measures, and every exit and group entrance lands on a turn. The
+  report (`LIFECYCLE_SIM_REPORT`) at 20, 40, 60, 100 and 200 BPM, both steps, is in
+  [the plan's Results](tasks/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md#results). In short, the shift step
+  against today's: never silent at any tempo (as today); group exits 82–85 % of company exits
+  (today 4 %); apart share 6–25 %, falling with tempo (today 92 %); robots sounding 5.3–5.9 (today
+  5.4); exits and group entrances 100 % on a turn (today 14–15 %); stays far commoner, 17–46 robot-stays
+  per 1,000 measures a world (today 0.96), since groups move as blocks; heard share 37–57 % (today
+  44–46 %).
+
+- **Drain sim** (`runDrainSim`, Task 2) — today's step, the tables above.
 - **Cover sim** (`createCoverTally` / `runCoverSim` / `formatCoverReport`, no-silence Tasks 1, 2 and 9)
-  — steps each world's roster through the real step and counts, per measure, the robots sounding
+  — today's step, until the removals: steps each world's roster through the real step and counts, per measure, the robots sounding
   (`Active` or `Recalled`), silent measures, stays (a robot `Active` at or below critical after a
   tick) and their lengths, each robot's cycle length (the commonest gap between its landings on
   `Active`) and its heard share. `buildSimRoster(noiseMap, band?)` takes a battery-size band
@@ -538,7 +650,13 @@ GSAP. It runs over `SIM_SEED_COORDS`, the districts tests' 121-coordinate grid.
   can still be visibly heading home up to ~17 s after it has landed on `Docked`. Re-run on sized
   robots on 0.67–1.5 with the stay-up rule (2026-11-11, `runReadinessSim`'s `band`): up to 10.0 s
   at 20 BPM, 20.3 s at 110 and 19.1 s at 200, with 0 robots charging while visible and 0 turn-backs
-  at every tempo.
+  at every tempo. Since roadmap 94, `runLoopSim`'s `door` option models the wait at the port (a
+  `Recalled` robot goes in on its hold's bar line; under half a measure before it, or `Docked`
+  already, it is late) and counts member exits, late members and door waits;
+  `runReadinessSim({ step: 'shift' })` runs it on the shift step (`formatDoorReport`). Over the grid
+  for 10 minutes at 20, 110 and 200 BPM: 0 late members of 1,320, 2,812 and 3,124 member exits; door
+  waits a median of 16.0, 17.1 and 18.2 s, up to 23.6 s; 0 turn-backs, 0 robots charging while
+  visible, and none visible while `Docked`.
 
 The sim models the loop; it doesn't run `workLoop.ts`. The real loop under the real tick is
 covered by `workLoop.integration.test.ts`.
@@ -547,16 +665,29 @@ Set `LIFECYCLE_SIM_REPORT=1` to print either report from `npx vitest run src/sys
 
 ## Roster Creation
 
-`spawnInitialRoster(localeId)` (`spawnSystem.ts`) creates exactly `MAX_ROBOTS` robots once, at
-locale load:
+`spawnInitialRoster(localeId, { bpm })` (`spawnSystem.ts`) creates exactly `MAX_ROBOTS` robots once,
+at locale load. Since roadmap 94 a world starts **by groups**, not roster indices
+(`generateRosterStart(noiseMap, { bpm, worldKey, startMeasure })`, pure, spec §1.13), at the tempo
+`initializeLocale` hands in (the audio store's), the world's key and the locale's
+`createdAtMeasure`:
 
-- A seeded count within `[INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX]` (2–4) start
-  `Active` at full battery: one even draw (`'roster.activeCount'`, offset 0), so 2, 3 and 4 each
-  start a third of worlds.
-- The rest start `Docked`, each with an independently seeded, varied starting battery (0–99) so
-  they don't all finish recharging in lockstep: an even draw per robot (`'roster.dockedBattery'`,
-  offset = roster index), spread over the whole 0–99. `lifecycleSim.ts`'s `buildSimRoster` makes the
-  same two draws, so the sims replay spawn's roster.
+- The groups are `generateCompanyMembership`'s companies and each freelancer alone. Each starts out
+  when its even draw at its earliest member's roster index (`'roster.groupStartsOut'`) is under
+  `SHIFT_START_OUT_ODDS` (0.45); if none does, the group earliest in the roster does. So at least
+  one group starts out in every world.
+- A group starting out is whole, every member `Active` at full battery, its exit drawn by `planExit`
+  as if it came out on the start measure.
+- A group starting home is whole too, every member `Docked` at its own varied starting battery (an
+  even draw per robot, `'roster.dockedBattery'`, offset = roster index, 0–99), and shares one
+  entrance: the first turn of its journey at or after `max(1, round(u × SHIFT_HOME_MAX_BARS × bpm ÷
+  60))` measures in, `u` its even draw at `'roster.groupFirstEntrance'` (`rosterGroupDraws`).
+- `placeRosterAtStations` writes each robot's first move (`entersAtMeasure` or `exitsAtMeasure`, and
+  `shiftBpm`) in its one store write for the placement. If the tempo changes before the first tick,
+  the tick rescales the moves.
+- `lifecycleSim.ts`'s `buildShiftSimRoster` makes the same start, so the sims replay spawn's roster.
+  With no noise map (no locale), the roster-index start stays on its alea fallbacks
+  (`'roster.activeCount'` and `INITIAL_ACTIVE_ROBOTS_MIN` / `MAX`, read nowhere else since roadmap
+  94).
 - Every robot draws its battery size (`generateBatterySize`, see "Battery size") at its spawn
   count, which is its roster index.
 - `spawnRobot(localeId, { docking, batteryLevel })` sets `activity` from `docking` (Active →
@@ -574,7 +705,7 @@ locale load:
 
 Whether a robot is *heard* is now two independent things. **Eligibility** (`isRobotAudible` in `src/utils/robotAudibility.ts`) reads the user's `audioMode`, the robot's docking and its `activity`: Mute always silences; under any Solo only the soloed robots are heard, in their station or not; otherwise a robot in its station (`Docked` or `Undocking`, and `'charging'`) is silent (rule 6). On the way in, the volume does not cut at `'charging'`: the station fade system ramps the robot's bus to 0 over the entry arc, ending on the bar line where `'charging'` is written (see "Charging Stations"; the engine's side is [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). A homebound `Docked` robot keeps its budget slot and its voice until `'charging'`; only then is it stood by. **The Audio Load budget** ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)) then caps how many *eligible* robots may sound at once (2–12 by the Robot Load slider; all 12 at Full — the separate Effects Load slider doesn't affect this cap): `audioBudgetSystem` admits them first come, first served, ranked Solo, then Highlight, then Auto, and one that is eligible but over the cap **stands by** — silent, its card's mode light dim, otherwise unchanged.
 
-Standing-by robots keep the whole lifecycle: they work, drain, dock, recharge and keep their registered melody. Only the sound stops: the note trigger is gated (`triggerWithCap`), and the voice is released after the last note and rebuilt on admission ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). So the battery cycle is what supplies the turnover — a robot docking frees its slot for the earliest waiter within a measure or two. An explicit unmute of a robot when the set is full does not jump the queue (its light stays dim until a slot frees); a soloed robot evicts the newest Auto robot, else the newest Highlight, and waits only when every slot holds a Solo; a highlighted robot evicts the newest Auto robot only. The lifecycle code itself is untouched — the budget system only reads `audioMode` and `docking` through a signature and writes nothing back to a robot.
+Standing-by robots keep the whole lifecycle: they work, dock and undock on their group's plan, and keep their registered melody. Only the sound stops: the note trigger is gated (`triggerWithCap`), and the voice is released after the last note and rebuilt on admission ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). So the shift cycle is what supplies the turnover — a robot docking frees its slot for the earliest waiter within a measure or two. An explicit unmute of a robot when the set is full does not jump the queue (its light stays dim until a slot frees); a soloed robot evicts the newest Auto robot, else the newest Highlight, and waits only when every slot holds a Solo; a highlighted robot evicts the newest Auto robot only. The lifecycle code itself is untouched — the budget system only reads `audioMode` and `docking` through a signature and writes nothing back to a robot.
 
 The robot's cards show its own Monitor Mode, never an audibility word ([specs/MONITOR_MODE_TRUSTWORTHY.md](specs/MONITOR_MODE_TRUSTWORTHY.md) §1.5–1.6, backlog 81): the Status is the mode word (Auto, Solo, Mute, Highlight) in every state, led by a small light in the mode's colour (Auto green, Solo yellow, Mute red, Highlight blue). The light is lit only while the robot is heard, `isRobotEmitting` (eligible and in the sounding set), and dim for any silence: in its station, under another robot's Solo, standing by, or muted. The roster tile reads `{status} · {job} · {dockingState} · {activity}`; the robot screen's Status well comes first, and its phone band reads `{status} · {job} · {dockingState} · {activity} · {battery}`.
 
@@ -657,21 +788,26 @@ robots silent afterward.
 
 ## Testing Notes
 
-`robotSystems.test.ts`, `workLoop.test.ts`, `workLoop.integration.test.ts`, `lifecycleSim.test.ts`,
-`siteChoice.test.ts`, `stations.test.ts`, `spawnSystem.test.ts`, `worldTransition.test.ts` and `powerController.test.ts`
-cover:
-- the base drain for every Active robot whatever its job (mutation-checked: a re-introduced job surcharge breaks the prove-it test), both rates divided by the robot's battery size (a size of 0.85 is recalled on its 13th Active measure and starts Undocking on its 16th Docked one, 1.15 on its 18th and 22nd; mutation-checked: a size that divides the drain but not the charge), recharge math, both clamped; the store keeping a fractional battery
-- threshold-triggered `Undocking`/`Recalled` entry with the hold, not an immediate landing; hold-elapsed landing on `Active`/`Docked`
+`robotSystems.test.ts`, `shiftPlan.test.ts`, `melodyJourney.test.ts`, `stationFadeSystem.test.ts`,
+`workLoop.test.ts`, `workLoop.integration.test.ts`, `lifecycleSim.test.ts`, `siteChoice.test.ts`,
+`stations.test.ts`, `spawnSystem.test.ts`, `spawnSystem.rosterStart.test.ts`, `worldTransition.test.ts`
+and `powerController.test.ts` cover:
+- the plan (roadmap 94, every named mutant killed; the commits name them): `journeyTurns`' measures, moves and drops; the windows at five tempos, the floor, the 16-measure width and the lead; a group's key, size and draws (a member's own Journey setting never read, turn *i*'s draws the same whichever is asked first); the exit walk, together or drifting at the weight's odds, a drop always leaving together; the entrance walk at flat odds, together or 2 bars apart; the rescale
+- the shift step: each transition on its measure; the exit drawn on the first member's landing, the entrance on the last member's docking; the stay (a group whole, relief earlier and later in the roster, two groups due with no third, never zero `Active` over hand-built worlds stepped 500 measures); the gauge (10 on the bar line after the exit turn, 100 on the entrance, falling every measure out and rising every measure home, a stay's ease never reaching 0); a tempo change (nothing changes docking on its tick, a Recalled or Undocking robot keeps its hold, the gauge bends without a jump); a robot out of step (a mate's move, a moved robot's dropped, twelve robots with no fields reaching a plan within one home window)
+- the tick writing what the step gives at the store's tempo and the locale's key, a company recalled on one tick with the seam once per member, and never `audioMode`; the prove-it (N real ticks and one replay identical field for field through a stay, its relief, a group exit and a drifting exit; mutation-checked: each field left out of the tick's snapshot)
+- the station fade waiting for a `Recalled` robot's hold (nothing two bars ahead, the whole last bar from its bar line, a late arrival a bar behind) and, in the integration test, a company of three recalled from out in the world at 60 and 200 BPM whose fades all end on the hold's bar line
+- today's step (`stepRobotLifecycle`, until the removals): the base drain for every Active robot whatever its job, both rates divided by the robot's battery size, recharge math, both clamped; the store keeping a fractional battery
+- hold-elapsed landing on `Active`/`Docked`
 - `landOnActive`/`landOnDocked` leaving every `audioMode` (Auto, Mute, Solo, Highlight) as it was and not touching voice reservation/melody registration, writing no position, job or swim themselves, and calling `onLifecycleChange` with the right `to`; the `./workLoop` import as the tick's only route to visuals
 - a `Docked` landing leaving the melody alone, stored and registered (the same array, no `registerRobotMelody` call), through two whole dock cycles, and a Click Track robot still registered as the click track after one (roadmap 92 Task 8)
 - the dock's mute and Solo beating it (`robotAudibility.test.ts`, `audioBudgetSystem.test.ts`, `AudioEngine.test.ts`, the roster tile and the World view's count): a Solo and a Mute each survive a dock cycle
-- the stay-up rule: a sole `Active` robot at/below critical stays with no hold and no seam call, drains on to 0, and is relieved the same tick by a robot landing earlier in the roster and the next tick by one later; of two crossing critical together with no third `Active` the earlier goes and the later stays, with a third both go; beside only a `Recalled` or `Undocking` robot it stays; a muted last robot stays; over every grid world the Active count never reaches zero (mutation-checked: a robot that relieves itself, `Recalled` counted as `Active`, the pre-tick roster read)
+- today's step's stay-up rule (until the removals): a sole `Active` robot at/below critical stays with no hold and no seam call, drains on to 0, and is relieved the same tick by a robot landing earlier in the roster and the next tick by one later; of two crossing critical together with no third `Active` the earlier goes and the later stays, with a third both go; beside only a `Recalled` or `Undocking` robot it stays; a muted last robot stays; over every grid world the Active count never reaches zero (mutation-checked: a robot that relieves itself, `Recalled` counted as `Active`, the pre-tick roster read)
 - `stepRobotLifecycle`/`replayLifecycle` (the injected `DrainRule`, a hand-written loop matched, the no-op case, `fromMeasure` excluded) and the prove-it test: a real 12-robot roster, every robot a different battery size, run for N real ticks and separately replayed, asserted identical field for field, through a stay and its relief, with a drained battery that never floored, charged ones that never capped and fractional ones (mutation-checked against a job surcharge, a snapshot without the size and a store that truncates; its check of the pre-drift melody went with pitch drift, roadmap 92)
 - the work loop: one robot per site, the cooldown, the job sticking until no ready site hosts it, recall in each activity, both turn-backs, adoption on mount and on start, settling, the body-less timelines, stop finishing a job silently, and callbacks that never touch `AudioEngine` (spy); every mutant run in Tasks 22–24 is killed
 - the two robot rows (J4; plus `layerSwitch.test.ts` and `midgroundSilhouettes.test.tsx`): front → back and back → front legs, the switch point's clear run, the skip with no switch point, the 0.75 row scale, the dissolve copy in both directions and every interruption of it (stop, recall, a dropped leg's re-mount, an overlapping fade), exits into the back row, and `stations.test.ts`' guards that no station box or exiting robot overlaps a midground silhouette (0 of 284 over the grid). The J1–J3 loop tests run with `backHosts: false`
 - the real tick into the real loop at 20/110/200 BPM: exit → transit → working → recall → the job finishes at full length → returning → entering → charging (hidden, slot lit) → undock → exit → working, plus the two hidden-tab turn-backs at 200 BPM (removing the returning turn-back fails that case; the entering one now turns back from the port with no `'exiting'` and no `'charging'`). Since backlog 84 the integration test runs the real station fade system: a partial `beatClock` mock captures its `'16n'` callback and the simulated Transport runs it at every sixteenth it crosses, the lifecycle tick first on a bar line
 - the station fade (backlog 84): `stationFadeSystem.test.ts` (the half-measure rule at steps 1, 5, 9 and 10–16, the fade and the arc started once per entry with the same seconds, the tick's own length, Solo getting the arc only and a Solo mid-fade cancelled once, a re-entry started again, the edges with no position or tick length, stop and restart; mutants at the boundary, a fade every tick, the Solo check and the set never cleared all killed); `workLoop.test.ts` (`enterOnBar` over the given seconds with the halo, the ripple and reduced motion, its no-op cases including a finished earlier arc not counting as running; the hold at the port; the turn-back in the hold and mid-arc, a power-off during the reverse, a re-recall during it; the `AudioEngine` pin through a hold, an `enterOnBar` and a charge); `robotAudibility.test.ts` and the budget's tests for the silence beginning at `'charging'`; `robotSystems.test.ts` for `landOnActive`'s cancel
-- `spawnInitialRoster`'s active/docked split, seeded battery variation, every robot's battery size inside the band and filling it evenly (mutation-checked: a plain draw), determinism, every robot at its station's port with the right `activity`, one store write, and every robot (Docked included) holding a reserved voice/registered melody, every one with `audioMode: 'none'`
+- `spawnInitialRoster`'s start by groups (`generateRosterStart`: each group whole, out or home, at least one out in every grid world, both group draws even; mutation-checked: the start by roster index, a centred draw), seeded battery variation, every robot's battery size inside the band and filling it evenly (mutation-checked: a plain draw), determinism, every robot at its station's port with the right `activity`, one store write, and every robot (Docked included) holding a reserved voice/registered melody, every one with `audioMode: 'none'`
 - `startRobotLifecycle`/`stopRobotLifecycle` and `startWorkLoop`/`stopWorkLoop` idempotency; `pauseWorkLoop`/`resumeWorkLoop` (a cooldown stamped before a pause is unexpired after it, two pauses accumulate, a start resets); `powerController.test.ts`'s pause and resume orders, the cold path, `markHeardWorld` once, and the fade awaited before either path
 - `types/Robot.test.ts`: the deleted files are gone and no file in `src/` names a deleted identifier (below)
 - `lifecycleSim.ts`: the sim roster matching the real spawn path (battery size included), its Active count a third each of 2, 3 and 4 and its docked batteries filling 0–99 over 3,000 worlds (mutation-checked: either draw back on the plain draw), determinism, no store/BeatClock (and no GSAP for the loop sim), the pinned drain rows, the cover tally on hand-built rosters, the cover sim against its own count world by world, zero silent measures over the grid, the band option, and the loop sim's hand-worked timelines for each work-loop branch
