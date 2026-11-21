@@ -132,7 +132,8 @@ export function initializeLocale(localeId: string, { startSystems = true }: { st
 
   if (locale.actors.length === 0) placeDistrict(localeId);
   if (locale.robots.length === 0) {
-    spawnInitialRoster(localeId);
+    // The roster starts by groups at the live tempo (roadmap 94); the tick rescales the moves if it changes after.
+    spawnInitialRoster(localeId, { bpm: useAudioStore.getState().bpm });
     spawnInitialCompanies(localeId); // Roadmap Phase 10 — same guard as the roster it depends on
     // The deal (docs/specs/OFF_SCREEN.md assumption 22; band-table T27): the loaded picks dealt over the companies just
     // formed, each dealt robot's Melody fields re-derived under its aspect's bands. A no-op with nothing picked.

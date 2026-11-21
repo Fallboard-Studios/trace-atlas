@@ -3,7 +3,15 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { generateCompanyId, generateCompanyMembership, generateRosterStart, rosterGroupDraws } from './spawnSystem';
+import {
+  generateCompanyId,
+  generateCompanyMembership,
+  generateRosterStart,
+  rosterGroupDraws,
+  spawnInitialCompanies,
+  spawnInitialRoster,
+} from './spawnSystem';
+import { useLocaleStore } from '../stores/localeStore';
 import { SIM_SEED_COORDS, simNoiseMap } from './lifecycleSim';
 import { planExit } from './shiftPlan';
 import { journeyKey, journeyTurns } from '../engine/melodyJourney';
@@ -155,5 +163,68 @@ describe('generateRosterStart (spec §1.13)', () => {
         expect(b).toBeLessThan(100);
       }
     }
+  });
+});
+
+// A world starts by groups (roadmap 94 Task 23): spawnInitialRoster takes each robot's docking, battery and first move
+// from generateRosterStart, at the tempo it is handed, the world's key and its creation measure.
+describe('spawnInitialRoster starts a world by groups (roadmap 94 Task 23)', () => {
+  const register = (id: string, x: number, y: number, createdAtMeasure: number) =>
+    useLocaleStore.getState().addLocale('pelagos', {
+      id,
+      attenuationStyleId: 'pelagos',
+      name: id,
+      coordinates: { x, y },
+      dayStartTimestamp: Date.now(),
+      createdAtMeasure,
+      robots: [],
+      actors: [],
+      companies: [],
+    });
+
+  it("gives every spawned robot generateRosterStart's docking, battery and move, at the tempo handed in and the creation measure", () => {
+    for (const [n, { x, y }] of [{ x: -200, y: 80 }, { x: 40, y: -80 }, { x: 160, y: 0 }].entries()) {
+      const id = `roster-start-${n}`;
+      register(id, x, y, 37);
+      spawnInitialRoster(id, { bpm: 140 });
+      spawnInitialCompanies(id);
+      const robots = useLocaleStore.getState().getLocaleById(id)!.robots;
+      const start = generateRosterStart(simNoiseMap(x, y), { bpm: 140, worldKey: `${x}:${y}`, startMeasure: 37 });
+      robots.forEach((r, i) => {
+        expect(
+          { docking: r.docking, batteryLevel: r.batteryLevel, entersAtMeasure: r.entersAtMeasure, exitsAtMeasure: r.exitsAtMeasure, shiftBpm: r.shiftBpm, companyId: r.companyId },
+          `${id} #${i}`,
+        ).toEqual({
+          docking: start[i].docking,
+          batteryLevel: start[i].batteryLevel,
+          entersAtMeasure: start[i].entersAtMeasure,
+          exitsAtMeasure: start[i].exitsAtMeasure,
+          shiftBpm: 140,
+          companyId: start[i].companyId,
+        });
+      });
+    }
+  });
+
+  it("a spawned world's companies are each whole, out or home; out members 'exiting' at their ports, home ones 'charging'", () => {
+    let out = 0;
+    let home = 0;
+    for (const [n, c] of SIM_SEED_COORDS.slice(0, 12).entries()) {
+      const id = `roster-whole-${n}`;
+      register(id, c.x, c.y, 0);
+      spawnInitialRoster(id);
+      spawnInitialCompanies(id);
+      const robots = useLocaleStore.getState().getLocaleById(id)!.robots;
+      const companies = new Set(robots.map((r) => r.companyId).filter(Boolean));
+      for (const co of companies) {
+        const members = robots.filter((r) => r.companyId === co);
+        expect(new Set(members.map((m) => m.docking)).size, `${id} ${co}`).toBe(1);
+        if (members[0].docking === DockingState.Active) out++;
+        else home++;
+      }
+      for (const r of robots) expect(r.activity).toBe(r.docking === DockingState.Active ? 'exiting' : 'charging');
+    }
+    expect(out).toBeGreaterThan(2);
+    expect(home).toBeGreaterThan(2);
   });
 });

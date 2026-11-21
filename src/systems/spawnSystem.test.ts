@@ -20,7 +20,7 @@ import { DockingState } from '../types/Robot';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { ROBOT_LFO_TARGET_IDS, LFO_LANE_IDS, type LfoLaneId } from '../types/lfo';
 import {
-  MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
+  MAX_ROBOTS,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
   ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS,
   BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, FREELANCERS_MIN,
@@ -2331,13 +2331,18 @@ describe('spawnSystem', () => {
       expect(robots).toHaveLength(MAX_ROBOTS);
     });
 
-    it(`seeds the Active count within [${INITIAL_ACTIVE_ROBOTS_MIN}, ${INITIAL_ACTIVE_ROBOTS_MAX}]`, () => {
+    // Re-pinned at roadmap 94 Task 23: a world starts by groups, not a seeded count of roster indices (2 to 4 Active);
+    // spawnSystem.rosterStart.test.ts holds the start's own cases.
+    it('starts at least one robot Active and the rest Docked, each Active one with an exit turn and each Docked one an entrance', () => {
       spawnInitialRoster(DEFAULT_LOCALE_ID);
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const activeCount = robots.filter((r) => r.docking === DockingState.Active).length;
-      expect(activeCount).toBeGreaterThanOrEqual(INITIAL_ACTIVE_ROBOTS_MIN);
-      expect(activeCount).toBeLessThanOrEqual(INITIAL_ACTIVE_ROBOTS_MAX);
-      expect(robots.filter((r) => r.docking === DockingState.Docked)).toHaveLength(MAX_ROBOTS - activeCount);
+      const active = robots.filter((r) => r.docking === DockingState.Active);
+      expect(active.length).toBeGreaterThanOrEqual(1);
+      expect(robots.filter((r) => r.docking === DockingState.Docked)).toHaveLength(MAX_ROBOTS - active.length);
+      for (const r of robots) {
+        if (r.docking === DockingState.Active) expect(r.exitsAtMeasure).toBeDefined();
+        else expect(r.entersAtMeasure).toBeDefined();
+      }
     });
 
     it('does not assign a job to any robot — that is worldTransition.ts\'s job, not spawnInitialRoster\'s', () => {

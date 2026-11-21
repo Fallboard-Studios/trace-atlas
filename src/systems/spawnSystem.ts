@@ -26,7 +26,7 @@ import {
   BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, DEFAULT_JOURNEY_MAX_INTENSITY,
   JOURNEY_TIME_MAX, SHIFT_HOME_MAX_BARS, SHIFT_REFERENCE_BPM, SHIFT_START_OUT_ODDS,
 } from '../constants';
-import { journeyTurns } from '../engine/melodyJourney';
+import { journeyTurns, worldKeyOf } from '../engine/melodyJourney';
 import { groupJourneyKey, planExit } from './shiftPlan';
 import { recordByField, robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
@@ -885,55 +885,69 @@ function withoutId({ companyId, compositionSeed, batterySize }: { companyId?: st
  * docs/specs/archive/ROBOT_SYSTEMS_ENGINE.md's Architecture Decisions on why job
  * assignment isn't done here: avoids an import cycle with robotSystems.ts).
  */
-export function spawnInitialRoster(localeId: string): void {
+export function spawnInitialRoster(localeId: string, { bpm = SHIFT_REFERENCE_BPM }: { bpm?: number } = {}): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
   const noiseMap = locale ? getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y) : null;
-
-  const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
-    noiseMap
-      ? getUniformSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
-      : alea(`${localeId}:activeCount`)() * (INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
-  );
 
   // The companies first (Company Families §1.11): each member spawns from its founder, which has the
   // lower index and so is already in the store. spawnInitialCompanies makes the same companies after.
   const founders = noiseMap ? companyFounders(generateCompanyMembership(noiseMap, MAX_ROBOTS)) : new Map<number, number>();
 
-  for (let i = 0; i < MAX_ROBOTS; i++) {
-    const founderIndex = founders.get(i);
-    if (i < activeCount) {
-      spawnRobot(localeId, { docking: DockingState.Active, batteryLevel: 100, founderIndex });
-    } else {
-      const dockedBattery = Math.floor(
-        noiseMap
-          ? getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)
-          : alea(`${localeId}:dockedBattery:${i}`)() * 100
-      );
-      spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: dockedBattery, founderIndex });
+  // A world starts by groups (roadmap 94, spec §1.13): each company and freelancer whole, out or home, with its first
+  // move, from the noise map at the tempo the caller hands in, the world's key and the measure it was created at.
+  const start =
+    noiseMap && locale
+      ? generateRosterStart(noiseMap, { bpm, worldKey: worldKeyOf(locale.coordinates), startMeasure: locale.createdAtMeasure ?? 0 })
+      : undefined;
+
+  if (start) {
+    for (let i = 0; i < MAX_ROBOTS; i++) {
+      spawnRobot(localeId, { docking: start[i].docking, batteryLevel: start[i].batteryLevel, founderIndex: founders.get(i) });
+    }
+  } else {
+    // No noise map (no locale): the roster-index start, on its alea fallbacks.
+    const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
+      alea(`${localeId}:activeCount`)() * (INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
+    );
+    for (let i = 0; i < MAX_ROBOTS; i++) {
+      if (i < activeCount) {
+        spawnRobot(localeId, { docking: DockingState.Active, batteryLevel: 100 });
+      } else {
+        spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: Math.floor(alea(`${localeId}:dockedBattery:${i}`)() * 100) });
+      }
     }
   }
 
-  placeRosterAtStations(localeId);
+  placeRosterAtStations(localeId, start);
 }
 
 /**
  * Phase 43 (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6, correction 2): every robot starts at its
  * station's port — assigned by roster index modulo station count — Docked ones 'charging', Active
- * ones 'exiting'. One store write for the whole roster, after the last spawn.
+ * ones 'exiting'. With a start (roadmap 94), each robot carries its first move too. One store write
+ * for the whole roster, after the last spawn.
  */
-function placeRosterAtStations(localeId: string): void {
+function placeRosterAtStations(localeId: string, start?: readonly RosterStartEntry[]): void {
   const robots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
   const stations = getStations(localeId);
   const stationById = new Map(stations.map((s) => [s.id, s]));
   const assigned = assignStationsAtLoad(robots.map((r) => r.id), stations);
   useLocaleStore.getState().setLocaleData(localeId, {
-    robots: robots.map((r) => {
+    robots: robots.map((r, i) => {
       const station = stationById.get(assigned[r.id])!;
+      const move = start?.[i];
       return {
         ...r,
         stationId: station.id,
         position: positionForCentre(station.port, getRobotGem(r.gemSeed)),
         activity: r.docking === DockingState.Docked ? 'charging' : 'exiting',
+        ...(move
+          ? {
+              ...(move.entersAtMeasure !== undefined ? { entersAtMeasure: move.entersAtMeasure } : {}),
+              ...(move.exitsAtMeasure !== undefined ? { exitsAtMeasure: move.exitsAtMeasure } : {}),
+              shiftBpm: move.shiftBpm,
+            }
+          : {}),
       };
     }),
   });

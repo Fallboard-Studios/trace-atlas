@@ -149,7 +149,9 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       }
     });
 
-    it('matches the real spawn path robot for robot — spawnInitialRoster, same coordinates', () => {
+    // Roadmap 94 Task 23: spawn starts by groups, so the sim roster that matches it is buildShiftSimRoster (today's
+    // buildSimRoster keeps the roster-index start for today's step's rows).
+    it('the shift sim roster matches the real spawn path robot for robot — spawnInitialRoster, same coordinates', () => {
       const x = 40;
       const y = -80;
       const localeId = 'lifecycle-sim-parity';
@@ -157,8 +159,15 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       spawnInitialRoster(localeId);
       const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
 
-      const sim = buildSimRoster(simNoiseMap(x, y));
-      const fields = (s: RobotLifecycleSnapshot | Robot) => ({ docking: s.docking, batteryLevel: s.batteryLevel, batterySize: s.batterySize });
+      const sim = buildShiftSimRoster(simNoiseMap(x, y), { bpm: 60, worldKey: `${x}:${y}` });
+      const fields = (s: ShiftLifecycleSnapshot | Robot) => ({
+        docking: s.docking,
+        batteryLevel: s.batteryLevel,
+        batterySize: s.batterySize,
+        entersAtMeasure: s.entersAtMeasure,
+        exitsAtMeasure: s.exitsAtMeasure,
+        shiftBpm: s.shiftBpm,
+      });
       expect(sim.map(fields)).toEqual(real.map(fields));
 
       // Guard against a coincidental pass on defaults: this seed must actually vary, and carry real sizes.
@@ -196,19 +205,25 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
         expect(new Set(batteries)).toEqual(new Set(Array.from({ length: 100 }, (_, i) => i)));
       });
 
-      it('spawn and the sim make the same two draws: docking and battery agree index for index on 30 grid worlds, every Active count among them', () => {
-        const fields = (s: RobotLifecycleSnapshot | Robot) => ({ docking: s.docking, batteryLevel: s.batteryLevel });
+      // Re-pinned at roadmap 94 Task 23: spawn starts by groups, so it agrees with the shift sim roster.
+      it('spawn and the shift sim make the same draws: docking, battery and moves agree index for index on 30 grid worlds', () => {
+        const fields = (s: ShiftLifecycleSnapshot | Robot) => ({
+          docking: s.docking,
+          batteryLevel: s.batteryLevel,
+          entersAtMeasure: s.entersAtMeasure,
+          exitsAtMeasure: s.exitsAtMeasure,
+        });
         const activeCounts = new Set<number>();
         for (const [i, { x, y }] of SIM_SEED_COORDS.slice(0, 30).entries()) {
           const localeId = `even-world-roster-parity-${i}`;
           registerLocale(localeId, x, y);
           spawnInitialRoster(localeId);
           const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
-          expect(buildSimRoster(simNoiseMap(x, y)).map(fields), `${x}:${y}`).toEqual(real.map(fields));
+          expect(buildShiftSimRoster(simNoiseMap(x, y), { bpm: 60, worldKey: `${x}:${y}` }).map(fields), `${x}:${y}`).toEqual(real.map(fields));
           activeCounts.add(real.filter((r) => r.docking === DockingState.Active).length);
         }
-        // Not vacuous: the worlds compared start with two, three and four Active robots.
-        expect(activeCounts).toEqual(new Set([2, 3, 4]));
+        // Not vacuous: the worlds compared start with several different numbers of robots out.
+        expect(activeCounts.size).toBeGreaterThan(3);
       });
     });
 
