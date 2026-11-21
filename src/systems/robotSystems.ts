@@ -14,7 +14,8 @@ import {
   planEntrance,
   planExit,
   recallLeadBars,
-  rescaleMove,
+  rescaleAim,
+  turnAtOrAfter,
   type ShiftEnv,
 } from './shiftPlan';
 import { journeyTurns, worldKeyOf } from '../engine/melodyJourney';
@@ -162,14 +163,29 @@ export function replayLifecycle(
 // THE SHIFT STEP (roadmap 94, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.8)
 // ========================================
 
-/** What the shift step reads and writes of a robot: today's snapshot, the robot's next moves and the tempo they were
- *  scaled at (spec §4), and what finds its group (`companyId`, `compositionSeed`). */
+/** What the shift step reads and writes of a robot: today's snapshot, the robot's next moves, the tempo they were
+ *  scaled at and where they aim (spec §4), and what finds its group (`companyId`, `compositionSeed`). */
 export interface ShiftLifecycleSnapshot extends RobotLifecycleSnapshot {
   companyId?: string;
   compositionSeed: number;
   entersAtMeasure?: number;
   exitsAtMeasure?: number;
   shiftBpm?: number;
+  entersAim?: number;
+  exitsAim?: number;
+}
+
+/** Write a robot's entrance and the aim it came from (absent: the entrance itself, as drawn or taken). Every write of
+ *  an entrance goes through here, so an aim never outlives its move. */
+function setEntrance(robot: ShiftLifecycleSnapshot, move: number | undefined, aim?: number): void {
+  robot.entersAtMeasure = move;
+  robot.entersAim = aim;
+}
+
+/** Write a robot's exit turn and its aim, as setEntrance. */
+function setExit(robot: ShiftLifecycleSnapshot, move: number | undefined, aim?: number): void {
+  robot.exitsAtMeasure = move;
+  robot.exitsAim = aim;
 }
 
 /** Out: Active or Recalled, so heard in the world (spec §1.8). */
@@ -240,16 +256,20 @@ export function stepShiftLifecycle(
     );
   };
   // A tempo change (spec §1.12): a move scaled at another tempo keeps its seconds to go and snaps to a turn, never so
-  // near that it fires on this tick. A Recalled or Undocking robot keeps its hold.
+  // near that it fires on this tick. The aim is scaled, not the turn, so a run of changes snaps once (review
+  // 2026-11-21). A Recalled or Undocking robot keeps its hold.
   for (const robot of working) {
     if (robot.shiftBpm === undefined || robot.shiftBpm === env.bpm) continue;
-    const rescale = (move: number, least: number) =>
-      rescaleMove({ worldKey: env.worldKey, robot, move, measure, fromBpm: robot.shiftBpm!, toBpm: env.bpm, least });
+    const fromBpm = robot.shiftBpm;
+    const rescale = (move: number, aim: number | undefined, least: number, set: typeof setExit) => {
+      const next = rescaleAim({ aim: aim ?? move, measure, fromBpm, toBpm: env.bpm, least });
+      set(robot, turnAtOrAfter(env.worldKey, robot, next), next);
+    };
     if (robot.exitsAtMeasure !== undefined && robot.docking !== DockingState.Recalled) {
-      robot.exitsAtMeasure = rescale(robot.exitsAtMeasure, lead + 1);
+      rescale(robot.exitsAtMeasure, robot.exitsAim, lead + 1, setExit);
     }
     if (robot.entersAtMeasure !== undefined && robot.docking === DockingState.Docked) {
-      robot.entersAtMeasure = rescale(robot.entersAtMeasure, 2);
+      rescale(robot.entersAtMeasure, robot.entersAim, 2, setEntrance);
     }
     robot.shiftBpm = env.bpm;
   }
@@ -263,21 +283,21 @@ export function stepShiftLifecycle(
         // Out of step (spec §1.14). An entrance while its group is out, and no exit drawn with the group's, is another
         // group's: dropped, so the robot waits for its company's next entrance.
         if (robot.entersAtMeasure !== undefined && robot.exitsAtMeasure === undefined && othersOf(robot).some(isOut)) {
-          robot.entersAtMeasure = undefined;
+          setEntrance(robot, undefined);
         }
         if (robot.entersAtMeasure === undefined && othersOf(robot).every(isHome)) {
-          // Home with none, and the whole group home: a mate's entrance, or with none, the group's drawn now.
-          const mateEnters = othersOf(robot).find((m) => m.entersAtMeasure !== undefined)?.entersAtMeasure;
-          if (mateEnters !== undefined) {
-            robot.entersAtMeasure = mateEnters;
+          // Home with none, and the whole group home: a mate's entrance (and its aim), or with none, the group's drawn now.
+          const mate = othersOf(robot).find((m) => m.entersAtMeasure !== undefined);
+          if (mate) {
+            setEntrance(robot, mate.entersAtMeasure, mate.entersAim);
             robot.shiftBpm = env.bpm;
           } else {
             const members = mates(robot);
             const entrances = planEntrance({ worldKey: env.worldKey, members, from: measure, bpm: env.bpm });
             members.forEach((m, i) => {
               if (m.docking !== DockingState.Docked) return;
-              m.entersAtMeasure = entrances[i];
-              m.exitsAtMeasure = undefined;
+              setEntrance(m, entrances[i]);
+              setExit(m, undefined);
               m.shiftBpm = env.bpm;
             });
           }
@@ -291,13 +311,13 @@ export function stepShiftLifecycle(
         if (robot.dockingHoldUntilMeasure === undefined || measure >= robot.dockingHoldUntilMeasure) {
           robot.docking = DockingState.Active;
           robot.dockingHoldUntilMeasure = undefined;
-          robot.entersAtMeasure = undefined;
+          setEntrance(robot, undefined);
           // The group's first member out draws the exit for every member, those still home included (spec §1.6).
           const members = mates(robot);
           if (!members.some((m) => m.exitsAtMeasure !== undefined)) {
             const exits = planExit({ worldKey: env.worldKey, members, from: measure, bpm: env.bpm });
             members.forEach((m, i) => {
-              m.exitsAtMeasure = exits[i];
+              setExit(m, exits[i]);
               m.shiftBpm = env.bpm;
             });
           }
@@ -306,14 +326,14 @@ export function stepShiftLifecycle(
       case DockingState.Active:
         // Out of step (spec §1.14): an exit turn no mate shares, that is no turn of the group's journey, while a mate
         // is out on one of its own, is another group's: dropped.
-        if (robot.exitsAtMeasure !== undefined && isStrayExit(robot)) robot.exitsAtMeasure = undefined;
+        if (robot.exitsAtMeasure !== undefined && isStrayExit(robot)) setExit(robot, undefined);
         if (robot.exitsAtMeasure === undefined) {
-          // A mate's exit turn it can still make, the earliest.
+          // A mate's exit turn it can still make, the earliest, and its aim.
           const reachable = othersOf(robot)
-            .map((m) => m.exitsAtMeasure)
-            .filter((x): x is number => x !== undefined && x - lead > measure);
-          if (reachable.length > 0) {
-            robot.exitsAtMeasure = Math.min(...reachable);
+            .filter((m) => m.exitsAtMeasure !== undefined && m.exitsAtMeasure - lead > measure)
+            .sort((a, b) => a.exitsAtMeasure! - b.exitsAtMeasure!)[0];
+          if (reachable) {
+            setExit(robot, reachable.exitsAtMeasure, reachable.exitsAim);
             robot.shiftBpm = env.bpm;
           } else if (outsideActive(robot)) {
             // Staying (spec §1.9): once a robot outside the group is Active, every staying member takes the first turn
@@ -321,7 +341,7 @@ export function stepShiftLifecycle(
             const turn = journeyTurns(groupJourneyKey(env.worldKey, robot), measure + lead + 1, measure + lead + 1 + JOURNEY_TIME_MAX)[0];
             for (const m of mates(robot)) {
               if (m.docking !== DockingState.Active || m.exitsAtMeasure !== undefined) continue;
-              m.exitsAtMeasure = turn.measure;
+              setExit(m, turn.measure);
               m.shiftBpm = env.bpm;
             }
           }
@@ -335,7 +355,7 @@ export function stepShiftLifecycle(
             }
           } else {
             // Never silent (spec §1.9): nobody outside is out, so the whole group stays, losing its exit turns.
-            for (const m of mates(robot)) if (m.docking === DockingState.Active) m.exitsAtMeasure = undefined;
+            for (const m of mates(robot)) if (m.docking === DockingState.Active) setExit(m, undefined);
           }
         }
         break;
@@ -349,8 +369,8 @@ export function stepShiftLifecycle(
           if (members.every(isHome)) {
             const entrances = planEntrance({ worldKey: env.worldKey, members, from: measure, bpm: env.bpm });
             members.forEach((m, i) => {
-              m.entersAtMeasure = entrances[i];
-              m.exitsAtMeasure = undefined;
+              setEntrance(m, entrances[i]);
+              setExit(m, undefined);
               m.shiftBpm = env.bpm;
             });
           }
@@ -386,6 +406,8 @@ export function toLifecycleSnapshot(robot: Robot): ShiftLifecycleSnapshot {
     entersAtMeasure: robot.entersAtMeasure,
     exitsAtMeasure: robot.exitsAtMeasure,
     shiftBpm: robot.shiftBpm,
+    entersAim: robot.entersAim,
+    exitsAim: robot.exitsAim,
   };
 }
 
@@ -422,6 +444,8 @@ export function tickRobotLifecycle(localeId: string, measure: number): void {
       entersAtMeasure: postState.entersAtMeasure,
       exitsAtMeasure: postState.exitsAtMeasure,
       shiftBpm: postState.shiftBpm,
+      entersAim: postState.entersAim,
+      exitsAim: postState.exitsAim,
     });
 
     if (preState.docking === postState.docking) return;

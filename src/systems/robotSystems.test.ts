@@ -145,6 +145,8 @@ describe('robotSystems', () => {
       entersAtMeasure: r.entersAtMeasure,
       exitsAtMeasure: r.exitsAtMeasure,
       shiftBpm: r.shiftBpm,
+      entersAim: r.entersAim,
+      exitsAim: r.exitsAim,
     });
     const member = (id: string, o: Partial<Robot> = {}) => makeRobot({ id, companyId: 'co-t', compositionSeed: id.length / 16, ...o });
 
@@ -172,6 +174,26 @@ describe('robotSystems', () => {
       // Not vacuous: the battery moved for every robot, and the freelancer with none drew an entrance.
       robots.forEach((r) => expect(robotIn(r.id).batteryLevel).not.toBe(r.batteryLevel));
       expect(robotIn('e').entersAtMeasure).toBeDefined();
+    });
+
+    it('a tempo drag through the live tick keeps each move aim in the store, landing where the pure step does', () => {
+      const bpms = [70, 90, 120, 160, 200, 160, 120, 90, 70, 60];
+      const robots = [
+        member('a', { exitsAtMeasure: 40, shiftBpm: 60 }),
+        makeRobot({ id: 'f', compositionSeed: 0.3, docking: DockingState.Docked, entersAtMeasure: 50, shiftBpm: 60 }),
+        makeRobot({ id: 'k', compositionSeed: 0.9, exitsAtMeasure: 2_000, shiftBpm: 60 }),
+      ];
+      setupLocaleWithRobots(robots);
+      let want = robots.map(snapshotOf);
+      bpms.forEach((bpm, i) => {
+        useAudioStore.setState({ bpm });
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, i + 1);
+        want = stepShiftLifecycle(want, i + 1, { ...ENV, bpm });
+        for (const w of want) expect(snapshotOf(robotIn(w.id)), `${w.id} at tick ${i + 1}`).toEqual(w);
+      });
+      // Not vacuous: the drag left aims on the moves.
+      expect(robotIn('a').exitsAim).toBeDefined();
+      expect(robotIn('f').entersAim).toBeDefined();
     });
 
     it('reads the tempo from the audio store: at 200 BPM the same exit turn recalls 20 measures ahead, not 6', () => {
@@ -255,7 +277,9 @@ describe('robotSystems', () => {
       const update = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
       try {
         tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
-        const allowed = new Set(['batteryLevel', 'entersAtMeasure', 'exitsAtMeasure', 'shiftBpm', 'docking', 'dockingHoldUntilMeasure']);
+        const allowed = new Set([
+          'batteryLevel', 'entersAtMeasure', 'exitsAtMeasure', 'shiftBpm', 'entersAim', 'exitsAim', 'docking', 'dockingHoldUntilMeasure',
+        ]);
         expect(update).toHaveBeenCalled();
         for (const [, , patch] of update.mock.calls) for (const key of Object.keys(patch)) expect(allowed.has(key), key).toBe(true);
       } finally {
@@ -1754,6 +1778,24 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
       }
     });
 
+    it('a slow drag, a tick at each tempo from 60 up to 200 and back, keeps the seconds to go and snaps once', () => {
+      // Review 2026-11-21: each tick's rescale used to snap forward from the last snapped turn, so a drag pushed an exit
+      // 20 bars off to about 115. The aim is scaled instead, and the turn is the first at or after it.
+      const bpms = [60, ...Array.from({ length: 14 }, (_, i) => 70 + i * 10), ...Array.from({ length: 14 }, (_, i) => 190 - i * 10)];
+      // Far enough off that the lead's floor never clamps the aim (about 60 s of the drag pass before the end).
+      const exit = turnFrom(30);
+      let roster = [member('a', { exitsAtMeasure: exit }), member('bb', { exitsAtMeasure: exit }), keeper(60)];
+      let seconds = exit * (240 / 60);
+      for (let k = 1; k < bpms.length; k++) {
+        seconds -= 240 / bpms[k - 1]; // measure k - 1 to k is heard at the tempo before the tick on k
+        roster = stepShiftLifecycle(roster, k, { bpm: bpms[k], worldKey: WORLD });
+      }
+      const end = bpms.length - 1;
+      expect(roster.slice(0, 2).map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Active]);
+      expect(roster[0].exitsAtMeasure).toBe(roster[1].exitsAtMeasure);
+      expect(roster[0].exitsAtMeasure).toBe(turnFrom(Math.round(end + seconds / (240 / 60))));
+    });
+
     it('a Recalled or Undocking robot keeps its hold, and a Recalled one its exit turn', () => {
       const recalled = member('a', { docking: DockingState.Recalled, dockingHoldUntilMeasure: 90, exitsAtMeasure: 89 });
       const undocking = member('bb', { docking: DockingState.Undocking, dockingHoldUntilMeasure: 88, entersAtMeasure: 88 });
@@ -1828,6 +1870,32 @@ describe('stepShiftLifecycle (roadmap 94)', () => {
         if (roster[0].docking === DockingState.Docked) docked = true;
       }
       expect(docked).toBe(true);
+    });
+
+    it("a robot that takes a mate's move takes its aim too, so the next tempo change gives them one move (review 2026-11-21)", () => {
+      // A mate's move after an earlier change: the turn at or after an aim well short of it.
+      const turns = journeyTurns(keyOf('co-a'), 60, 140).map((t) => t.measure);
+      const exit = turns[2];
+      const exitAim = turns[1] + 0.4;
+      const enter = turns[3];
+      const enterAim = turns[2] + 0.4;
+      const outside = bare('z', DockingState.Active, undefined, { exitsAtMeasure: 5_000, shiftBpm: 60 });
+      // An exit: bb is out with none, a is out with the aimed one.
+      let out = [bare('a', DockingState.Active, 'co-a', { exitsAtMeasure: exit, exitsAim: exitAim, shiftBpm: 60 }), bare('b', DockingState.Active, 'co-a', { shiftBpm: 60 }), outside];
+      out = stepShiftLifecycle(out, 40, env);
+      expect([out[1].exitsAtMeasure, out[1].exitsAim]).toEqual([exit, exitAim]);
+      out = stepShiftLifecycle(out, 41, { ...env, bpm: 200 });
+      expect(out[1].exitsAtMeasure).toBe(out[0].exitsAtMeasure);
+      // An entrance: the whole company home, b with none, a with the aimed one.
+      let home = [
+        bare('a', DockingState.Docked, 'co-a', { entersAtMeasure: enter, entersAim: enterAim, shiftBpm: 60 }),
+        bare('b', DockingState.Docked, 'co-a', { shiftBpm: 60 }),
+        outside,
+      ];
+      home = stepShiftLifecycle(home, 40, env);
+      expect([home[1].entersAtMeasure, home[1].entersAim]).toEqual([enter, enterAim]);
+      home = stepShiftLifecycle(home, 41, { ...env, bpm: 200 });
+      expect(home[1].entersAtMeasure).toBe(home[0].entersAtMeasure);
     });
 
     it("an Active member with no exit turn takes a mate's it can still make, and is recalled with it", () => {

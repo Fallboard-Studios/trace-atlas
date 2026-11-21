@@ -232,15 +232,34 @@ export interface RescaleInput {
   least: number;
 }
 
+/** What rescaleAim is handed: where a move aims (unsnapped), the measure now, the two tempos and the least. */
+export type AimInput = Pick<RescaleInput, 'measure' | 'fromBpm' | 'toBpm' | 'least'> & { aim: number };
+
 /**
- * A move after a tempo change (spec §1.12): the bars still to go times `toBpm ÷ fromBpm`, rounded, never under `least`,
- * then the first turn of the group's journey at or after that. So the seconds still to go are kept and the move lands
- * on a turn; members with one move get one move. Equal tempos return the move unchanged. Pure.
+ * Where a move aims after a tempo change (spec §1.12): the measures from `measure` to `aim` times `toBpm ÷ fromBpm`,
+ * never under `least`, unrounded, so the seconds still to go are kept exactly. The step scales the aim, never the
+ * snapped turn: a run of changes (a slider dragged, a tick at each tempo) then snaps once, where scaling the turn
+ * snapped forward at every tick and pushed a move ever further off (review 2026-11-21). Equal tempos return the aim.
+ * Pure.
+ */
+export function rescaleAim({ aim, measure, fromBpm, toBpm, least }: AimInput): number {
+  if (fromBpm === toBpm) return aim;
+  return measure + Math.max(least, ((aim - measure) * toBpm) / fromBpm);
+}
+
+/** The first turn of `robot`'s group's journey at or after `measure`, rounded: where an aim lands. Pure. */
+export function turnAtOrAfter(worldKey: string, robot: Pick<ShiftRobot, 'companyId'>, measure: number): number {
+  return turnsFrom(groupJourneyKey(worldKey, robot), Math.round(measure), 1)[0].measure;
+}
+
+/**
+ * A move after one tempo change (spec §1.12): rescaleAim from the move, landed on a turn by turnAtOrAfter. So the move
+ * lands on a turn, never nearer than `least`, and members with one move get one move. Equal tempos return the move
+ * unchanged. Pure.
  */
 export function rescaleMove({ worldKey, robot, move, measure, fromBpm, toBpm, least }: RescaleInput): number {
   if (fromBpm === toBpm) return move;
-  const toGo = Math.max(least, Math.round(((move - measure) * toBpm) / fromBpm));
-  return turnsFrom(groupJourneyKey(worldKey, robot), measure + toGo, 1)[0].measure;
+  return turnAtOrAfter(worldKey, robot, rescaleAim({ aim: move, measure, fromBpm, toBpm, least }));
 }
 
 // ========================================

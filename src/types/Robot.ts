@@ -279,6 +279,13 @@ export interface Robot {
   exitsAtMeasure?: number;
   /** The tempo the two measures above were last scaled at (spec §1.12). Live lifecycle state, as entersAtMeasure. */
   shiftBpm?: number;
+  /**
+   * Where entersAtMeasure and exitsAtMeasure aim, unsnapped, after a tempo change (spec §1.12; review 2026-11-21): a
+   * change scales the aim and the move is the turn at or after it, so a run of changes snaps once. Absent: the move
+   * itself (as drawn). Live lifecycle state, as entersAtMeasure.
+   */
+  entersAim?: number;
+  exitsAim?: number;
   /** Taken with a site by the work loop (chooseNextSite) and kept across sites until none ready
    *  hosts it. Undefined until the first site. Not cleared on the way home — stale while charging,
    *  and heldJobs ignores it there. */

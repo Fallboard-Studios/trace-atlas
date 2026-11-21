@@ -13,8 +13,10 @@ import {
   planEntrance,
   planExit,
   recallLeadBars,
+  rescaleAim,
   rescaleMove,
   shiftWindow,
+  turnAtOrAfter,
   type ShiftRobot,
 } from './shiftPlan';
 import { journeyKey, journeyTurns, type JourneyTurn } from '../engine/melodyJourney';
@@ -500,6 +502,47 @@ describe('rescaleMove (spec §1.12)', () => {
     const fleet = groupJourneyKey(WORLD, {});
     const got = rescaleMove({ worldKey: WORLD, robot: {}, move: 70, measure: 50, fromBpm: 60, toBpm: 120, least: 0 });
     expect(got).toBe(journeyTurns(fleet, 90, 140)[0].measure);
+  });
+});
+
+// The aim (review 2026-11-21): a tempo change scales the unsnapped aim, so a run of changes keeps the seconds to go and
+// snaps once, not once a tick.
+describe('rescaleAim and turnAtOrAfter (spec §1.12)', () => {
+  const WORLD = '5:9';
+  const robot = { companyId: 'co-r' };
+  const key = groupJourneyKey(WORLD, robot);
+
+  it('scales the measures to go by new / old, unrounded, never under `least`; equal tempos return the aim', () => {
+    expect(rescaleAim({ aim: 130, measure: 100, fromBpm: 60, toBpm: 200, least: 0 })).toBeCloseTo(200);
+    expect(rescaleAim({ aim: 107, measure: 100, fromBpm: 60, toBpm: 70, least: 0 })).toBeCloseTo(108.1667, 4);
+    expect(rescaleAim({ aim: 130, measure: 100, fromBpm: 200, toBpm: 20, least: 7 })).toBe(107);
+    expect(rescaleAim({ aim: 130.25, measure: 100, fromBpm: 90, toBpm: 90, least: 50 })).toBe(130.25);
+  });
+
+  it('keeps the seconds to go across a run of changes, a measure passing at each: up to 200 BPM and back', () => {
+    const bpms = [60, ...Array.from({ length: 14 }, (_, i) => 70 + i * 10), ...Array.from({ length: 14 }, (_, i) => 190 - i * 10)];
+    let aim = 25;
+    let seconds = 25 * (240 / 60);
+    for (let k = 1; k < bpms.length; k++) {
+      // The measure k - 1 to k is heard at the old tempo; the tick on k changes it.
+      seconds -= 240 / bpms[k - 1];
+      aim = rescaleAim({ aim, measure: k, fromBpm: bpms[k - 1], toBpm: bpms[k], least: 0 });
+      expect((aim - k) * (240 / bpms[k]), `tick ${k}`).toBeCloseTo(seconds, 6);
+    }
+  });
+
+  it('turnAtOrAfter gives the first turn of the group journey at or after a rounded measure', () => {
+    for (const m of [0, 41.4, 41.6, 300]) {
+      expect(turnAtOrAfter(WORLD, robot, m)).toBe(journeyTurns(key, Math.round(m), Math.round(m) + 40)[0].measure);
+    }
+  });
+
+  it('rescaleMove is turnAtOrAfter of rescaleAim from the move', () => {
+    for (const [move, measure, fromBpm, toBpm, least] of [[180, 100, 60, 200, 21], [131, 120, 200, 20, 3], [75, 50, 47, 133, 0]]) {
+      expect(rescaleMove({ worldKey: WORLD, robot, move, measure, fromBpm, toBpm, least })).toBe(
+        turnAtOrAfter(WORLD, robot, rescaleAim({ aim: move, measure, fromBpm, toBpm, least })),
+      );
+    }
   });
 });
 
