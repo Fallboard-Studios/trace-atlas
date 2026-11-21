@@ -37,6 +37,9 @@ import {
   type TurnReader,
   runCoverSim,
   formatCoverReport,
+  formatShiftCoverReport,
+  runShiftCoverSim,
+  type ShiftCoverRow,
   type CoverSimRow,
   type CoverSnapshot,
   type CoverTallyResult,
@@ -49,7 +52,7 @@ import {
   type ReadinessSeedRow,
   type SimBand,
 } from './lifecycleSim';
-import { activeDrain, stepRobotLifecycle, type RobotLifecycleSnapshot } from './robotSystems';
+import { activeDrain, stepRobotLifecycle, stepShiftLifecycle, type RobotLifecycleSnapshot, type ShiftLifecycleSnapshot } from './robotSystems';
 import {
   generateBatterySize,
   generateCompanyId,
@@ -843,6 +846,95 @@ describe('runCoverSim (no-silence Task 2)', () => {
     const rows = runCoverSim({ measures: COVER_REPORT_MEASURES, rows: REPORT_BANDS });
     console.log(`\n${formatCoverReport(rows)}`);
   }, 300_000);
+});
+
+// Roadmap 94 Task 17 (spec §5.3, §5.5): the cover sim on today's step or the shift step, at a tempo.
+describe('runShiftCoverSim (roadmap 94 Task 17)', () => {
+  const ONE = [{ x: 40, y: -80 }];
+  const SHIFT_TEMPOS = [20, 40, 60, 100, 200] as const;
+  /** A world's key, as the sim reads it. */
+  const keyOf = ({ x, y }: { x: number; y: number }) => `${x}:${y}`;
+
+  it('one world: the row equals the counts the test makes itself, on both steps', () => {
+    const measures = 400;
+    for (const step of ['today', 'shift'] as const) {
+      const env = { bpm: 60, worldKey: keyOf(ONE[0]) };
+      const noiseMap = simNoiseMap(ONE[0].x, ONE[0].y);
+      let roster: ShiftLifecycleSnapshot[] = step === 'today' ? buildSimRoster(noiseMap) : buildShiftSimRoster(noiseMap, env);
+      let silent = 0;
+      let sounding = 0;
+      let companySounding = 0;
+      let companyApart = 0;
+      for (let m = 1; m <= measures; m++) {
+        roster = step === 'today' ? (stepRobotLifecycle(roster, m) as ShiftLifecycleSnapshot[]) : stepShiftLifecycle(roster, m, env);
+        const out = roster.filter((r) => r.docking === A || r.docking === R);
+        sounding += out.length;
+        if (out.length === 0) silent++;
+        const companies = new Set(roster.map((r) => r.companyId).filter(Boolean));
+        for (const c of companies) {
+          const members = roster.filter((r) => r.companyId === c);
+          const n = members.filter((r) => r.docking === A || r.docking === R).length;
+          if (n > 0) companySounding++;
+          if (n > 0 && n < members.length) companyApart++;
+        }
+      }
+      const [row] = runShiftCoverSim({ coords: ONE, measures, bpms: [60], steps: [step] });
+      expect(row.step).toBe(step);
+      expect(row.bpm).toBe(60);
+      expect(row.silentShare).toBe(silent / measures);
+      expect(row.sounding.mean).toBeCloseTo(sounding / measures, 12);
+      expect(row.apartShare).toBeCloseTo(companyApart / companySounding, 12);
+    }
+  });
+
+  it('the shift step is never silent over the grid at 60 BPM for 2,000 measures, and every exit and group entrance lands on a turn', () => {
+    const [row] = runShiftCoverSim({ measures: SIM_MEASURES, bpms: [60], steps: ['shift'] });
+    expect(row.worlds).toBe(SIM_SEED_COORDS.length);
+    expect(row.silentShare).toBe(0);
+    expect(row.exits).toBeGreaterThan(1000);
+    expect(row.exitsOnTurnShare).toBe(1);
+    expect(row.entrancesOnTurnShare).toBe(1);
+    expect(row.plannedOffTurn).toBe(0);
+  }, 120_000);
+
+  it('the shift step is never silent, and lands on turns, over a few worlds at 20, 40, 100 and 200 BPM', () => {
+    const rows = runShiftCoverSim({ coords: SIM_SEED_COORDS.slice(0, 121).filter((_, i) => i % 20 === 0), measures: SIM_MEASURES, bpms: [20, 40, 100, 200], steps: ['shift'] });
+    expect(rows.map((r) => r.bpm)).toEqual([20, 40, 100, 200]);
+    for (const r of rows) {
+      expect(r.silentShare, `${r.bpm}`).toBe(0);
+      expect(r.exitsOnTurnShare, `${r.bpm}`).toBe(1);
+      expect(r.entrancesOnTurnShare, `${r.bpm}`).toBe(1);
+      expect(r.plannedOffTurn, `${r.bpm}`).toBe(0);
+    }
+  }, 120_000);
+
+  it("today's step reads no tempo: its rows in bars are the same at every tempo, and only the seconds scale", () => {
+    const rows = runShiftCoverSim({ coords: ONE, measures: 600, bpms: [60, 120], steps: ['today'] });
+    const strip = ({ bpm: _bpm, timeOutSeconds: _o, timeHomeSeconds: _h, ...rest }: ShiftCoverRow) => rest;
+    expect(strip(rows[0])).toEqual(strip(rows[1]));
+    expect(rows[1].timeOutSeconds.median).toBeCloseTo(rows[0].timeOutSeconds.median / 2, 9);
+  });
+
+  it('is deterministic, and reads no store and no clock', () => {
+    const a = runShiftCoverSim({ coords: ONE, measures: 300, bpms: [97], steps: ['shift', 'today'] });
+    const b = runShiftCoverSim({ coords: ONE, measures: 300, bpms: [97], steps: ['shift', 'today'] });
+    expect(a).toEqual(b);
+    expect(subscribeToMeasure).not.toHaveBeenCalled();
+    expect(getCurrentMeasure).not.toHaveBeenCalled();
+  });
+
+  it('formatShiftCoverReport renders one line per row, under a header', () => {
+    const rows = runShiftCoverSim({ coords: ONE, measures: 200, bpms: [60, 200], steps: ['today', 'shift'] });
+    const lines = formatShiftCoverReport(rows).split('\n');
+    expect(lines).toHaveLength(2 + rows.length);
+    expect(lines[2]).toContain('today');
+    expect(lines[2]).toContain('60');
+  });
+
+  it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)('the report: the grid at 20, 40, 60, 100 and 200 BPM on both steps, 2,000 measures a world', () => {
+    const rows = runShiftCoverSim({ measures: SIM_MEASURES, bpms: SHIFT_TEMPOS, steps: ['today', 'shift'] });
+    console.log(`\n${formatShiftCoverReport(rows)}`);
+  }, 600_000);
 });
 
 describe('formatCoverReport', () => {

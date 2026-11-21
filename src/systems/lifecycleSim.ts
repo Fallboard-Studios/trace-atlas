@@ -15,9 +15,10 @@ import {
   generateCompositionSeed,
   generateRosterStart,
 } from './spawnSystem';
-import { stepRobotLifecycle } from './robotSystems';
+import { stepRobotLifecycle, stepShiftLifecycle } from './robotSystems';
 import type { DrainRule, RobotLifecycleSnapshot, ShiftLifecycleSnapshot } from './robotSystems';
-import type { ShiftEnv } from './shiftPlan';
+import { groupIdOf, groupJourneyKey, type ShiftEnv } from './shiftPlan';
+import { journeyTurns } from '../engine/melodyJourney';
 import { isWorkSiteEligible } from './jobHosts';
 import { getWorkSite } from './workSites';
 import { assignStationsAtLoad, deriveStations, hostObstacles, nearestFreeStation, type Station } from './stations';
@@ -259,7 +260,12 @@ function commonest(values: readonly number[]): number | undefined {
  * roster so the first measure's landings are known. Reads id, docking and battery only; keeps its own
  * copies, so the rosters it is handed are never touched.
  */
-export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTally {
+export function createCoverTally(
+  startRoster: readonly CoverSnapshot[],
+  /** What counts as a stay; today's rule (Active at or under critical) unless handed another (the shift step's: Active
+   *  with no exit turn, roadmap 94). */
+  staying: (r: CoverSnapshot) => boolean = isStaying,
+): CoverTally {
   let measures = 0;
   const soundingHistogram: number[] = [];
   let silentMeasures = 0;
@@ -287,7 +293,7 @@ export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTa
           sounding++;
           robot.sounding++;
         }
-        if (isStaying(r)) {
+        if (staying(r)) {
           robot.stay++;
           anyStaying = true;
         } else if (robot.stay > 0) {
@@ -551,6 +557,195 @@ function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: 
     sharing: { median: orZero(sharing, 50), max: Math.max(0, ...sharing) },
     heardShare: { lowest: heard.length > 0 ? Math.min(...heard) : 0, highest: Math.max(0, ...heard) },
   };
+}
+
+// ========================================
+// THE SHIFT COVER SIM (roadmap 94 Task 17, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §5.3)
+// ========================================
+
+/** Which docking machine a sim row runs: today's battery step (stepRobotLifecycle on buildSimRoster) or the shift
+ *  step (stepShiftLifecycle on buildShiftSimRoster). */
+export type SimStep = 'today' | 'shift';
+
+/** Median, p90 and longest of a list, all 0 for an empty one. */
+export interface Spread {
+  median: number;
+  p90: number;
+  longest: number;
+}
+
+export interface ShiftCoverRow {
+  step: SimStep;
+  bpm: number;
+  worlds: number;
+  /** Per world. */
+  measures: number;
+  /** Silent measures over every (world, measure). */
+  silentShare: number;
+  worldsWithSilence: number;
+  /** Robots sounding (Active or Recalled) over every (world, measure). */
+  sounding: { mean: number; p10: number; p90: number };
+  /** Of the measures a company has any member sounding, the share where not all do. */
+  apartShare: number;
+  companyExits: number;
+  /** Company exits where every member docked on one measure, over all company exits. */
+  groupExitShare: number;
+  exits: number;
+  /** Robot exits whose exit turn (the bar before the landing) is a turn of the group's journey. */
+  exitsOnTurnShare: number;
+  entrances: number;
+  /** Group entrances (the first member out) landing on a turn of the group's journey. */
+  entrancesOnTurnShare: number;
+  /** The shift step only: distinct exit turns written that are no turn of the group's journey (0 on today's step). */
+  plannedOffTurn: number;
+  /** Group spans out and home, in bars and in seconds at the row's tempo. */
+  timeOut: Spread;
+  timeHome: Spread;
+  timeOutSeconds: Spread;
+  timeHomeSeconds: Spread;
+  /** Stays per 1,000 measures per world, and their lengths in measures. Today's step: an Active robot at or under
+   *  critical; the shift step: an Active robot with no exit turn. */
+  staysPer1000: number;
+  stayLength: Spread;
+  /** Each robot's heard share, lowest and highest across the grid. */
+  heardShare: { lowest: number; highest: number };
+}
+
+/** The shift step's stay (spec §1.9): Active with no exit turn. */
+const isShiftStaying = (r: CoverSnapshot & { exitsAtMeasure?: number }) => r.docking === DockingState.Active && r.exitsAtMeasure === undefined;
+
+/** Whether `measure` is a turn of `robot`'s group's journey in `worldKey`. */
+const turnReaderFor =
+  (worldKey: string): TurnReader =>
+  (robot, measure) =>
+    journeyTurns(groupJourneyKey(worldKey, robot), measure, measure).length === 1;
+
+/**
+ * The cover sim on either step at each tempo (spec §5.3): every world's roster stepped `measures` times on the step,
+ * fed to a cover tally and a group tally, pooled into one row per (step, tempo), steps first. Today's step reads no
+ * tempo, so it is run once and its row repeated at each tempo, only its seconds scaled. Pure: no store, no BeatClock.
+ */
+export function runShiftCoverSim(options: {
+  coords?: ReadonlyArray<{ x: number; y: number }>;
+  measures?: number;
+  bpms?: readonly number[];
+  steps?: readonly SimStep[];
+} = {}): ShiftCoverRow[] {
+  const { coords = SIM_SEED_COORDS, measures = SIM_MEASURES, bpms = [60], steps = ['today', 'shift'] } = options;
+  const rows: ShiftCoverRow[] = [];
+  for (const step of steps) {
+    const today = step === 'today' ? shiftCoverRow(coords, measures, 'today', bpms[0]) : undefined;
+    for (const bpm of bpms) rows.push(today ? withSeconds({ ...today, bpm }) : shiftCoverRow(coords, measures, 'shift', bpm));
+  }
+  return rows;
+}
+
+/** A row's two spans in seconds at its own tempo. */
+function withSeconds(row: ShiftCoverRow): ShiftCoverRow {
+  const toSeconds = (s: Spread): Spread => {
+    const k = (BEATS_PER_MEASURE * 60) / row.bpm;
+    return { median: s.median * k, p90: s.p90 * k, longest: s.longest * k };
+  };
+  return { ...row, timeOutSeconds: toSeconds(row.timeOut), timeHomeSeconds: toSeconds(row.timeHome) };
+}
+
+function shiftCoverRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: number, step: SimStep, bpm: number): ShiftCoverRow {
+  const sounding: number[] = [];
+  const stays: number[] = [];
+  const heard: number[] = [];
+  const timesOut: number[] = [];
+  const timesHome: number[] = [];
+  const counts = { companySounding: 0, companyApart: 0, companyExits: 0, groupExits: 0, exits: 0, exitsOnTurn: 0, entrances: 0, entrancesOnTurn: 0 };
+  let silentMeasures = 0;
+  let worldsWithSilence = 0;
+  let plannedOffTurn = 0;
+
+  for (const { x, y } of coords) {
+    const worldKey = `${x}:${y}`;
+    const env = { bpm, worldKey };
+    const noiseMap = simNoiseMap(x, y);
+    const isTurn = turnReaderFor(worldKey);
+    let roster: ShiftLifecycleSnapshot[] = step === 'today' ? buildSimRoster(noiseMap) : buildShiftSimRoster(noiseMap, env);
+    const cover = createCoverTally(roster, step === 'today' ? isStaying : isShiftStaying);
+    const groups = createGroupTally(roster, isTurn);
+    const planned = new Set<string>();
+    for (let measure = 1; measure <= measures; measure++) {
+      roster = step === 'today' ? (stepRobotLifecycle(roster, measure) as ShiftLifecycleSnapshot[]) : stepShiftLifecycle(roster, measure, env);
+      cover.observe(roster);
+      groups.observe(roster);
+      if (step === 'shift') {
+        for (const r of roster) {
+          if (r.exitsAtMeasure === undefined) continue;
+          const key = `${groupIdOf(r)}@${r.exitsAtMeasure}`;
+          if (planned.has(key)) continue;
+          planned.add(key);
+          if (!isTurn(r, r.exitsAtMeasure)) plannedOffTurn++;
+        }
+      }
+    }
+    const c = cover.result();
+    c.soundingHistogram.forEach((count, n) => {
+      for (let i = 0; i < count; i++) sounding.push(n);
+    });
+    silentMeasures += c.silentMeasures;
+    if (c.silentMeasures > 0) worldsWithSilence++;
+    stays.push(...c.stays);
+    for (const r of c.robots) heard.push(r.heardShare);
+    const g = groups.result();
+    for (const k of Object.keys(counts) as (keyof typeof counts)[]) counts[k] += g[k];
+    timesOut.push(...g.timesOut);
+    timesHome.push(...g.timesHome);
+  }
+
+  const samples = coords.length * measures;
+  const spread = (values: readonly number[]): Spread =>
+    values.length > 0 ? { median: percentile(values, 50), p90: percentile(values, 90), longest: percentile(values, 100) } : { median: 0, p90: 0, longest: 0 };
+  const share = (n: number, of: number) => (of > 0 ? n / of : 0);
+  return withSeconds({
+    step,
+    bpm,
+    worlds: coords.length,
+    measures,
+    silentShare: share(silentMeasures, samples),
+    worldsWithSilence,
+    sounding: {
+      mean: sounding.length > 0 ? sounding.reduce((s, v) => s + v, 0) / sounding.length : 0,
+      p10: sounding.length > 0 ? percentile(sounding, 10) : 0,
+      p90: sounding.length > 0 ? percentile(sounding, 90) : 0,
+    },
+    apartShare: share(counts.companyApart, counts.companySounding),
+    companyExits: counts.companyExits,
+    groupExitShare: share(counts.groupExits, counts.companyExits),
+    exits: counts.exits,
+    exitsOnTurnShare: share(counts.exitsOnTurn, counts.exits),
+    entrances: counts.entrances,
+    entrancesOnTurnShare: share(counts.entrancesOnTurn, counts.entrances),
+    plannedOffTurn,
+    timeOut: spread(timesOut),
+    timeHome: spread(timesHome),
+    timeOutSeconds: spread([]),
+    timeHomeSeconds: spread([]),
+    staysPer1000: share(stays.length, samples) * 1000,
+    stayLength: spread(stays),
+    heardShare: { lowest: heard.length > 0 ? Math.min(...heard) : 0, highest: Math.max(0, ...heard) },
+  });
+}
+
+/** The shift cover rows as a markdown table — for Results. Seconds at the row's tempo. */
+export function formatShiftCoverReport(rows: readonly ShiftCoverRow[]): string {
+  const pct = (v: number) => `${(v * 100).toFixed(1)} %`;
+  const bars = (s: Spread) => `${s.median}, ${s.p90}, ${s.longest}`;
+  const secs = (s: Spread) => `${Math.round(s.median)}, ${Math.round(s.p90)}, ${Math.round(s.longest)}`;
+  const lines = [
+    '| Step | BPM | Silent | Sounding (mean, p10–p90) | Apart | Group exits | Exits on a turn | Entrances on a turn | Time out, bars (median, p90, longest) | Time out, s | Time home, bars | Time home, s | Stays / 1,000 | Stay length | Heard share (lowest–highest) |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
+  ];
+  for (const r of rows) {
+    lines.push(
+      `| ${r.step} | ${r.bpm} | ${pct(r.silentShare)} | ${r.sounding.mean.toFixed(2)}, ${r.sounding.p10}–${r.sounding.p90} | ${pct(r.apartShare)} | ${pct(r.groupExitShare)} of ${r.companyExits} | ${pct(r.exitsOnTurnShare)} | ${pct(r.entrancesOnTurnShare)} | ${bars(r.timeOut)} | ${secs(r.timeOutSeconds)} | ${bars(r.timeHome)} | ${secs(r.timeHomeSeconds)} | ${r.staysPer1000.toFixed(2)} | ${bars(r.stayLength)} | ${pct(r.heardShare.lowest)}–${pct(r.heardShare.highest)} |`,
+    );
+  }
+  return lines.join('\n');
 }
 
 /** The cover rows as a markdown table — for the stop-and-report and Results. */
