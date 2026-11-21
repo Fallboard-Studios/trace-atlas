@@ -658,6 +658,24 @@ their defaults; Q3 (the removals) and Q6 (CLAUDE.md, §8.4) wait for his yes.
   stepped by hand, and such an arc completes on its first frame), so Task 25's case reads the bar line from the fade
   the engine is handed.
 
+From the review of 2026-11-21 (the plan's Results), each fix at Crawford's word:
+
+- **A tempo change scales an aim** (§1.12, §4): each move carries an unsnapped aim after a change (`entersAim`,
+  `exitsAim` on the robot, live state like the moves); `rescaleAim` scales it by new ÷ old, keeping the seconds to go
+  exactly, and the move is the turn at or after it (`turnAtOrAfter`). §1.12's "the bars still to go, rounded, then
+  the first turn" scaled the snapped turn, so every tick of a slider drag snapped forward again: an exit 20 bars off
+  sat at about 115 after a drag from 60 to 200 BPM and back. `rescaleMove` stays, as one change's composition.
+- **A whole-roster company** (§1.9): when one company holds every robot, the step groups each member alone, so the
+  last `Active` robot stays and each member's entrance is drawn when it docks (Crawford: "last robot stays"). §1.9's
+  "the last `Active` group is never recalled" held such a company out for ever.
+- **A big company's stagger** (§1.7): `ENTRANCE_STAGGER_BARS` narrows to `floor(out least ÷ (members − 1))` bars
+  (together at 0), so the last member is out by the out window's least. And the entrance (§1.8, §1.14) waits until
+  every member is `Docked`: a member still `Undocking` keeps the group's exit and goes in on it. A company of five or
+  more at a slow tempo otherwise split for a whole shift (one of eight at 20 BPM: apart for runs of 41–79 measures).
+  Spawn's companies of three and four never reach either rule, so the sims' rows are unchanged (re-run 2026-11-21).
+- **A locale with no coordinates** is not handled: `Locale.coordinates` is required and nothing makes one without,
+  so the tick's fallback to (0, 0) and the Task 21 criterion that asked for it went.
+
 ### 8.4 Waiting for Crawford
 
 - **Gate A**: the numbers in the plan's Results, with three things to weigh: the apart share at 20 and 40 BPM, the

@@ -11,7 +11,8 @@ not held**: the numbers and the listening list are in Results for his read, and 
 unmoved. **Waiting for him:** Gate A, Gate B, Task 27 (the removals, on his yes), CLAUDE.md's lifecycle line (the
 wording is in the spec's §8.4), and Task 30 (the archive, after the merge). A ticked task box means the task was
 built and committed; its acceptance criteria are checked in its commit message. The checkpoints' "reviewed with
-Crawford" boxes are open.
+Crawford" boxes are open. **Reviewed 2026-11-21** (code-review-and-quality, five axes): three faults fixed, the step
+split into named helpers, two nits; see Results.
 
 ## Overview
 
@@ -664,7 +665,8 @@ per task.
   - [ ] A tick writes the new fields and the battery to the store and nothing else new; `audioMode` is never written.
   - [ ] `beginRecall`, `beginUndocking`, `landOnActive` and `landOnDocked` fire once per transition, and the seam
         stays the tick's only route to visuals (the existing pin).
-  - [ ] A locale with no coordinates, or a robot with no fields, does not throw (Task 13's rule covers it).
+  - [ ] A robot with no fields does not throw (Task 13's rule covers it). (A locale with no coordinates was here too;
+        the review of 2026-11-21 dropped it: `Locale.coordinates` is required and nothing makes a locale without.)
   - [ ] The full suite is green; every re-aimed case is named or counted in the commit.
 
   **Verification:**
@@ -943,7 +945,7 @@ per task.
 
 ## Results
 
-Filled in by Tasks 18, 19, 20 and 26. Nothing measured yet.
+Filled in by Tasks 18, 19, 20 and 26, and by the review of 2026-11-21.
 
 - **Today's row and the new rows** (Task 18), run 2026-11-20 on `feature/companies-together` after Task 17, with
   `LIFECYCLE_SIM_REPORT=1 npx vitest run src/systems/lifecycleSim.test.ts -t "the report: the grid at 20, 40, 60, 100
@@ -1057,3 +1059,21 @@ Filled in by Tasks 18, 19, 20 and 26. Nothing measured yet.
   company is heard through the exit turn's own bar); the gathering at the door, and whether it runs too long at a
   fast tempo; a staggered entrance (Q2: 2 bars apart); the battery readouts through a shift, a stay and a tempo
   change. **His answers:** — (to be written here with the date).
+- **The review** (2026-11-21, code-review-and-quality on all five axes, at Crawford's request). Types, lint and tests
+  green; eleven hand mutants of the built code all killed. Three faults found by scratch experiments on the step, each
+  fixed at his word ("fix 1 and 3, last robot stays for 2"), RED first, one commit each:
+  1. **A tempo drag pushed every plan far off** (`b5d89642`). Each tick rescaled the snapped turn and snapped forward
+     again: an exit planned about 20 bars off at 60 BPM sat at 112–118 after 28 ticks from 60 to 200 and back. Now
+     `rescaleAim` scales an unsnapped aim (`entersAim`, `exitsAim`), keeping the seconds to go, and snaps once.
+  2. **A company holding every robot never left** (`eacedff9`): 0 recalls in 500 measures, batteries easing to 7e-27.
+     Now such a company comes and goes robot by robot, the last `Active` robot staying (`lifecycleGroupOf`).
+  3. **A company of five or more could split for a whole shift** (`46e5fca8`): its last staggered member was still
+     `Undocking` when its mates docked, so the entrance was drawn over it and it then drew a second exit alone (a
+     company of 8 at 20 BPM: apart for runs of 41–79 measures). Now the stagger narrows to the out window's least, and
+     the entrance waits until every member is `Docked`. A probe found 0 such landings in the 121-world grid at five
+     tempos with spawn's companies of 3–4.
+
+  Also: `stepShiftLifecycle` split into named helpers, proved identical to the old step over 363,000 grid ticks with
+  tempo drags (`c9d0a881`); one company-id helper, and the tick's fallback for a locale with no coordinates gone
+  (`f1955079`). **The sims re-run after the fixes:** Task 18's ten rows and Task 19's six are identical to the tables
+  above, value for value. Full suite after fix 2: 14,941 passed, 4 skipped.

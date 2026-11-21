@@ -87,6 +87,9 @@ entersAtMeasure?: number;
 exitsAtMeasure?: number;
 /** The tempo the two above were last scaled at. */
 shiftBpm?: number;
+/** Where the entrance and the exit turn aim, unsnapped, after a tempo change; absent: the move itself. */
+entersAim?: number;
+exitsAim?: number;
 /** Taken with a site (chooseNextSite) and kept across sites until none ready hosts it. Undefined
  *  until the first site; stale while charging. */
 job?: JobType;
@@ -101,7 +104,7 @@ position: Vec2;
 ```
 
 All of these are plain JSON. None of `job`, `activity`, `stationId`, `siteId` or `position` is
-replayed or saved in a session (see [SESSION_STORAGE.md](SESSION_STORAGE.md)). The three move
+replayed or saved in a session (see [SESSION_STORAGE.md](SESSION_STORAGE.md)). The five move
 fields are live lifecycle state like `docking`: replayed, never saved, linked or shown; a loaded
 world starts again from "Roster Creation". Timelines, site cooldowns and DOM refs live outside the
 store.
@@ -146,19 +149,31 @@ one state a tick.
     order decides two cases: relief landing earlier in the roster gives the new exit the same
     measure, later in the roster the next; and of two groups due on one measure with no third
     `Active`, the earlier in the roster is recalled whole and the later stays whole.
-- **`Recalled` → `Docked`**: on its hold. If no member of its group is still out (`Active` or
-  `Recalled`), it is the group's last home and the **entrance is drawn** for every member, and the
-  exit turns are spent (`planEntrance`).
+  - **A company that is the whole roster** (every robot in one company; the roster board allows it)
+    has no robot outside it to relieve a stay, so it would never leave. The step then groups each
+    member alone (`lifecycleGroupOf`): the last `Active` robot stays, the rule before roadmap 94, and
+    each member's entrance is drawn when it docks; its journey and draws stay the company's
+    (Crawford, 2026-11-21: "last robot stays").
+- **`Recalled` → `Docked`**: on its hold. If every member of its group is now `Docked`, it is the
+  group's last home and the **entrance is drawn** for every member, and the exit turns are spent
+  (`planEntrance`). A member still `Undocking` (the last of a stagger) is not home: it keeps the
+  group's exit, lands `Active`, is recalled on it, and the entrance waits for it. A `Docked` robot
+  with no entrance likewise waits until every mate is `Docked`.
 - **The holds**: an `Undocking` robot's is its entrance; a `Recalled` robot's is the bar line after its
   exit turn, so its sound can end there (see "Recall"). A move that is overdue (a hand-built robot, a
   tempo change on a slow world) holds until the next measure, never fires twice in one tick. No
   visual's duration governs a landing: a late member can land on `Docked` while it is still on its
   way in, and the work loop simply finishes the trip.
 - **A tempo change** (spec §1.12): at the top of the step, a robot whose `shiftBpm` differs from the
-  live tempo has its moves rescaled (`rescaleMove`): the bars still to go times new ÷ old, rounded,
-  then the first turn of its group's journey at or after that, an exit never nearer than the lead + 1
-  and an entrance never nearer than 2, so nothing changes docking on the tick of the change. A
-  `Recalled` or `Undocking` robot keeps its hold.
+  live tempo has each move's **aim** rescaled (`rescaleAim`): the measures from now to the aim (the
+  move itself until a first change) times new ÷ old, unrounded, so the seconds still to go are kept
+  exactly; the move is then the first turn of its group's journey at or after the rounded aim
+  (`turnAtOrAfter`), an exit never nearer than the lead + 1 and an entrance never nearer than 2, so
+  nothing changes docking on the tick of the change. Scaling the aim and not the snapped turn means
+  a slider drag, a tick at each tempo, snaps once: scaling the turn snapped forward at every tick
+  and pushed an exit 20 bars off to about 115 over a drag from 60 to 200 BPM and back (review
+  2026-11-21). A robot taking a mate's move takes its aim too. A `Recalled` or `Undocking` robot
+  keeps its hold.
 - **A robot out of step** (spec §1.14: company edits, hand-built robots): an `Active` robot with no
   exit turn takes the earliest a mate can still make, else the stay's rule; a `Docked` robot with no
   entrance waits while its group is out, takes a home mate's, or with its whole group home and none,
@@ -205,7 +220,10 @@ roster shape beyond what it is handed:
 - **The entrance** (`planEntrance`), drawn when a group's last member lands `Docked`: the turns in
   its home window walked at `SHIFT_ENTER_ODDS` (0.5) whatever the move, the last if none; together
   under `ENTRANCE_TOGETHER_ODDS` (0.7), else the members in a drawn order `ENTRANCE_STAGGER_BARS`
-  (2) apart from the turn on.
+  (2) apart from the turn on. A big company's stagger narrows so its last member is out by its out
+  window's least (`floor(least ÷ (members − 1))` bars apart, together at 0): a company of five or
+  more at a slow tempo otherwise had a member still coming out when its mates were home again
+  (review 2026-11-21). Spawn's companies of three and four always get the full 2 bars.
 - **The lead** (`recallLeadBars`): `RECALL_LEAD_SECONDS` (24) in bars at the tempo, rounded up.
 
 Every number above is spec §4's first cut; Gate A was not held (the plan's Results).
@@ -547,8 +565,8 @@ that moment. Elapsed measures for replay purposes is always
 
 **`ShiftLifecycleSnapshot`** (`robotSystems.ts`, roadmap 94) — the subset of `Robot` a replay reads
 or writes, deliberately narrower than `Robot`: `id`, `docking`, `batteryLevel`,
-`dockingHoldUntilMeasure`, `batterySize`, the group (`companyId`, `compositionSeed`) and the three
-moves (`entersAtMeasure`, `exitsAtMeasure`, `shiftBpm`). `toLifecycleSnapshot` builds it from a live
+`dockingHoldUntilMeasure`, `batterySize`, the group (`companyId`, `compositionSeed`) and the five
+move fields (`entersAtMeasure`, `exitsAtMeasure`, `shiftBpm`, `entersAim`, `exitsAim`). `toLifecycleSnapshot` builds it from a live
 robot. It extends `RobotLifecycleSnapshot`, today's step's (`id`, `docking`, `batteryLevel`,
 `dockingHoldUntilMeasure`, `batterySize`). Phase 43 dropped `job`, `octaveRange`, `rhythmicDensity`
 and `rhythmicMotifLength`, which only fed job scoring; roadmap 92 dropped `melody`, `dockCycleCount`
@@ -792,8 +810,8 @@ robots silent afterward.
 `workLoop.test.ts`, `workLoop.integration.test.ts`, `lifecycleSim.test.ts`, `siteChoice.test.ts`,
 `stations.test.ts`, `spawnSystem.test.ts`, `spawnSystem.rosterStart.test.ts`, `worldTransition.test.ts`
 and `powerController.test.ts` cover:
-- the plan (roadmap 94, every named mutant killed; the commits name them): `journeyTurns`' measures, moves and drops; the windows at five tempos, the floor, the 16-measure width and the lead; a group's key, size and draws (a member's own Journey setting never read, turn *i*'s draws the same whichever is asked first); the exit walk, together or drifting at the weight's odds, a drop always leaving together; the entrance walk at flat odds, together or 2 bars apart; the rescale
-- the shift step: each transition on its measure; the exit drawn on the first member's landing, the entrance on the last member's docking; the stay (a group whole, relief earlier and later in the roster, two groups due with no third, never zero `Active` over hand-built worlds stepped 500 measures); the gauge (10 on the bar line after the exit turn, 100 on the entrance, falling every measure out and rising every measure home, a stay's ease never reaching 0); a tempo change (nothing changes docking on its tick, a Recalled or Undocking robot keeps its hold, the gauge bends without a jump); a robot out of step (a mate's move, a moved robot's dropped, twelve robots with no fields reaching a plan within one home window)
+- the plan (roadmap 94, every named mutant killed; the commits name them): `journeyTurns`' measures, moves and drops; the windows at five tempos, the floor, the 16-measure width and the lead; a group's key, size and draws (a member's own Journey setting never read, turn *i*'s draws the same whichever is asked first); the exit walk, together or drifting at the weight's odds, a drop always leaving together; the entrance walk at flat odds, together or 2 bars apart, a big company's stagger narrowed to its out window's least; the rescale, and the aim it scales keeping the seconds to go across a run of changes
+- the shift step: each transition on its measure; the exit drawn on the first member's landing, the entrance on the last member's docking; the stay (a group whole, relief earlier and later in the roster, two groups due with no third, never zero `Active` over hand-built worlds stepped 500 measures); the gauge (10 on the bar line after the exit turn, 100 on the entrance, falling every measure out and rising every measure home, a stay's ease never reaching 0); a tempo change (nothing changes docking on its tick, a Recalled or Undocking robot keeps its hold, the gauge bends without a jump, a slow drag up and back landing on the turn its kept seconds call for, through the step and through the live tick); a robot out of step (a mate's move and its aim, a moved robot's dropped, twelve robots with no fields reaching a plan within one home window); a straggler still `Undocking` when its mates dock keeping the group's exit while the entrance waits for it; a company that is the whole roster coming and going robot by robot, and one of all but one robot still staying whole
 - the tick writing what the step gives at the store's tempo and the locale's key, a company recalled on one tick with the seam once per member, and never `audioMode`; the prove-it (N real ticks and one replay identical field for field through a stay, its relief, a group exit and a drifting exit; mutation-checked: each field left out of the tick's snapshot)
 - the station fade waiting for a `Recalled` robot's hold (nothing two bars ahead, the whole last bar from its bar line, a late arrival a bar behind) and, in the integration test, a company of three recalled from out in the world at 60 and 200 BPM whose fades all end on the hold's bar line
 - today's step (`stepRobotLifecycle`, until the removals): the base drain for every Active robot whatever its job, both rates divided by the robot's battery size, recharge math, both clamped; the store keeping a fractional battery

@@ -767,6 +767,11 @@ company lines up organically.
   82–85 % (today 4 %), robots sounding 5.3–5.9, no late member at the door, the seconds criterion met; **missed:** the
   apart share at 20 BPM (25.1 %) and 40 BPM (20.4 %) against 20 %. Also for his read: stays are far commoner than
   today's (17–46 robot-stays per 1,000 measures a world), and the wait at the door runs a median of 16–18 s.
+- **Reviewed 2026-11-21** (five axes; the plan's Results): three faults found by experiment and fixed at his word. A
+  slow tempo drag pushed every plan far off (the rescale now scales an unsnapped aim); a company holding every robot
+  never left (it now comes and goes robot by robot, the last robot staying: "last robot stays"); a company of five or
+  more could split for a whole shift at a slow tempo (the stagger narrows, and the entrance waits for a member still
+  coming out). The step was split into named helpers. The sims' rows are unchanged.
 - **Waiting for his yes:** Task 27, the removals (today's step, the drain machinery, the roster-index start), and
   the CLAUDE.md lifecycle line, whose new wording is in the spec's "As built". Task 30 (the archive) after the merge.
 - It changes every world's comings and goings, so it lands before backlog
