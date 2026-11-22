@@ -776,8 +776,8 @@ company lines up organically.
   coming out). The step was split into named helpers. The sims' rows are unchanged.
 - **Task 27, the removals, built 2026-11-22** on his yes: the old battery step, the drain machinery and the
   roster-index start are gone (the plan's Results).
-- **Waiting for his yes:** the CLAUDE.md lifecycle line, whose new wording is in the spec's "As built". Task 30 (the
-  archive) after the merge.
+- **CLAUDE.md's lifecycle line changed 2026-11-22** on his yes (the spec's "As built" wording).
+- **Still to do:** his PR, then Task 30 (the archive) after the merge.
 - It changes every world's comings and goings, so it lands before backlog
   [45](backlog.md#45-off-screen-crawfords-three-preset-links).
 

@@ -10,8 +10,8 @@ commit each, at Crawford's word to build the whole plan without pausing while he
 not held**: the numbers and the listening list are in Results for his read, and every first-cut constant ships
 unmoved. **Gates A and B passed 2026-11-22** on Crawford's listen ("i listened, i'm happy with everything"), with
 the constants as his two ear moves of 2026-11-21 left them (Results). **Task 27 built 2026-11-22** on his yes
-(Results). **Waiting for him:** CLAUDE.md's lifecycle line (the wording is in the spec's §8.4), and Task 30 (the
-archive, after the merge). A ticked task box means the task was
+(Results). CLAUDE.md's lifecycle line changed 2026-11-22 on his yes (the spec's §8.4 wording). **Waiting for
+him:** his PR, then Task 30 (the archive, after the merge). A ticked task box means the task was
 built and committed; its acceptance criteria are checked in its commit message. The checkpoints' "reviewed with
 Crawford" boxes are open. **Reviewed 2026-11-21** (code-review-and-quality, five axes): three faults fixed, the step
 split into named helpers, two nits; see Results.
@@ -948,7 +948,8 @@ per task.
    today's rows are beside them.
 5. **Q5, the other members' battery sizes.** **Resolved by default:** every robot keeps drawing one.
 6. **Q6, CLAUDE.md's lifecycle line.** **Resolved** by the spec's approval; Task 29 still shows him the new wording
-   before the commit.
+   before the commit. **Applied** 2026-11-22 on his yes ("yes, update the CLAUDE.md line"); only the reference line
+   changed.
 
 ## Results
 

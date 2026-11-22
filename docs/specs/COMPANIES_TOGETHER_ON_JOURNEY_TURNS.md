@@ -702,7 +702,8 @@ From the review of 2026-11-21 (the plan's Results), each fix at Crawford's word:
 ### 8.4 Waiting for Crawford
 
 - **Q3, the removals** (the plan's Task 27): done 2026-11-22 on his yes; the list is in the plan's Results.
-- **Q6, CLAUDE.md's ROBOT_LIFECYCLE.md line.** Not changed. The proposed wording, for his yes:
+- **Q6, CLAUDE.md's ROBOT_LIFECYCLE.md line.** Changed 2026-11-22 on his yes ("yes, update the CLAUDE.md line"),
+  to this wording:
 
   > - `docs/ROBOT_LIFECYCLE.md`: The two robot state machines — docking (on the measure tick: the fixed 12-robot
   >   roster started by groups, each company or freelancer coming and going on its journey's turns by a plan drawn
