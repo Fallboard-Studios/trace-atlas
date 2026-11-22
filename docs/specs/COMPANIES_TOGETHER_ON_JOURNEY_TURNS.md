@@ -647,7 +647,7 @@ at their defaults.
 | Late members under 5 % | Met: 0 of 1,320 / 2,812 / 3,124 member exits at 20 / 110 / 200 BPM. |
 | A battery never moves the wrong way or repeats | Met (a test over 600 measures at three tempos). |
 | Live tick and replay identical | Met (the prove-it, through a stay, its relief, a group exit and a drifting exit). |
-| Gate B passed; docs updated; archived after the merge | Gate B passed on his listen (2026-11-22); docs updated (Tasks 28, 29); the archive waits for the merge. |
+| Gate B passed; docs updated; archived after the merge | Gate B passed on his listen (2026-11-22); docs updated (Tasks 28, 29); merged as PR #660 and archived 2026-11-22. |
 
 ### 8.3 Where the build departed from this spec
 
