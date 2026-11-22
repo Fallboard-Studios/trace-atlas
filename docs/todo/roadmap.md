@@ -767,6 +767,8 @@ company lines up organically.
   82–85 % (today 4 %), robots sounding 5.3–5.9, no late member at the door, the seconds criterion met; **missed:** the
   apart share at 20 BPM (25.1 %) and 40 BPM (20.4 %) against 20 %. Also for his read: stays are far commoner than
   today's (17–46 robot-stays per 1,000 measures a world), and the wait at the door runs a median of 16–18 s.
+- **Gates A and B passed 2026-11-22** on Crawford's listen ("i'm happy with everything"), after his two ear moves of
+  2026-11-21 (shifts out and home 20 % shorter; the minimum shift removed). Nothing further moved.
 - **Reviewed 2026-11-21** (five axes; the plan's Results): three faults found by experiment and fixed at his word. A
   slow tempo drag pushed every plan far off (the rescale now scales an unsnapped aim); a company holding every robot
   never left (it now comes and goes robot by robot, the last robot staying: "last robot stays"); a company of five or

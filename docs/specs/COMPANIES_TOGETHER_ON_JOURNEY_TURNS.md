@@ -22,7 +22,7 @@ function beside `stepRobotLifecycle`, which stays until the removals task, so to
 before then (not only "first", as §3 and §5.3 word it).
 
 **Built 2026-11-20** on `feature/companies-together` without Gate A or Gate B (Crawford away, at his word): see §8, "As
-built".
+built". Both gates passed 2026-11-22 on his listen (§8.1).
 
 **Where the facts come from.** Everything marked **(code)** was read on 2026-11-20 on `docs/companies-together-intent`,
 which sat on `feature/journey-dynamics` (roadmap 93; both reached main on 2026-11-20 with PR #657). Numbers marked **(measured)** are from
@@ -628,6 +628,10 @@ recall lead at every tempo from 20 to 200 BPM, and a turn-back still needs the h
 `Active` again is the lead and the home least, about 24 s + 43 s at the least, longer than any trip home. The stagger
 cap moved with it (§8.3).
 
+**2026-11-22, Gates A and B passed:** "i listened, i'm happy with everything" ("yes, includes 94 too"). Nothing
+further moved: the constants stand as the two moves above left them, the misses of §8.2 included, and Q1 and Q2 stand
+at their defaults.
+
 ### 8.2 §5.5, criterion by criterion
 
 | Criterion | As measured |
@@ -642,7 +646,7 @@ cap moved with it (§8.3).
 | Late members under 5 % | Met: 0 of 1,320 / 2,812 / 3,124 member exits at 20 / 110 / 200 BPM. |
 | A battery never moves the wrong way or repeats | Met (a test over 600 measures at three tempos). |
 | Live tick and replay identical | Met (the prove-it, through a stay, its relief, a group exit and a drifting exit). |
-| Gate B passed; docs updated; archived after the merge | Gate B not held; docs updated (Tasks 28, 29); the archive waits for the merge. |
+| Gate B passed; docs updated; archived after the merge | Gate B passed on his listen (2026-11-22); docs updated (Tasks 28, 29); the archive waits for the merge. |
 
 ### 8.3 Where the build departed from this spec
 
@@ -696,9 +700,6 @@ From the review of 2026-11-21 (the plan's Results), each fix at Crawford's word:
 
 ### 8.4 Waiting for Crawford
 
-- **Gate A**: the numbers in the plan's Results, with three things to weigh: the apart share at 20 and 40 BPM, the
-  stays, and the wait at the door (a median of 16–18 s).
-- **Gate B**: the listening list in the plan's Results.
 - **Q3, the removals** (the plan's Task 27): not done.
 - **Q6, CLAUDE.md's ROBOT_LIFECYCLE.md line.** Not changed. The proposed wording, for his yes:
 

@@ -8,8 +8,9 @@ Source spec: [docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md](../specs/COMPAN
 **Status:** built 2026-11-20 on `feature/companies-together` (from main, unpushed), Tasks 1 to 26 and 28 to 29, one
 commit each, at Crawford's word to build the whole plan without pausing while he was away. **Gate A and Gate B were
 not held**: the numbers and the listening list are in Results for his read, and every first-cut constant ships
-unmoved. **Waiting for him:** Gate A, Gate B, Task 27 (the removals, on his yes), CLAUDE.md's lifecycle line (the
-wording is in the spec's §8.4), and Task 30 (the archive, after the merge). A ticked task box means the task was
+unmoved. **Gates A and B passed 2026-11-22** on Crawford's listen ("i listened, i'm happy with everything"), with
+the constants as his two ear moves of 2026-11-21 left them (Results). **Waiting for him:** Task 27 (the removals, on
+his yes), CLAUDE.md's lifecycle line (the wording is in the spec's §8.4), and Task 30 (the archive, after the merge). A ticked task box means the task was
 built and committed; its acceptance criteria are checked in its commit message. The checkpoints' "reviewed with
 Crawford" boxes are open. **Reviewed 2026-11-21** (code-review-and-quality, five axes): three faults fixed, the step
 split into named helpers, two nits; see Results.
@@ -621,7 +622,9 @@ per task.
 ### Checkpoint C = Gate A: the numbers (stop)
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean.
 - [x] Results holds Task 18's and Task 19's tables beside today's rows.
-- [ ] **Crawford reads them and keeps or moves spec §4's constants and §5.5's bars.** Nothing is wired or heard yet.
+- [x] **Crawford reads them and keeps or moves spec §4's constants and §5.5's bars.** Nothing is wired or heard yet.
+      (Not held before the wiring; passed 2026-11-22 after his listen, keeping the constants as his 2026-11-21 ear
+      moves left them: Results.)
 
 - [x] **Task 20: The picks, pinned**
 
@@ -799,13 +802,14 @@ per task.
   **Proof:** Look and Ear — Crawford's, on the built branch after a hard reload.
 
   **Acceptance criteria:**
-  - [ ] He answers: does a company read as a group; do exits feel placed; the last bar (spec Q1); the gathering at
+  - [x] He answers: does a company read as a group; do exits feel placed; the last bar (spec Q1); the gathering at
         the door, and whether it runs too long at a fast tempo; a staggered entrance (Q2); the battery through a
-        shift, a stay and a tempo change.
-  - [ ] Each answer is written into Results. Anything he moves becomes a task inserted here before Phase 5.
+        shift, a stay and a tempo change. (2026-11-22: happy with everything; nothing moved.)
+  - [x] Each answer is written into Results. Anything he moves becomes a task inserted here before Phase 5. (His
+        2026-11-21 moves were built as they came: `af5135c3`, `9ed1a437`.)
 
   **Verification:**
-  - [ ] His words quoted in Results with the date.
+  - [x] His words quoted in Results with the date.
 
   **Dependencies:** Checkpoint D.
 
@@ -1059,7 +1063,12 @@ Filled in by Tasks 18, 19, 20 and 26, and by the review of 2026-11-21.
   **His questions** (spec §5.4): does a company read as a group; do exits feel placed; the last bar (Q1: the
   company is heard through the exit turn's own bar); the gathering at the door, and whether it runs too long at a
   fast tempo; a staggered entrance (Q2: 2 bars apart); the battery readouts through a shift, a stay and a tempo
-  change. **His answers:** — (to be written here with the date).
+  change. **His answers:** 2026-11-21, two moves by ear, recorded below ("robots linger slightly too long... by like,
+  20%"; "let's get rid of the minimum shift"). 2026-11-22, after listening again: "i listened, i'm happy with
+  everything", and asked whether that covered 94, "yes, includes 94 too". **Gate B passed**, nothing further moved:
+  the last bar (Q1) and the staggered entrance (Q2, now capped as below) stand at their defaults, and
+  `RECALL_LEAD_SECONDS` stays 24. The same answer passes **Gate A**: he kept the numbers as his 2026-11-21 moves left
+  them, the misses (the apart share at 20 and 40 BPM) and the stays included.
 - **The review** (2026-11-21, code-review-and-quality on all five axes, at Crawford's request). Types, lint and tests
   green; eleven hand mutants of the built code all killed. Three faults found by scratch experiments on the step, each
   fixed at his word ("fix 1 and 3, last robot stays for 2"), RED first, one commit each:
