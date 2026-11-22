@@ -10,8 +10,10 @@ commit each, at Crawford's word to build the whole plan without pausing while he
 not held**: the numbers and the listening list are in Results for his read, and every first-cut constant ships
 unmoved. **Gates A and B passed 2026-11-22** on Crawford's listen ("i listened, i'm happy with everything"), with
 the constants as his two ear moves of 2026-11-21 left them (Results). **Task 27 built 2026-11-22** on his yes
-(Results). CLAUDE.md's lifecycle line changed 2026-11-22 on his yes (the spec's §8.4 wording). **Waiting for
-him:** his PR, then Task 30 (the archive, after the merge). A ticked task box means the task was
+(Results). CLAUDE.md's lifecycle line changed 2026-11-22 on his yes (the spec's §8.4 wording). **Merged
+2026-11-22 (PR #660) and archived the same day** (Task 30): roadmap 94 is a stub pointing at
+[the archive](../todo/archive/roadmap-archive.md#94-companies-together-a-company-leaves-as-one-and-comings-and-goings-land-on-the-journeys-turns).
+Nothing in this plan is left open. A ticked task box means the task was
 built and committed; its acceptance criteria are checked in its commit message. The checkpoints' "reviewed with
 Crawford" boxes are open. **Reviewed 2026-11-21** (code-review-and-quality, five axes): three faults fixed, the step
 split into named helpers, two nits; see Results.
@@ -274,7 +276,8 @@ per task.
 ### Checkpoint A: Turns and pace
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean.
 - [x] `shiftPlan.ts` and `journeyTurns` are pure and have no caller outside their tests; the live world is unchanged.
-- [ ] Reviewed with Crawford before Phase 2.
+- [x] Reviewed with Crawford before Phase 2. (Not held phase by phase: he asked for the whole plan built without
+      pausing, then reviewed it all at the gates, 2026-11-21 and 2026-11-22.)
 
 ---
 
@@ -462,7 +465,7 @@ per task.
 ### Checkpoint B: The step
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean.
 - [x] The new step is complete and pure. `tickRobotLifecycle` still calls today's step; the live world is unchanged.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Reviewed with Crawford before Phase 3. (Not held phase by phase; see Checkpoint A.)
 
 ---
 
@@ -791,7 +794,7 @@ per task.
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
 - [x] Every sim criterion of spec §5.5 still holds on the wired code (re-run Task 18's report; note any row that
       moved).
-- [ ] Reviewed with Crawford before the gate.
+- [x] Reviewed with Crawford before the gate. (Not held phase by phase; see Checkpoint A.)
 
 - [x] **Task 26: The browser runs, then Gate B: Crawford's eye and ear (stop)**
 
@@ -899,13 +902,16 @@ per task.
   **Estimated scope:** S (docs only; six files, small edits each)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every acceptance criterion above is met, and spec §5.5 is marked criterion by criterion in the spec's "As
-      built".
-- [ ] Any browser check not done in the session is flagged here, never skipped silently.
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (2026-11-22, after Task 27:
+      14,873 passed, 2 skipped).
+- [x] Every acceptance criterion above is met, and spec §5.5 is marked criterion by criterion in the spec's "As
+      built" (§8.2; each task's criteria are checked in its commit message).
+- [x] Any browser check not done in the session is flagged here, never skipped silently: the agent's runs did not
+      look at the roster tiles' battery readouts or hear anything (Results, Task 26); Crawford's Gate B listen
+      covered the rest.
+- [x] Ready for Crawford's PR. (Merged as PR #660, 2026-11-22.)
 
-- [ ] **Task 30: Archive roadmap 94 (after the merge)**
+- [x] **Task 30: Archive roadmap 94 (after the merge)** (2026-11-22)
 
   **Description:** Move roadmap 94 to the archive by the repo's convention (a stub stays; links are rebased), and
   delete its `plan.md` line if it has one.
@@ -913,10 +919,11 @@ per task.
   **Proof:** Read.
 
   **Acceptance criteria:**
-  - [ ] The entry is in `docs/todo/archive/roadmap-archive.md` with its links working from there.
+  - [x] The entry is in `docs/todo/archive/roadmap-archive.md` with its links working from there.
 
   **Verification:**
-  - [ ] The links opened from the archive.
+  - [x] The links opened from the archive (a scratch checker over every relative `.md` link and anchor in `docs/`:
+        471 broken before, the same 471 after, none of them this entry's).
 
   **Dependencies:** The merge.
 
