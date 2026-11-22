@@ -21,12 +21,7 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Roadmap [92](roadmap.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer)
-  **The melody journey** — built and passed 2026-11-17, merged 2026-11-19 (PR #656); still to archive. A robot's
-  melody gets busier and calmer on a seeded journey; docking pitch drift goes.
-- Roadmap [93](roadmap.md#93-journey-dynamics-a-melody-journey-you-can-hear) **Journey dynamics** — built and passed
-  2026-11-19, on main since 2026-11-20 (it came in with PR #657); still to archive. The journey made audible: the
-  calm side spread, freelancers on Fleet, octave jumps, a path per trip, the playing following the level.
+- Empty: its last items, roadmap 92 and 93, archived 2026-11-22 (merged via PRs #656 and #657). Stage 4 is next.
 
 ## Stage 4 — Visual refinement
 

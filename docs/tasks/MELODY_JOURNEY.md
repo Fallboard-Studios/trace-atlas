@@ -43,6 +43,10 @@ Checkpoint I's suite, build and mutation checks done (Results). Gates B and C, C
 Checkpoint G's look passed on Crawford's listen with nothing moved, Gate B waived (Results, Checkpoint Complete).
 Ready for his PR; Task 23 after the merge.
 
+**Merged 2026-11-19 (PR #656); archived 2026-11-22** (Task 23, with roadmap 93): roadmap 92 is a stub pointing at
+[the archive](../todo/archive/roadmap-archive.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer),
+and its plan.md line is gone. Nothing in this plan is left open.
+
 ## Overview
 
 A robot's melody develops while it plays: busier, home, calmer, home, on a seeded journey read from the music clock.
@@ -568,7 +572,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 - [x] `npm test` clean (full suite).
 - [x] Mutation checks, each killed: the measure passed to `journeyPosition` (14), the Company fallback to Own (12),
       the octave-range turn-back (10), the kept positions (14).
-- [ ] In the browser, with a robot's `development` set from the console through the store: its notes change from
+- [x] In the browser, with a robot's `development` set from the console through the store: its notes change from
       measure to measure and return to the home melody. **Overtaken by the revision:** `development` is gone; the
       look is Checkpoint G's, on max intensity, passed on his listen.
 - [x] Reviewed with Crawford before Phase 4 (2026-11-17: he moved on to Phase 4).
@@ -657,7 +661,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
 ### Checkpoint D: Gate A, Crawford's ear
 - [x] `npm test` clean (full suite).
-- [ ] **Gate A.** Every robot still spawns at Development 0, so the world sounds as it did. Crawford sets one robot
+- [x] **Gate A.** Every robot still spawns at Development 0, so the world sounds as it did. Crawford sets one robot
       to 1 and solos it, then a company to one rate on Company, then the fleet on Fleet. His to move here, each
       recorded in the spec before Phase 5: the order rules of §1.5 and §1.6 (A1 to A6), the swing (A12, against the
       path lengths in Results), and the slider's stops (A13). **Never recorded, and overtaken by the revision:** the
@@ -752,12 +756,12 @@ rate, and everything that carries `development`. Their text is left as the recor
 - [x] `npm test`, `npm run build` clean.
 - [x] Mutation checks, each killed: the lit share (18), the member's inherited rate (19), the Company write at
       `spawnInitialCompanies` (19), each diff key (20).
-- [ ] **Gate B (profile).** `npm run perf` on `main` and on the branch, same session, one at a time: the branch adds
+- [x] **Gate B (profile).** `npm run perf` on `main` and on the branch, same session, one at a time: the branch adds
       no long task to the baseline table in [PERFORMANCE.md](../PERFORMANCE.md). A miss stops the build here, with
       the numbers and options. **Not run as written:** against `main`'s build the harness stops before its first
       measured step, at a nav button it can no longer find ("Settings"); a substitute A/B is in Results, for Crawford
       to accept or not. **Overtaken by the revision:** the gate is run again at Checkpoint I, on the new journey.
-- [ ] **Gate C (Crawford's ear).** A full seeded world, on desktop and on the phone. His to move: the band (A14).
+- [x] **Gate C (Crawford's ear).** A full seeded world, on desktop and on the phone. His to move: the band (A14).
       **Overtaken by the revision:** moved to Checkpoint I.
 - [x] Stop. In place of the docs, Crawford revised the journey (2026-11-17); Phase 6 follows.
 
@@ -1314,7 +1318,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 - [x] Ready for Crawford's PR: once he has run, or waived, the open gates. (2026-11-17: A, C and Checkpoint G's look
       passed by his listen, B waived; Results.)
 
-- [ ] **Task 23: archive, after the merge**
+- [x] **Task 23: archive, after the merge** (2026-11-22, with roadmap 93; Results, Task 23)
 
   **Description:** Once Crawford has merged: roadmap 92 moves to the archive with its stub, its line leaves
   `plan.md`, inbound links are repointed, and the links in the moved text are rebased.
@@ -1322,7 +1326,7 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] The stub names the PR; every inbound anchor still resolves; `plan.md` has no line for 92.
+  - [x] The stub names the PR; every inbound anchor still resolves; `plan.md` has no line for 92.
 
   **Verification:** a before-and-after broken-link count over `docs/`.
 
@@ -1826,6 +1830,15 @@ the warm-up spans the first few measures, where every robot leaves home together
 melodies (one `developMelody` per robot per new position, a first pair to 16 reaching 8 by measure 1). Crawford's to
 accept as Gate B, or to have the power-on traced (`npm run perf:trace`) first.
 
+### Task 23: the archive (2026-11-22)
+
+Roadmap 92 and 93 moved whole to the end of [the archive](../todo/archive/roadmap-archive.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer),
+each with a line naming its merge (92: PR #656; 93: PR #657, which carried it in), their links rebased; the live
+roadmap keeps a stub for each, so every inbound anchor resolves; `plan.md`'s Stage 3 is empty. A scratch checker over
+every relative `.md` link and anchor in `docs/` found 471 broken before and the same 471 after, line for line (all
+older, mostly archived intent files pointing at pre-archive roadmap anchors). The four boxes the revision overtook
+are ticked with their notes, and Open Questions 2 and 4 are closed; 5 stays his, with nothing waiting on it.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
@@ -1857,13 +1870,15 @@ The revision's (Phases 6 to 9):
 
 1. Spec §7.2's four questions. **Resolved** (Crawford, 2026-11-17): at least one note in a bar; the band stays the
    theme's; `pitchLocked` stays in place; a phone listen is enough.
-2. Spec §7.1's assumptions. **Open by design:** they stand at their defaults until Gates A and C, where Crawford
-   moves them by ear.
+2. Spec §7.1's assumptions. **Closed** (Gates A and C passed 2026-11-17, nothing moved): the defaults stand, as
+   roadmap 93 (spec §10) later changed them.
 3. CLAUDE.md's `ROBOT_LIFECYCLE.md` line names pitch drift. **Resolved** (Crawford, 2026-11-17, at Task 22): drop
    the two words; nothing else in CLAUDE.md changes.
-4. Spec §7.3's assumptions (B1 to B15). **Open by design:** they stand at their first cuts until Gates A and C.
-5. Gate B's harness. **Open** — Crawford's word, before Checkpoint I: mend the step harness (`npm run perf` stops at
-   a nav button it can no longer find), or accept the audio-thread A/B (`npm run perf:audio`) as the gate. The A/B
-   was run on the pairs at max intensity 16 after the waiver (Results, Checkpoint Complete); its acceptance is his.
+4. Spec §7.3's assumptions (B1 to B15). **Closed** (Gates A and C passed 2026-11-17, nothing moved): the first cuts
+   stand, as roadmap 93 later changed them.
+5. Gate B's harness. **Open at the archive** (2026-11-22) — Crawford's word, before Checkpoint I: mend the step
+   harness (`npm run perf` stops at a nav button it can no longer find), or accept the audio-thread A/B (`npm run
+   perf:audio`) as the gate. The A/B was run on the pairs at max intensity 16 after the waiver (Results, Checkpoint
+   Complete); its acceptance is his. The gate itself stands waived, so nothing waits on the answer.
 6. The link's new key. **For Task 35:** `ji` if nothing else in the codec uses it (`jt` is no longer needed: max
    time left the robot, spec §7.4).
