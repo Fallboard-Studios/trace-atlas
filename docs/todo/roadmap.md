@@ -630,84 +630,11 @@ at three widths passed on 2026-11-15 (Fleet Params, then the robot, company and 
 
 ## 92. The Melody Journey: A Home Melody, and a Seeded Walk That Makes It Busier and Calmer
 
-Raised by Crawford on 2026-11-16 as an overhaul of how robot melodies are created and develop over time, and settled
-in conversation that day and the next. Intent [melody-journey.md](../intent/melody-journey.md), spec
-[MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md) (written 2026-11-17). Next in
-[plan.md](plan.md#stage-3--audio-refinement), before launch.
-
-### About
-
-The melody a robot spawns with becomes its home melody. From there it gets busier, comes home, gets calmer and comes
-home again, on a seeded journey read from the music clock: longer notes split into the note and a neighbour, the
-silence fills, and on the calm side notes tie into the note before them. A journey is a seeded list of intensity and
-time pairs, bounded by each robot's max intensity and by one max time of 16 measures for every journey; the changes
-per measure are worked out from it (revised 2026-11-17, in place of a Development slider of changes per measure; max
-time left the robot the same day). A Journey setting (Own, Company, Fleet) lets a company or the whole fleet travel
-together, in lock step.
-Docking pitch drift, until then the only change over time, went: it ignored the Note Variance set, was wiped by any
-composition edit, and happened while the robot was silent.
-
-The melody of any measure is worked out from the home melody, the two settings and the measure, so it replays and
-nothing new is saved but the settings.
-
-It is the first built piece of roadmap
-[90](#90-the-score-editable-chords-a-clock-with-two-rulers-hand-edited-parts)'s part layer. The home melody is what
-90's hand-edited parts and backlog
-[65](backlog.md#65-robot-a-melody-strip-under-the-accents-slider-and-later-editing-the-notes)'s note editing would
-edit; the editor is out of this piece (Crawford, 2026-11-17) and needs its own interview.
-
-### Open
-
-- **Built 2026-11-17** on `feature/melody-journey`, merged 2026-11-19 (PR #656): the plan
-  [MELODY_JOURNEY.md](../tasks/MELODY_JOURNEY.md)'s ten phases (Tasks 1 to 20, the first build; 24 to 38, the
-  revision to pairs and to one max time; 21 and 22, the docs). What shipped, with every number, is the spec's §9, As
-  built ([MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md#9-as-built)); the reference docs are
-  [MELODY_SYSTEM.md](../MELODY_SYSTEM.md#the-melody-journey-roadmap-92) and those it links.
-- **The gates closed 2026-11-17:** Gates A and C and Checkpoint G's look passed on Crawford's listen with nothing
-  moved, Gate B waived; every number (the journey's odds and leans, the band `{ min: 1, max: 16, lit: 0.7 }`, the one
-  max time of 16) ships as first cut.
-- The spec's four questions are answered (its §7.2, 2026-11-17): at least one note in a bar, the band stays the
-  theme's, `pitchLocked` stays in place, a phone listen is enough.
-- Still to do: the plan's Task 23 moves this entry to the archive.
-- It changes every world's sound, so it lands before backlog
-  [45](backlog.md#45-off-screen-crawfords-three-preset-links).
-- Roadmap [93](#93-journey-dynamics-a-melody-journey-you-can-hear) builds on it.
+**Done — merged via PR #656 (`feature/melody-journey`), 2026-11-19. Moved to [the archive](archive/roadmap-archive.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer).**
 
 ## 93. Journey Dynamics: A Melody Journey You Can Hear
 
-Raised by Crawford on 2026-11-18, after hearing roadmap
-[92](#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer)'s journey: "not quite
-as dynamic as i'd hoped". Six changes, proposed from measurements and taken with his notes the same day. Intent: the
-"Journey dynamics" section of [melody-journey.md](../intent/melody-journey.md#journey-dynamics-roadmap-93); spec:
-[MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md#10-journey-dynamics-roadmap-93) §10, which supersedes §1 to §9 where
-they differ. No task file: built straight from the conversation, one commit a change.
-
-### About
-
-The journey changed little that a listener could hear. The busy side was mostly pitch shifts that undid each other,
-the calm side sat on its floor, the freelancers' journeys of their own cancelled out across the fleet, and nothing in
-the playing moved with it. Now:
-
-- the calm side is spread over the calm changes a robot has, instead of clamped to them;
-- the freelancers, and a robot on Company with no company, travel on Fleet, so they rise and fall together;
-- a shifted note keeps the way it first went;
-- octave jumps are a busy change, up from octave 1, 4 or 5 and down from any other (Crawford's octaves);
-- each trip away from home takes its own path, drawn from the journey and never the robot, so a company keeps one
-  rhythm;
-- the playing follows the journey's level: quieter on the calm side, shorter with deeper accents on the busy side,
-  the same swing at every max intensity.
-
-### Open
-
-- **Built 2026-11-18 and 2026-11-19** on `feature/journey-dynamics` (branched from `feature/melody-journey`). **On
-  main since 2026-11-20** with no PR of its own: roadmap 94's docs branch sat on it, and PR #657 carried it in. What
-  each change does and its commit, every new number and what is mine rather than his are the spec's §10. Reviewed
-  (two missing tests found by mutation and added); suite 14,807 passed, 0 failed.
-- **Passed on his listen** (2026-11-19, "ok i'm happy with my listen"); the three performance numbers ship as first
-  cut.
-- **Perf check passed** ([PERFORMANCE.md](../PERFORMANCE.md#journey-dynamics-roadmap-93-2026-11-19)): about 4 µs a
-  step on the main thread, the audio thread unchanged. Not heard on a phone.
-- Still to do: this entry moves to the archive with 92's.
+**Done — on main via PR #657 (`docs/companies-together-intent`, which sat on `feature/journey-dynamics`), 2026-11-20. Moved to [the archive](archive/roadmap-archive.md#93-journey-dynamics-a-melody-journey-you-can-hear).**
 
 ## 94. Companies Together: A Company Leaves as One, and Comings and Goings Land on the Journey's Turns
 
