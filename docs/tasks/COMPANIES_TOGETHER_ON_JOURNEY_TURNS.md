@@ -5,8 +5,16 @@ Source spec: [docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md](../specs/COMPAN
 [docs/intent/companies-together-on-journey-turns.md](../intent/companies-together-on-journey-turns.md). Roadmap
 [94](../todo/roadmap.md#94-companies-together-a-company-leaves-as-one-and-comings-and-goings-land-on-the-journeys-turns).
 
-**Status:** plan written 2026-11-20. Not started. Awaiting Crawford's approval. Roadmap 93 is on main since
-2026-11-20, so nothing blocks the build: it is on `feature/companies-together`, from main (spec §6).
+**Status:** built 2026-11-20 on `feature/companies-together` (from main, unpushed), Tasks 1 to 26 and 28 to 29, one
+commit each, at Crawford's word to build the whole plan without pausing while he was away. **Gate A and Gate B were
+not held**: the numbers and the listening list are in Results for his read, and every first-cut constant ships
+unmoved. **Gates A and B passed 2026-11-22** on Crawford's listen ("i listened, i'm happy with everything"), with
+the constants as his two ear moves of 2026-11-21 left them (Results). **Task 27 built 2026-11-22** on his yes
+(Results). CLAUDE.md's lifecycle line changed 2026-11-22 on his yes (the spec's §8.4 wording). **Waiting for
+him:** his PR, then Task 30 (the archive, after the merge). A ticked task box means the task was
+built and committed; its acceptance criteria are checked in its commit message. The checkpoints' "reviewed with
+Crawford" boxes are open. **Reviewed 2026-11-21** (code-review-and-quality, five axes): three faults fixed, the step
+split into named helpers, two nits; see Results.
 
 ## Overview
 
@@ -106,7 +114,7 @@ per task.
 
 ### Phase 1: Turns and pace (pure; nothing calls them)
 
-- [ ] **Task 1: `melodyJourney.ts` — `journeyTurns`, the turns of a key in a range**
+- [x] **Task 1: `melodyJourney.ts` — `journeyTurns`, the turns of a key in a range**
 
   **Description:** One pure read (spec §1.4): `journeyTurns(key, fromMeasure, toMeasure)` returns each turning
   measure in the range at `JOURNEY_TIME_MAX`, with its pair `index`, its `move` (the shares' distance, the first
@@ -134,7 +142,7 @@ per task.
 
   **Estimated scope:** S (one export, one test block)
 
-- [ ] **Task 2: `shiftPlan.ts` and the constants — the pace at a tempo, the windows, the recall's lead**
+- [x] **Task 2: `shiftPlan.ts` and the constants — the pace at a tempo, the windows, the recall's lead**
 
   **Description:** The new file's first functions (spec §1.5, §1.11, §4): `paceBars`, `shiftWindow(phase, size, bpm)`
   returning `{ least, most }`, and `recallLeadBars(bpm)`. Adds §4's pace constants (`SHIFT_REFERENCE_BPM`,
@@ -145,7 +153,8 @@ per task.
 
   **Acceptance criteria:**
   - [ ] Size 1 gives the table's ten windows at 20, 40, 60, 100 and 200 BPM; sizes 0.67 and 1.5 scale the "least".
-  - [ ] No "least" is under `SHIFT_MIN_BARS`, and every "most" is at least `JOURNEY_TIME_MAX` past its "least".
+  - [ ] ~~No "least" is under `SHIFT_MIN_BARS`,~~ and every "most" is at least `JOURNEY_TIME_MAX` past its "least".
+        (The floor was removed 2026-11-21 at Crawford's word; see Results.)
   - [ ] `recallLeadBars` is 2, 4, 6, 10 and 20 at the five tempos.
   - [ ] Mutant killed: the window's 16-measure width dropped.
 
@@ -159,7 +168,7 @@ per task.
 
   **Estimated scope:** S (a new file with three functions)
 
-- [ ] **Task 3: `shiftPlan.ts` — a robot's group, its journey key, its size, its draws**
+- [x] **Task 3: `shiftPlan.ts` — a robot's group, its journey key, its size, its draws**
 
   **Description:** Spec §1.3. `groupIdOf(robot)` (the `companyId`, else the robot's own id); `groupJourneyKey(worldKey,
   robot)` (the company key or the fleet key, never read from `Robot.journey`); `groupSize(members)` (the
@@ -185,7 +194,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 4: `shiftPlan.ts` — `planExit`: the walk, and together or drifting**
+- [x] **Task 4: `shiftPlan.ts` — `planExit`: the walk, and together or drifting**
 
   **Description:** Spec §1.6. `planExit({ worldKey, members, from, bpm })` returns each member's exit turn. It lists
   the group's turns in the out window counted from `from`, walks them with the leave odds on each turn's weight
@@ -214,7 +223,7 @@ per task.
 
   **Estimated scope:** M (the core of the plan)
 
-- [ ] **Task 5: `shiftPlan.ts` — `planEntrance`: the walk, and together or staggered**
+- [x] **Task 5: `shiftPlan.ts` — `planEntrance`: the walk, and together or staggered**
 
   **Description:** Spec §1.7. `planEntrance({ worldKey, members, from, bpm })` returns each member's entrance
   measure: the home window's turns walked at `SHIFT_ENTER_ODDS`, the last taken if none; together under
@@ -238,7 +247,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 6: `shiftPlan.ts` — `rescaleMove`: a move after a tempo change**
+- [x] **Task 6: `shiftPlan.ts` — `rescaleMove`: a move after a tempo change**
 
   **Description:** Spec §1.12. `rescaleMove({ worldKey, robot, move, measure, fromBpm, toBpm, least })`: the bars
   still to go times `toBpm ÷ fromBpm`, rounded, then the first turn of the group's journey at or after that, never
@@ -263,15 +272,15 @@ per task.
   **Estimated scope:** S
 
 ### Checkpoint A: Turns and pace
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] `shiftPlan.ts` and `journeyTurns` are pure and have no caller outside their tests; the live world is unchanged.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] `shiftPlan.ts` and `journeyTurns` are pure and have no caller outside their tests; the live world is unchanged.
 - [ ] Reviewed with Crawford before Phase 2.
 
 ---
 
 ### Phase 2: The step, beside today's (pure; the live tick untouched)
 
-- [ ] **Task 7: `Robot.ts`, `robotSystems.ts` — the three fields, and the four transitions on robots that carry moves**
+- [x] **Task 7: `Robot.ts`, `robotSystems.ts` — the three fields, and the four transitions on robots that carry moves**
 
   **Description:** Adds `entersAtMeasure`, `exitsAtMeasure` and `shiftBpm` to `Robot` (spec §4) and a snapshot type
   for the new step (today's snapshot plus those three, `companyId` and `compositionSeed`). Adds
@@ -300,7 +309,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 8: `robotSystems.ts` — the exit is drawn when a group's first member lands `Active`**
+- [x] **Task 8: `robotSystems.ts` — the exit is drawn when a group's first member lands `Active`**
 
   **Description:** Spec §1.6, §1.8. On the tick a robot lands `Active` and no mate carries an exit turn, the step
   calls `planExit` from that measure and writes each member's exit turn and `shiftBpm`, members still home included
@@ -323,7 +332,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 9: `robotSystems.ts` — the entrance is drawn when a group's last member lands `Docked`**
+- [x] **Task 9: `robotSystems.ts` — the entrance is drawn when a group's last member lands `Docked`**
 
   **Description:** Spec §1.7, §1.8. On the tick after which no member of a group is `Active` or `Recalled`, the step
   calls `planEntrance` from that measure and writes every member's entrance and `shiftBpm`, and clears their exit
@@ -347,7 +356,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 10: `robotSystems.ts` — the stay: a group is recalled only while a robot outside it is `Active`**
+- [x] **Task 10: `robotSystems.ts` — the stay: a group is recalled only while a robot outside it is `Active`**
 
   **Description:** Spec §1.9. A member due for recall with no robot outside its group `Active` (read on the working
   array, in roster order) is not recalled, and every `Active` member of its group loses its exit turn. On a later
@@ -373,7 +382,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 11: `robotSystems.ts` — the battery is a gauge**
+- [x] **Task 11: `robotSystems.ts` — the battery is a gauge**
 
   **Description:** Spec §1.10. After the transitions, each robot's level steps a straight line to its target: 10 on
   the bar line after its exit turn while out, 100 on its entrance while home. A staying robot, and one that has
@@ -399,7 +408,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 12: `robotSystems.ts` — a tempo change rescales the moves**
+- [x] **Task 12: `robotSystems.ts` — a tempo change rescales the moves**
 
   **Description:** Spec §1.12. At the top of the step, a robot whose `shiftBpm` differs from `env.bpm` has its
   entrance or exit turn passed through `rescaleMove` and its `shiftBpm` updated. A `Recalled` or `Undocking` robot
@@ -423,7 +432,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 13: `robotSystems.ts` — a robot out of step takes its group's move**
+- [x] **Task 13: `robotSystems.ts` — a robot out of step takes its group's move**
 
   **Description:** Spec §1.14. An `Active` robot with no exit turn takes a mate's if it can still make it, else is
   treated as staying. A `Docked` robot with no entrance takes a home mate's; with its group out it waits; with its
@@ -451,15 +460,15 @@ per task.
   **Estimated scope:** M
 
 ### Checkpoint B: The step
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] The new step is complete and pure. `tickRobotLifecycle` still calls today's step; the live world is unchanged.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] The new step is complete and pure. `tickRobotLifecycle` still calls today's step; the live world is unchanged.
 - [ ] Reviewed with Crawford before Phase 3.
 
 ---
 
 ### Phase 3: The start and the sims (no live change)
 
-- [ ] **Task 14: `spawnSystem.ts` — the start of a world, as a pure function**
+- [x] **Task 14: `spawnSystem.ts` — the start of a world, as a pure function**
 
   **Description:** Spec §1.13. `generateRosterStart(noiseMap, { bpm, worldKey, startMeasure })` returns, per roster
   index, the docking, the battery and the first move: each group's start from its even draw
@@ -487,7 +496,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 15: `lifecycleSim.ts` — sim rosters carry their groups**
+- [x] **Task 15: `lifecycleSim.ts` — sim rosters carry their groups**
 
   **Description:** `buildSimRoster` gains each robot's `companyId` and `compositionSeed` (seeded as spawn seeds
   them), which today's step ignores, and a second builder, `buildShiftSimRoster(noiseMap, env)`, returns
@@ -510,7 +519,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 16: `lifecycleSim.ts` — a group tally: apart, group exits, on a turn, time out and home**
+- [x] **Task 16: `lifecycleSim.ts` — a group tally: apart, group exits, on a turn, time out and home**
 
   **Description:** A pure accumulator beside the cover tally (spec §5.3), fed one post-tick roster per measure and a
   turn reader. Per company it counts the measures with any member sounding and those with not every member sounding
@@ -537,7 +546,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 17: `lifecycleSim.ts` — the cover sim on either step at a tempo, and its report**
+- [x] **Task 17: `lifecycleSim.ts` — the cover sim on either step at a tempo, and its report**
 
   **Description:** `runShiftCoverSim({ coords, measures, bpms, step })` runs the cover tally and the group tally over
   the grid on today's step or the new one at each tempo and pools one row per (step, tempo): silent measures, robots
@@ -564,7 +573,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 18: Run — today's row and the new rows at five tempos**
+- [x] **Task 18: Run — today's row and the new rows at five tempos**
 
   **Description:** Run the report and write the table into Results: today's step (one row in bars, its seconds at
   each tempo) and the new step at 20, 40, 60, 100 and 200 BPM, beside spec §5.5's first-cut bars.
@@ -584,7 +593,7 @@ per task.
 
   **Estimated scope:** XS
 
-- [ ] **Task 19: `lifecycleSim.ts` — the loop sim counts late members and door waits; run it**
+- [x] **Task 19: `lifecycleSim.ts` — the loop sim counts late members and door waits; run it**
 
   **Description:** Spec §1.11, §5.3. `runLoopSim` learns the wait at the port: a returning robot that arrives while
   `Recalled` waits until its hold's last bar and goes in on the hold's bar line; one that arrives with under half a
@@ -612,11 +621,13 @@ per task.
   **Estimated scope:** M
 
 ### Checkpoint C = Gate A: the numbers (stop)
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Results holds Task 18's and Task 19's tables beside today's rows.
-- [ ] **Crawford reads them and keeps or moves spec §4's constants and §5.5's bars.** Nothing is wired or heard yet.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] Results holds Task 18's and Task 19's tables beside today's rows.
+- [x] **Crawford reads them and keeps or moves spec §4's constants and §5.5's bars.** Nothing is wired or heard yet.
+      (Not held before the wiring; passed 2026-11-22 after his listen, keeping the constants as his 2026-11-21 ear
+      moves left them: Results.)
 
-- [ ] **Task 20: The picks, pinned**
+- [x] **Task 20: The picks, pinned**
 
   **Description:** Whatever Gate A moved is changed in `src/constants/index.ts`, the rows are run again into Results,
   and the always-on pins that name a value are moved in the same commit. With nothing moved, this task is a line in
@@ -643,7 +654,7 @@ per task.
 
 ### Phase 4: Wiring (the live world changes here)
 
-- [ ] **Task 21: `robotSystems.ts` — the tick moves to the new step**
+- [x] **Task 21: `robotSystems.ts` — the tick moves to the new step**
 
   **Description:** `tickRobotLifecycle` reads the tempo (`useAudioStore`) and the world's key (`worldKeyOf` on the
   locale's coordinates), calls `stepShiftLifecycle`, writes each changed robot's battery and three fields, and fires
@@ -659,7 +670,8 @@ per task.
   - [ ] A tick writes the new fields and the battery to the store and nothing else new; `audioMode` is never written.
   - [ ] `beginRecall`, `beginUndocking`, `landOnActive` and `landOnDocked` fire once per transition, and the seam
         stays the tick's only route to visuals (the existing pin).
-  - [ ] A locale with no coordinates, or a robot with no fields, does not throw (Task 13's rule covers it).
+  - [ ] A robot with no fields does not throw (Task 13's rule covers it). (A locale with no coordinates was here too;
+        the review of 2026-11-21 dropped it: `Locale.coordinates` is required and nothing makes a locale without.)
   - [ ] The full suite is green; every re-aimed case is named or counted in the commit.
 
   **Verification:**
@@ -673,7 +685,7 @@ per task.
 
   **Estimated scope:** L (one source file, but many tick cases re-aimed; not splittable with the suite green)
 
-- [ ] **Task 22: `robotSystems.ts` — the replay on the new step, and the prove-it**
+- [x] **Task 22: `robotSystems.ts` — the replay on the new step, and the prove-it**
 
   **Description:** `replayLifecycle(roster, from, to, env)` loops the new step. The prove-it runs a real 12-robot
   roster with two companies for N real ticks and replays it once at the same tempo, identical field for field, new
@@ -697,7 +709,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 23: `spawnSystem.ts` — a world starts by groups**
+- [x] **Task 23: `spawnSystem.ts` — a world starts by groups**
 
   **Description:** `spawnInitialRoster` takes each robot's docking, battery and first move from
   `generateRosterStart` (the live tempo, the world's key, the current measure) in place of the roster-index start.
@@ -723,7 +735,7 @@ per task.
 
   **Estimated scope:** M
 
-- [ ] **Task 24: `stationFadeSystem.ts` — a `Recalled` robot waits at its port, and its fade ends on its hold**
+- [x] **Task 24: `stationFadeSystem.ts` — a `Recalled` robot waits at its port, and its fade ends on its hold**
 
   **Description:** Spec §1.11. For an `'entering'` robot that is `Recalled`, the sixteenths left are counted to the
   bar line of its `dockingHoldUntilMeasure`, not to the next bar line: with more than a measure left it holds; with a
@@ -750,7 +762,7 @@ per task.
 
   **Estimated scope:** S
 
-- [ ] **Task 25: `workLoop.integration.test.ts` — a company goes in on one bar line**
+- [x] **Task 25: `workLoop.integration.test.ts` — a company goes in on one bar line**
 
   **Description:** Spec §5.1's integration cases: the real tick, the real loop and the real fade system at 60 and 200
   BPM. A company of three is recalled on one measure from a swim, a job and a wait; each reaches its port and waits;
@@ -776,12 +788,12 @@ per task.
   **Estimated scope:** S
 
 ### Checkpoint D: Wired
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every sim criterion of spec §5.5 still holds on the wired code (re-run Task 18's report; note any row that
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] Every sim criterion of spec §5.5 still holds on the wired code (re-run Task 18's report; note any row that
       moved).
 - [ ] Reviewed with Crawford before the gate.
 
-- [ ] **Task 26: The browser runs, then Gate B: Crawford's eye and ear (stop)**
+- [x] **Task 26: The browser runs, then Gate B: Crawford's eye and ear (stop)**
 
   **Description:** Spec §5.3's browser runs, then §5.4's Gate B. Runs first, with `?debug`: a company's exit watched
   end to end; the roster tiles' batteries reading 10 as the bodies go in; a tempo drag from 60 to 200 and back with
@@ -791,13 +803,14 @@ per task.
   **Proof:** Look and Ear — Crawford's, on the built branch after a hard reload.
 
   **Acceptance criteria:**
-  - [ ] He answers: does a company read as a group; do exits feel placed; the last bar (spec Q1); the gathering at
+  - [x] He answers: does a company read as a group; do exits feel placed; the last bar (spec Q1); the gathering at
         the door, and whether it runs too long at a fast tempo; a staggered entrance (Q2); the battery through a
-        shift, a stay and a tempo change.
-  - [ ] Each answer is written into Results. Anything he moves becomes a task inserted here before Phase 5.
+        shift, a stay and a tempo change. (2026-11-22: happy with everything; nothing moved.)
+  - [x] Each answer is written into Results. Anything he moves becomes a task inserted here before Phase 5. (His
+        2026-11-21 moves were built as they came: `af5135c3`, `9ed1a437`.)
 
   **Verification:**
-  - [ ] His words quoted in Results with the date.
+  - [x] His words quoted in Results with the date.
 
   **Dependencies:** Checkpoint D.
 
@@ -809,7 +822,8 @@ per task.
 
 ### Phase 5: After the gate
 
-- [ ] **Task 27: The removals — today's step, the drain machinery and the roster-index start (on Crawford's yes)**
+- [x] **Task 27: The removals — today's step, the drain machinery and the roster-index start (on Crawford's yes)**
+  (2026-11-22, "yes, go ahead with task 27"; Results)
 
   **Description:** Spec Q3. **Stop and ask before starting.** With his yes: delete `stepRobotLifecycle`, `DrainRule`,
   `activeDrain`, `BATTERY_DRAIN_ACTIVE`, `BATTERY_RECHARGE_RATE`, the drain sim (`runDrainSim`, `DRAIN_CANDIDATES`,
@@ -821,12 +835,12 @@ per task.
   **Proof:** Read — the diff is deletions; the suite, types and lint stay green.
 
   **Acceptance criteria:**
-  - [ ] Nothing left in `src/` reads a removed name (`build:types` and `lint` say so).
-  - [ ] No test that exercises shipped behaviour is deleted; each deleted test is listed in the commit with what it
+  - [x] Nothing left in `src/` reads a removed name (`build:types` and `lint` say so).
+  - [x] No test that exercises shipped behaviour is deleted; each deleted test is listed in the commit with what it
         covered.
 
   **Verification:**
-  - [ ] `npm test`, `npm run build:types`, `npm run lint`, `npm run build` clean.
+  - [x] `npm test`, `npm run build:types`, `npm run lint`, `npm run build` clean.
 
   **Dependencies:** Gate B, and his yes.
 
@@ -834,7 +848,7 @@ per task.
 
   **Estimated scope:** M (deletions only)
 
-- [ ] **Task 28: `docs/ROBOT_LIFECYCLE.md` — the lifecycle as shipped**
+- [x] **Task 28: `docs/ROBOT_LIFECYCLE.md` — the lifecycle as shipped**
 
   **Description:** Principle 3 (the plan decides, the battery is a gauge), the docking machine's triggers and holds,
   the stay as a group's, the Battery section (the gauge; the pace table; the rates gone), Roster Creation (the start
@@ -857,7 +871,7 @@ per task.
 
   **Estimated scope:** S (docs only)
 
-- [ ] **Task 29: The other docs, CLAUDE.md's line, and the spec's "As built"**
+- [x] **Task 29: The other docs, CLAUDE.md's line, and the spec's "As built"**
 
   **Description:** `MELODY_SYSTEM.md` (`journeyTurns`; the lifecycle reads the journey), `COMPANIES.md` (a company
   comes and goes as one), `PROCEDURAL_GENERATION.md` (the two new dataIds, the retired one, the `:shifts` streams),
@@ -934,13 +948,200 @@ per task.
    today's rows are beside them.
 5. **Q5, the other members' battery sizes.** **Resolved by default:** every robot keeps drawing one.
 6. **Q6, CLAUDE.md's lifecycle line.** **Resolved** by the spec's approval; Task 29 still shows him the new wording
-   before the commit.
+   before the commit. **Applied** 2026-11-22 on his yes ("yes, update the CLAUDE.md line"); only the reference line
+   changed.
 
 ## Results
 
-Filled in by Tasks 18, 19, 20 and 26. Nothing measured yet.
+Filled in by Tasks 18, 19, 20 and 26, and by the review of 2026-11-21.
 
-- **Today's row and the new rows** (Task 18): —
-- **The loop sim** (Task 19): —
-- **Gate A's picks** (Task 20): —
-- **Gate B's listening list and answers** (Task 26): —
+- **Today's row and the new rows** (Task 18), run 2026-11-20 on `feature/companies-together` after Task 17, with
+  `LIFECYCLE_SIM_REPORT=1 npx vitest run src/systems/lifecycleSim.test.ts -t "the report: the grid at 20, 40, 60, 100
+  and 200 BPM"`: the 121-world grid, 2,000 measures a world, spec §4's first-cut constants unchanged. Today's step reads
+  no tempo, so its five rows are one run in bars with the seconds scaled. Pasted as printed:
+
+  | Step | BPM | Silent | Sounding (mean, p10–p90) | Apart | Group exits | Exits on a turn | Entrances on a turn | Time out, bars (median, p90, longest) | Time out, s | Time home, bars | Time home, s | Stays / 1,000 | Stay length | Heard share (lowest–highest) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | today | 20 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 228, 516, 5784 | 17, 27, 29 | 204, 324, 348 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | today | 40 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 114, 258, 2892 | 17, 27, 29 | 102, 162, 174 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | today | 60 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 76, 172, 1928 | 17, 27, 29 | 68, 108, 116 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | today | 100 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 46, 103, 1157 | 17, 27, 29 | 41, 65, 70 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | today | 200 | 0.0 % | 5.42, 3–8 | 91.9 % | 4.2 % of 11414 | 13.7 % | 14.7 % | 19, 43, 482 | 23, 52, 578 | 17, 27, 29 | 20, 32, 35 | 0.96 | 2, 5, 10 | 44.1 %–46.2 % |
+  | shift | 20 | 0.0 % | 5.85, 2–9 | 25.1 % | 82.2 % of 16460 | 100.0 % | 100.0 % | 15, 26, 75 | 180, 312, 900 | 15, 23, 26 | 180, 276, 312 | 40.98 | 3, 9, 22 | 41.1 %–57.5 % |
+  | shift | 40 | 0.0 % | 5.47, 2–9 | 20.4 % | 83.4 % of 12557 | 100.0 % | 100.0 % | 19, 31, 79 | 114, 186, 474 | 23, 31, 36 | 138, 186, 216 | 46.15 | 4, 12, 25 | 38.5 %–54.9 % |
+  | shift | 60 | 0.0 % | 5.36, 2–9 | 15.9 % | 83.6 % of 9426 | 100.0 % | 100.0 % | 25, 40, 91 | 100, 160, 364 | 30, 45, 50 | 120, 180, 200 | 36.89 | 6, 15, 36 | 38.3 %–52.5 % |
+  | shift | 100 | 0.0 % | 5.32, 2–9 | 11.2 % | 84.1 % of 6516 | 100.0 % | 100.0 % | 37, 55, 117 | 89, 132, 281 | 45, 64, 83 | 108, 154, 199 | 26.67 | 8, 23, 50 | 37.2 %–52.4 % |
+  | shift | 200 | 0.0 % | 5.29, 2–9 | 6.3 % | 85.4 % of 3752 | 100.0 % | 100.0 % | 63, 89, 159 | 76, 107, 191 | 80, 106, 167 | 96, 127, 200 | 16.90 | 14, 38, 102 | 37.3 %–52.9 % |
+
+  How to read it: a time out runs from a group's first member out to its last member home, so it holds the drift of a
+  drifting exit and any stay; a time home runs from all home to the first member out. "Group exits" counts company exits
+  only; "Exits on a turn" counts every robot's docking (its exit turn is the bar before). A stay on today's step is an
+  Active robot at or under critical; on the shift step it is an Active robot with no exit turn, counted per robot.
+
+  **Spec §5.5's sim criteria against it, no constant changed:**
+
+  | Criterion | Result |
+  |---|---|
+  | No silent measure in any grid world at any of the five tempos | **Met**: 0.0 % at all five (always on at 60 BPM over the grid, and on six worlds at the other four). |
+  | Every planned exit turn and group entrance turn is a turning measure | **Met**: 100 % of exits and entrances on a turn at all five; no planned exit off a turn (always on). |
+  | Apart share at or under 20 % at every tempo | **Missed at 20 BPM (25.1 %) and 40 BPM (20.4 %)**; met at 60 (15.9 %), 100 (11.2 %) and 200 (6.3 %). Today: 91.9 %. The share falls with tempo because the stagger (2 bars) and the drift (a turn a member) are in bars while a shift at a slow tempo is few bars. |
+  | Group exits at or over 75 % of company exits | **Met**: 82.2 %–85.4 %. Today: 4.2 %. |
+  | Median time out in seconds at 40, 100 and 200 within a third of 60's | **Met**: 60 BPM 100 s; 40 → 114 s, 100 → 89 s, 200 → 76 s (all within 67–133 s). 20 BPM, reported: 180 s (the 8-bar floor). |
+  | No time out past its "most" except in a stay; no time home past its "most" | **Home met**: the longest time home at each tempo is the largest group's "most" (26, 36, 50, 83, 167 bars) or under. **Out not separable from this row**: a time out includes a drifting exit's later turns and any stay, which the tally does not tell apart; the p90 sits at or under the largest group's "most" at 40–200 BPM (31 against 31 at 40, 40 against 40 at 60, 55 against 67, 89 against 133), and over it at 20 BPM (26 against 24). |
+  | Robots sounding: a mean from 4.5 to 6 at every tempo | **Met**: 5.29–5.85 (today 5.42). |
+  | Late members under 5 % of member exits at each loop-sim tempo | Task 19. |
+
+  **Two things to see that no criterion names:** stays are far commoner than today's (17–46 robot-stays per 1,000
+  measures a world against 0.96), and longer at fast tempos in bars (median 14 bars at 200 BPM): when the last group out
+  is due with nobody else out it stays, and groups now move as blocks, so that happens more. And the heard share widens
+  from 44–46 % to about 37–57 %: some robots are out more than others, which the intent welcomed ("unfair airtime").
+- **The loop sim** (Task 19), run 2026-11-20 after Task 19 with `LIFECYCLE_SIM_REPORT=1 npx vitest run
+  src/systems/lifecycleSim.test.ts -t "the door report"`: the 121-world grid, 10 minutes a world at 20, 110 and 200 BPM,
+  the shift step with the door on (`runReadinessSim({ step: 'shift' })`), the shipped cooldown. Pasted as printed:
+
+  | BPM | Member exits | Late members | Door wait (median, p90, longest) | Turn-backs | Charging visible | Longest Docked visible |
+  |---|---|---|---|---|---|---|
+  | 20 | 1320 | 0 (0.0 %) | 16.0 s, 20.7 s, 23.3 s | 0 | 0 | 0.0 s |
+  | 110 | 2812 | 0 (0.0 %) | 17.1 s, 21.0 s, 23.5 s | 0 | 0 | 0.0 s |
+  | 200 | 3124 | 0 (0.0 %) | 18.2 s, 21.2 s, 23.6 s | 0 | 0 | 0.0 s |
+
+  | Cooldown | BPM | Mean waiting | p95 waiting | Longest wait | p95 wait | Switches / stint | Turn-backs | Charging visible | Longest Docked visible |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 0.3/2/30 | 20 | 0.0 % | 0.1 % | 4.0 s | 4.0 s | 0.28 | 0 | 0 | 0.0 s |
+  | 0.3/2/30 | 110 | 0.0 % | 0.0 % | 4.0 s | 4.0 s | 0.12 | 0 | 0 | 0.0 s |
+  | 0.3/2/30 | 200 | 0.0 % | 0.0 % | 4.0 s | 4.0 s | 0.12 | 0 | 0 | 0.0 s |
+
+  A "member exit" is a company member reaching its port on the way in; "late" is under half a measure before its hold's
+  bar line, or Docked already. A door wait is the time from reaching the port to the start of the fade (the hold's last
+  bar), freelancers included.
+
+  **Against spec §5.5:** late members under 5 % of member exits at each loop-sim tempo: **met**, 0 at all three. No
+  robot charges while visible, and none is visible while Docked (the fade now ends on the hold's bar line).
+
+  **To see at Gate B:** the wait at the door is long. Most robots are near home when recalled, so they spend most of
+  the 24-second lead (`RECALL_LEAD_SECONDS`) at the port, visible and playing: a median of 16–18 s and up to 23.6 s, at
+  every tempo (the lead is in seconds). Crawford said gathering at the door is fine to see (2026-11-20); spec A6's
+  per-robot lead is the follow-up if it reads as too long, and `RECALL_LEAD_SECONDS` is his to lower (no member was
+  late, so there is room).
+- **Gate A's picks** (Task 20), 2026-11-20: **Gate A was not held.** Crawford was away and asked for the whole plan
+  built without pausing ("do not pause for me, just build the whole thing and i'll look at it all at once later"), so
+  nothing was moved: every constant of spec §4 ships at its first cut, and spec §4 and §5.5 still carry the same
+  numbers as `src/constants/index.ts`. The rows above are for his read when he is back, with three things to weigh:
+  the apart share misses 20 % at 20 BPM (25.1 %) and 40 BPM (20.4 %); stays are far commoner than today's; and the
+  wait at the door runs a median of 16–18 s. A constant he moves then is changed with its date, Tasks 18 and 19 are run
+  again into this section, and the always-on pins that name a value move in that commit (none of today's pins names a
+  first-cut value except the windows of Task 2's table and the 0.45 / 0.7 / 0.5 odds read in `shiftPlan.test.ts` and
+  `spawnSystem.rosterStart.test.ts` through the constants themselves).
+- **Checkpoint D** (2026-11-20, after Task 25): full suite 14,930 passed and 4 skipped (the opt-in report cases);
+  `build:types`, `lint` (0 errors, the 4 old warnings) and `build` clean. Task 18's report run again on the wired code:
+  every row identical, so every sim criterion stands as marked above.
+- **The browser runs** (Task 26), 2026-11-20, by the agent: a headless Chrome on `npm run dev` (the repo's
+  `scripts/perf/powered-world.mjs` to open and power on the world, a scratch probe reading the app's own
+  `localeStore`, `audioStore` and `beatClock` modules in the page), world (−200, 80) on a fresh page at its seeded
+  47 BPM.
+  - **The start by groups:** company-0 (four members) began out (its battery 94.4 a bar in) with one exit turn, 14; company-1 (three) began
+    home sharing entrance 38, company-2 (three) home sharing 30; the freelancers one out (exit 24) and one home
+    (entrance 50).
+  - **A tempo drag** from 60 to 200 and back to 60, a step of 10 every 150 ms (measures 1.6 to 4.1): no robot changed
+    docking, and every move was rescaled on the ticks in between (shiftBpm read 90, the tempo at the last tick).
+  - **A company's exit end to end** at 200 BPM: company-0's four members recalled together on measure 54 (exit turn
+    74, the lead 20), from working; they reached their ports between measures 57.7 and 62.4 and waited there,
+    'entering'; all four landed Docked on measure 75.00 with the battery at exactly 10, and all four went 'charging'
+    together at 75.13 (the fade's audio lead past the bar line). The battery fell in a straight line from 94 at the
+    start to 32 at the recall and 10 at the bar line.
+  - **Not done by the agent:** the roster tiles' battery readouts were not looked at (the store's battery, which they
+    show, was read instead); nothing was heard; the `?debug` overlay was not read beyond the world pin.
+- **Gate B** (Task 26): **not held.** Crawford was away (2026-11-20, "do not pause for me"). The eye-and-ear gate is
+  his, on the built branch after a hard reload. **The listening list:**
+  1. **(−200, 80), three companies, a fresh page, at its seeded 47 BPM.** Measures from the world's start (the
+     `?debug` overlay or a count of bars; a bar is about 5.1 s): company-0's four come out together and leave
+     together on bar 14, recalled at bar 9 (the lead is 5 bars at 47 BPM), so from bar 9 they swim home and wait at
+     their ports, still playing, and their sound ends on the bar line of bar 15; company-2's three come out on bar
+     30, company-1's three on bar 38 (each together or 2 bars apart, the draw's); a freelancer leaves on bar 24, one
+     comes out on bar 50.
+  2. **The same world at 40 BPM** (the tempo slider, after a minute): the plans rescale to the new pace; listen for a
+     company leaving as one.
+  3. **A world at 160 BPM or more** (the slider, or any world): the lead is 16 to 20 bars, so a recalled company
+     gathers at the door for most of 24 seconds; is that too long?
+  **His questions** (spec §5.4): does a company read as a group; do exits feel placed; the last bar (Q1: the
+  company is heard through the exit turn's own bar); the gathering at the door, and whether it runs too long at a
+  fast tempo; a staggered entrance (Q2: 2 bars apart); the battery readouts through a shift, a stay and a tempo
+  change. **His answers:** 2026-11-21, two moves by ear, recorded below ("robots linger slightly too long... by like,
+  20%"; "let's get rid of the minimum shift"). 2026-11-22, after listening again: "i listened, i'm happy with
+  everything", and asked whether that covered 94, "yes, includes 94 too". **Gate B passed**, nothing further moved:
+  the last bar (Q1) and the staggered entrance (Q2, now capped as below) stand at their defaults, and
+  `RECALL_LEAD_SECONDS` stays 24. The same answer passes **Gate A**: he kept the numbers as his 2026-11-21 moves left
+  them, the misses (the apart share at 20 and 40 BPM) and the stays included.
+- **The review** (2026-11-21, code-review-and-quality on all five axes, at Crawford's request). Types, lint and tests
+  green; eleven hand mutants of the built code all killed. Three faults found by scratch experiments on the step, each
+  fixed at his word ("fix 1 and 3, last robot stays for 2"), RED first, one commit each:
+  1. **A tempo drag pushed every plan far off** (`b5d89642`). Each tick rescaled the snapped turn and snapped forward
+     again: an exit planned about 20 bars off at 60 BPM sat at 112–118 after 28 ticks from 60 to 200 and back. Now
+     `rescaleAim` scales an unsnapped aim (`entersAim`, `exitsAim`), keeping the seconds to go, and snaps once.
+  2. **A company holding every robot never left** (`eacedff9`): 0 recalls in 500 measures, batteries easing to 7e-27.
+     Now such a company comes and goes robot by robot, the last `Active` robot staying (`lifecycleGroupOf`).
+  3. **A company of five or more could split for a whole shift** (`46e5fca8`): its last staggered member was still
+     `Undocking` when its mates docked, so the entrance was drawn over it and it then drew a second exit alone (a
+     company of 8 at 20 BPM: apart for runs of 41–79 measures). Now the stagger narrows to the out window's least, and
+     the entrance waits until every member is `Docked`. A probe found 0 such landings in the 121-world grid at five
+     tempos with spawn's companies of 3–4.
+
+  Also: `stepShiftLifecycle` split into named helpers, proved identical to the old step over 363,000 grid ticks with
+  tempo drags (`c9d0a881`); one company-id helper, and the tick's fallback for a locale with no coordinates gone
+  (`f1955079`). **The sims re-run after the fixes:** Task 18's ten rows and Task 19's six are identical to the tables
+  above, value for value. Full suite after fix 2: 14,941 passed, 4 skipped.
+- **The first move at his ear** (2026-11-21): "right now robots linger slightly too long, and it takes a little too
+  long for them to reappear. by like, 20%". The four window lengths each take 20 % off: `SHIFT_OUT_BASE_BARS` 15 → 12,
+  `SHIFT_OUT_MAX_BARS` 40 → 32, `SHIFT_HOME_BASE_BARS` 20 → 16, `SHIFT_HOME_MAX_BARS` 50 → 40. `SHIFT_MIN_BARS` (8,
+  his floor) and the 16-bar window width are unmoved, so the 20 BPM windows do not change and the 40 BPM ones change
+  less. Task 2's window table moved in the same commit. Task 18's report re-run (the shift rows; today's are unchanged):
+
+  | Step | BPM | Silent | Sounding (mean, p10–p90) | Apart | Group exits | Exits on a turn | Entrances on a turn | Time out, bars (median, p90, longest) | Time out, s | Time home, bars | Time home, s | Stays / 1,000 | Stay length | Heard share (lowest–highest) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | shift | 20 | 0.0 % | 5.90, 3–9 | 25.3 % | 82.1 % of 16601 | 100.0 % | 100.0 % | 15, 26, 69 | 180, 312, 828 | 15, 22, 24 | 180, 264, 288 | 40.58 | 3, 9, 20 | 41.9 %–57.5 % |
+  | shift | 40 | 0.0 % | 5.65, 2–9 | 22.5 % | 82.8 % of 14167 | 100.0 % | 100.0 % | 17, 29, 79 | 102, 174, 474 | 19, 27, 32 | 114, 162, 192 | 57.38 | 4, 10, 24 | 38.8 %–54.6 % |
+  | shift | 60 | 0.0 % | 5.48, 2–9 | 17.4 % | 84.6 % of 10990 | 100.0 % | 100.0 % | 21, 36, 86 | 84, 144, 344 | 25, 37, 40 | 100, 148, 160 | 50.29 | 5, 14, 32 | 38.1 %–54.7 % |
+  | shift | 100 | 0.0 % | 5.38, 2–9 | 12.8 % | 84.6 % of 7588 | 100.0 % | 100.0 % | 31, 49, 113 | 74, 118, 271 | 37, 57, 67 | 89, 137, 161 | 36.84 | 8, 20, 45 | 37.6 %–52.8 % |
+  | shift | 200 | 0.0 % | 5.36, 2–9 | 7.8 % | 86.1 % of 4464 | 100.0 % | 100.0 % | 54, 78, 156 | 65, 94, 187 | 66, 90, 133 | 79, 108, 160 | 24.69 | 13, 35, 86 | 37.6 %–54.4 % |
+
+  The median time out falls 14–16 % at 60–200 BPM (25 → 21 bars at 60) and 11 % at 40; the median time home 17–18 %
+  (30 → 25 bars at 60); not quite 20 %, because the wait for a turning measure inside a window is in bars and does not
+  shrink. Against spec §5.5: still no silent measure, every move on a turn, group exits 82.1–86.1 %, sounding 5.36–5.90,
+  and the time-out medians within a third of 60's (84 s; 102, 74 and 65 s at 40, 100, 200). The apart share rises a
+  little (17.4 % at 60), widening its misses at 20 BPM (25.3 %) and 40 BPM (22.5 %), and stays are commoner (25–57 per
+  1,000 measures, from 17–46). Task 19's door report re-run: 0 late members at all three tempos, door waits a median of
+  16.1–18.4 s, nothing charging or Docked while visible. The listening list's bar numbers for (−200, 80) above are the
+  first cut's and no longer hold.
+- **The floor removed** (2026-11-21, his word: "let's get rid of the minimum shift"). `SHIFT_MIN_BARS` is gone, so a
+  window's least is the paced base × size (Task 2's criterion "no least under `SHIFT_MIN_BARS`" is struck; its test now
+  pins the least out past the recall lead at every tempo). The always-on 20 BPM sim then caught one docking off a turn
+  in about 2,800: a company staggered 2 bars apart drew its exit 6 bars on, so its last member landed on the exit turn
+  after its mates' recall, came out alone and docked a bar late. The stagger cap now keeps the last member out by the
+  first possible recall, `floor((out least − lead) ÷ (members − 1))`, never under 0; RED first, and the 0 guard
+  checked by removing it. Task 18's report re-run (today's rows unchanged):
+
+  | Step | BPM | Silent | Sounding (mean, p10–p90) | Apart | Group exits | Exits on a turn | Entrances on a turn | Time out, bars (median, p90, longest) | Time out, s | Time home, bars | Time home, s | Stays / 1,000 | Stay length | Heard share (lowest–highest) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | shift | 20 | 0.0 % | 6.01, 3–10 | 23.2 % | 82.2 % of 19061 | 100.0 % | 100.0 % | 13, 24, 73 | 156, 288, 876 | 13, 20, 24 | 156, 240, 288 | 51.60 | 2, 8, 18 | 41.0 %–58.0 % |
+  | shift | 40 | 0.0 % | 5.66, 2–9 | 20.5 % | 83.3 % of 14280 | 100.0 % | 100.0 % | 17, 29, 77 | 102, 174, 462 | 19, 27, 32 | 114, 162, 192 | 61.24 | 4, 10, 24 | 39.1 %–54.9 % |
+  | shift | 60 | 0.0 % | 5.50, 2–9 | 16.4 % | 84.6 % of 10994 | 100.0 % | 100.0 % | 21, 36, 86 | 84, 144, 344 | 25, 37, 40 | 100, 148, 160 | 50.29 | 5, 14, 32 | 38.1 %–54.7 % |
+  | shift | 100 | 0.0 % | 5.39, 2–9 | 12.6 % | 84.7 % of 7590 | 100.0 % | 100.0 % | 31, 49, 113 | 74, 118, 271 | 37, 57, 67 | 89, 137, 161 | 36.90 | 8, 20, 45 | 37.6 %–52.8 % |
+  | shift | 200 | 0.0 % | 5.36, 2–9 | 7.8 % | 86.1 % of 4464 | 100.0 % | 100.0 % | 54, 78, 156 | 65, 94, 187 | 66, 90, 133 | 79, 108, 160 | 24.69 | 13, 35, 86 | 37.6 %–54.4 % |
+
+  The floor only bound at slow tempos, so 20 BPM moves most: time out 15 → 13 bars (180 → 156 s), time home 15 → 13.
+  40 BPM's medians hold (its least was over the floor at most sizes). The tighter stagger lowers the apart share at
+  20–60 BPM (23.2 %, 20.5 %, 16.4 %, from 25.3 %, 22.5 %, 17.4 %); stays rise at 20 BPM (51.6 per 1,000, from 40.6).
+  Every exit and entrance on a turn, no silent measure. Task 19's door report re-run: 0 late members and 0
+  turn-backs at 20, 110 and 200 BPM, door waits 16.1–18.4 s.
+- **Task 27, the removals** (2026-11-22, Crawford: "yes, go ahead with task 27"). Gone: `stepRobotLifecycle`,
+  `DrainRule`, `activeDrain`, `BATTERY_DRAIN_ACTIVE`, `BATTERY_RECHARGE_RATE`, `INITIAL_ACTIVE_ROBOTS_MIN` / `MAX`;
+  in `lifecycleSim.ts` the roster-index start (`buildSimRoster`, `SimBand`), the drain sim (`flatDrain`,
+  `DRAIN_CANDIDATES`, `activeCountsOverTime`, `runDrainSim`, `formatDrainReport`), the old cover sim (`runCoverSim`,
+  `formatCoverReport`, `CoverSimRow`), the shift cover sim's today step (`SimStep`, the `steps` option, the report's
+  Step column) and the readiness sim's `band` and `step` options; `spawnInitialRoster`'s no-locale fallback (it
+  spawned robots the store then dropped). Two departures from the task's list, both forced by the old step going:
+  the readiness sim, whose default lifecycle was the old step, now runs only the shift step with the door on (its
+  always-on grid case, nobody charging while visible, passes there); and `createCoverTally` stays, the shift cover
+  sim's tally, keeping its battery-rule default for its own tests. The rows above that say "today" stay as the record.
+  Full suite 14,873 passed, 2 skipped (from 14,941 and 4: the deleted tests and two report-only cases), 0 failed;
+  `build:types`, `lint` (the 4 old warnings) and `build` clean. `lifecycleSim.test.ts` runs in 15 s.

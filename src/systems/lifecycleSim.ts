@@ -7,19 +7,17 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import { DockingState, type JobType, type RobotActivity } from '../types/Robot';
 import type { Actor } from '../types/Actor';
 import type { Vec2 } from '../types/Vec2';
-import { getUniformSeededVal } from '../utils/getSeededVal';
-import { generateBatterySize } from './spawnSystem';
-import { stepRobotLifecycle } from './robotSystems';
-import type { DrainRule, RobotLifecycleSnapshot } from './robotSystems';
+import { generateRosterStart } from './spawnSystem';
+import { stepShiftLifecycle } from './robotSystems';
+import type { RobotLifecycleSnapshot, ShiftLifecycleSnapshot } from './robotSystems';
+import { groupIdOf, groupJourneyKey, type ShiftEnv } from './shiftPlan';
+import { journeyTurns } from '../engine/melodyJourney';
 import { isWorkSiteEligible } from './jobHosts';
 import { getWorkSite } from './workSites';
 import { assignStationsAtLoad, deriveStations, hostObstacles, nearestFreeStation, type Station } from './stations';
 import { chooseNextSite, heldJobs, siteCooldown } from './siteChoice';
 import { jobDuration } from '../animation/jobMoves/jobDuration';
 import {
-  MAX_ROBOTS,
-  INITIAL_ACTIVE_ROBOTS_MIN,
-  INITIAL_ACTIVE_ROBOTS_MAX,
   BACK_HOSTS_ENABLED,
   BEATS_PER_MEASURE,
   COOLDOWN_MAX,
@@ -33,11 +31,9 @@ import {
 
 /**
  * Headless lifecycle sims (docs/specs/ROBOT_JOBS_AND_STATIONS.md §5.2). Pure: real seeded rosters,
- * the real stepRobotLifecycle, no store, no BeatClock, no GSAP.
+ * the real stepShiftLifecycle, no store, no BeatClock, no GSAP.
  *
- * - Drain (Task 2): picked BATTERY_DRAIN_ACTIVE = 6 — its mean Active count (5.14) was closest to
- *   the retired per-job surcharge rule's (5.05) over the 121-seed grid × 2000 measures (commit
- *   5bbbff3f has the table).
+ * - Shift cover (roadmap 94 Task 17): silence, groups and turns over the grid at a tempo.
  * - Loop (Task 15): the work loop's decisions (spec §1.7) in seconds against the lifecycle in
  *   measures at a given BPM — readiness (waiting, switches) and handoff (turn-backs, a robot
  *   charging while visible). Pins the COOLDOWN_* constants.
@@ -65,66 +61,17 @@ export function simNoiseMap(x: number, y: number): NoiseFunction2D {
 // ROSTER
 // ========================================
 
-/** The battery sizes a sim roster carries: a `[min, max]` band to draw on, or 'flat' for none (today's fleet). */
-export type SimBand = readonly [min: number, max: number] | 'flat';
-
 /**
- * The roster a fresh locale on this noise map starts with, as lifecycle snapshots: spawnInitialRoster's
- * seeded Active count and Docked batteries. Each robot's battery size is spawn's own generateBatterySize
- * at its spawn count, on the shipped band unless `band` names another; 'flat' sets no size
- * (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, §1.5).
+ * The roster a fresh locale on this noise map starts with under the shift plan (roadmap 94 Task 15, spec §1.13):
+ * generateRosterStart's start at `env`'s tempo and world from measure 0, as snapshots for stepShiftLifecycle.
  */
-export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): RobotLifecycleSnapshot[] {
-  const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
-    getUniformSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1),
-  );
-  return Array.from({ length: MAX_ROBOTS }, (_, i) => {
-    const active = i < activeCount;
-    return {
-      id: `sim-${i}`,
-      docking: active ? DockingState.Active : DockingState.Docked,
-      batteryLevel: active ? 100 : Math.floor(getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)),
-      ...(band === 'flat' ? {} : { batterySize: band ? generateBatterySize(noiseMap, i, band[0], band[1]) : generateBatterySize(noiseMap, i) }),
-    };
-  });
+export function buildShiftSimRoster(noiseMap: NoiseFunction2D, env: ShiftEnv): ShiftLifecycleSnapshot[] {
+  return generateRosterStart(noiseMap, { ...env, startMeasure: 0 }).map((start, i) => ({ id: `sim-${i}`, ...start }));
 }
-
-// ========================================
-// DRAIN CANDIDATES
-// ========================================
-
-/** A drain rule that ignores the robot entirely. */
-export function flatDrain(perMeasure: number): DrainRule {
-  return () => perMeasure;
-}
-
-export interface DrainCandidate {
-  label: string;
-  drain: DrainRule;
-}
-
-/** The flat values Task 2 compared; flat 6 shipped as BATTERY_DRAIN_ACTIVE. */
-export const DRAIN_CANDIDATES: readonly DrainCandidate[] = [
-  { label: 'flat 5', drain: flatDrain(5) },
-  { label: 'flat 6', drain: flatDrain(6) },
-  { label: 'flat 7', drain: flatDrain(7) },
-];
 
 // ========================================
 // SIMULATION
 // ========================================
-
-/** Active-robot count after each of measures 1..`measures` (stepRobotLifecycle, the step
- *  replayLifecycle loops over, run one measure at a time so every count is observed). */
-export function activeCountsOverTime(roster: RobotLifecycleSnapshot[], drain: DrainRule, measures: number): number[] {
-  const counts: number[] = [];
-  let working = roster;
-  for (let measure = 1; measure <= measures; measure++) {
-    working = stepRobotLifecycle(working, measure, drain);
-    counts.push(working.filter((r) => r.docking === DockingState.Active).length);
-  }
-  return counts;
-}
 
 /** Nearest-rank percentile (p in 0..100). Does not mutate `values`. */
 export function percentile(values: readonly number[], p: number): number {
@@ -132,40 +79,6 @@ export function percentile(values: readonly number[], p: number): number {
   const sorted = [...values].sort((a, b) => a - b);
   const rank = Math.max(1, Math.ceil((p / 100) * sorted.length));
   return sorted[rank - 1];
-}
-
-export interface DrainSimRow {
-  label: string;
-  /** Mean Active count over every (seed, measure) sample. */
-  mean: number;
-  p10: number;
-  p90: number;
-}
-
-/** Runs every candidate over every seed, pooling the per-measure Active counts. */
-export function runDrainSim(options: {
-  coords?: ReadonlyArray<{ x: number; y: number }>;
-  measures?: number;
-  candidates?: readonly DrainCandidate[];
-} = {}): DrainSimRow[] {
-  const { coords = SIM_SEED_COORDS, measures = SIM_MEASURES, candidates = DRAIN_CANDIDATES } = options;
-  const rosters = coords.map(({ x, y }) => buildSimRoster(simNoiseMap(x, y)));
-
-  return candidates.map(({ label, drain }) => {
-    const samples: number[] = [];
-    for (const roster of rosters) {
-      for (const n of activeCountsOverTime(roster, drain, measures)) samples.push(n);
-    }
-    const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
-    return { label, mean, p10: percentile(samples, 10), p90: percentile(samples, 90) };
-  });
-}
-
-/** A markdown table of the rows, for the stop-and-report and docs/ROBOT_LIFECYCLE.md. */
-export function formatDrainReport(rows: readonly DrainSimRow[]): string {
-  const lines = ['| Drain | Mean Active | p10 | p90 |', '|---|---|---|---|'];
-  for (const r of rows) lines.push(`| ${r.label} | ${r.mean.toFixed(2)} | ${r.p10} | ${r.p90} |`);
-  return lines.join('\n');
 }
 
 // ========================================
@@ -230,7 +143,12 @@ function commonest(values: readonly number[]): number | undefined {
  * roster so the first measure's landings are known. Reads id, docking and battery only; keeps its own
  * copies, so the rosters it is handed are never touched.
  */
-export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTally {
+export function createCoverTally(
+  startRoster: readonly CoverSnapshot[],
+  /** What counts as a stay; the battery rule (Active at or under critical) unless handed another (the shift step's:
+   *  Active with no exit turn, roadmap 94). */
+  staying: (r: CoverSnapshot) => boolean = isStaying,
+): CoverTally {
   let measures = 0;
   const soundingHistogram: number[] = [];
   let silentMeasures = 0;
@@ -258,7 +176,7 @@ export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTa
           sounding++;
           robot.sounding++;
         }
-        if (isStaying(r)) {
+        if (staying(r)) {
           robot.stay++;
           anyStaying = true;
         } else if (robot.stay > 0) {
@@ -291,125 +209,297 @@ export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTa
 }
 
 // ========================================
-// COVER SIM (no-silence Task 2)
+// GROUP TALLY (roadmap 94 Task 16, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §5.3)
 // ========================================
 
-export interface CoverSimRow {
-  label: string;
+/** What the group tally reads off a roster: id, docking and the group. */
+export type GroupSnapshot = Pick<ShiftLifecycleSnapshot, 'id' | 'docking' | 'companyId'>;
+
+/** Whether `measure` is a turning measure of `robot`'s group's journey. */
+export type TurnReader = (robot: Pick<GroupSnapshot, 'companyId'>, measure: number) => boolean;
+
+export interface GroupTallyResult {
+  /** Measures, summed over companies, with any member sounding (Active or Recalled). */
+  companySounding: number;
+  /** Of those, the measures with not every member sounding. */
+  companyApart: number;
+  /** A company going from out (any member sounding) to home (none). */
+  companyExits: number;
+  /** Of those, the ones whose members all docked on one measure. */
+  groupExits: number;
+  /** Every robot docking from out. */
+  exits: number;
+  /** Of those, the ones whose exit turn, the bar before the landing, is a turning measure of the group's journey. */
+  exitsOnTurn: number;
+  /** Every group coming out (its first member sounding after none was). */
+  entrances: number;
+  /** Of those, the ones landing on a turning measure. */
+  entrancesOnTurn: number;
+  /** Every group span out, from coming out to the measure it is all home, in bars; spans begun before the start are
+   *  not counted, nor one still open at the end. */
+  timesOut: number[];
+  /** Every group span home, from all home to coming out again, in bars; counted as timesOut is. */
+  timesHome: number[];
+}
+
+export interface GroupTally {
+  /** One post-tick roster: measure 1 first, then 2, and so on. */
+  observe(roster: readonly GroupSnapshot[]): void;
+  result(): GroupTallyResult;
+}
+
+const isOutDocking = (d: DockingState) => d === DockingState.Active || d === DockingState.Recalled;
+
+/**
+ * The group tally (spec §5.3), beside the cover tally: fed one post-tick roster per measure and a turn reader, it
+ * counts each company's apart share and group exits, each exit's and group entrance's landing on a turn, and every
+ * group's spans out and home. A group is a company (`companyId`) or one robot alone. Reads id, docking and the group
+ * only, so it runs on either step; keeps its own state, so the rosters it is handed are never touched.
+ */
+export function createGroupTally(startRoster: readonly GroupSnapshot[], isTurn: TurnReader): GroupTally {
+  const groupOf = (r: GroupSnapshot) => r.companyId ?? r.id;
+  let measure = 0;
+  const wasOut = new Map(startRoster.map((r) => [r.id, isOutDocking(r.docking)]));
+  /** Per group: out now, the measure its current span began (undefined if before the start), the first member docking
+   *  in its current span out. */
+  const groups = new Map<string, { out: boolean; since?: number; firstDock?: number }>();
+  for (const r of startRoster) {
+    const g = groups.get(groupOf(r)) ?? { out: false };
+    g.out = g.out || isOutDocking(r.docking);
+    groups.set(groupOf(r), g);
+  }
+  const totals = {
+    companySounding: 0,
+    companyApart: 0,
+    companyExits: 0,
+    groupExits: 0,
+    exits: 0,
+    exitsOnTurn: 0,
+    entrances: 0,
+    entrancesOnTurn: 0,
+  };
+  const timesOut: number[] = [];
+  const timesHome: number[] = [];
+
+  return {
+    observe(roster) {
+      measure++;
+      const members = new Map<string, GroupSnapshot[]>();
+      for (const r of roster) {
+        const list = members.get(groupOf(r)) ?? [];
+        list.push(r);
+        members.set(groupOf(r), list);
+        const out = isOutDocking(r.docking);
+        if (wasOut.get(r.id) && !out) {
+          totals.exits++;
+          if (isTurn(r, measure - 1)) totals.exitsOnTurn++;
+          const g = groups.get(groupOf(r));
+          if (g && g.firstDock === undefined) g.firstDock = measure;
+        }
+        wasOut.set(r.id, out);
+      }
+      for (const [id, list] of members) {
+        const g = groups.get(id) ?? { out: false };
+        groups.set(id, g);
+        const sounding = list.filter((r) => isOutDocking(r.docking)).length;
+        const out = sounding > 0;
+        if (list[0].companyId !== undefined && out) {
+          totals.companySounding++;
+          if (sounding < list.length) totals.companyApart++;
+        }
+        if (out && !g.out) {
+          totals.entrances++;
+          if (isTurn(list[0], measure)) totals.entrancesOnTurn++;
+          if (g.since !== undefined) timesHome.push(measure - g.since);
+          g.since = measure;
+          g.firstDock = undefined;
+        } else if (!out && g.out) {
+          if (list[0].companyId !== undefined) {
+            totals.companyExits++;
+            if (g.firstDock === undefined || g.firstDock === measure) totals.groupExits++;
+          }
+          if (g.since !== undefined) timesOut.push(measure - g.since);
+          g.since = measure;
+          g.firstDock = undefined;
+        }
+        g.out = out;
+      }
+    },
+
+    result() {
+      return { ...totals, timesOut: [...timesOut], timesHome: [...timesHome] };
+    },
+  };
+}
+
+// ========================================
+// THE SHIFT COVER SIM (roadmap 94 Task 17, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §5.3)
+// ========================================
+
+/** Median, p90 and longest of a list, all 0 for an empty one. */
+export interface Spread {
+  median: number;
+  p90: number;
+  longest: number;
+}
+
+export interface ShiftCoverRow {
+  bpm: number;
   worlds: number;
   /** Per world. */
   measures: number;
   /** Silent measures over every (world, measure). */
   silentShare: number;
   worldsWithSilence: number;
-  worldsWithStay: number;
-  /** Stays per 1,000 measures per world. */
-  staysPer1000: number;
-  /** In measures; all 0 when there is no stay. */
-  stayLength: { median: number; p90: number; longest: number };
-  /** Measures with a robot in a stay over every (world, measure). */
-  stayShare: number;
-  /** Robots sounding over every (world, measure). */
+  /** Robots sounding (Active or Recalled) over every (world, measure). */
   sounding: { mean: number; p10: number; p90: number };
-  /** Every robot's cycle across the grid; all 0 when no robot has one. */
-  cycles: { shortest: number; longest: number; distinct: number };
-  /** Per world, the largest group of robots sharing one cycle length; across worlds. */
-  sharing: { median: number; max: number };
+  /** Of the measures a company has any member sounding, the share where not all do. */
+  apartShare: number;
+  companyExits: number;
+  /** Company exits where every member docked on one measure, over all company exits. */
+  groupExitShare: number;
+  exits: number;
+  /** Robot exits whose exit turn (the bar before the landing) is a turn of the group's journey. */
+  exitsOnTurnShare: number;
+  entrances: number;
+  /** Group entrances (the first member out) landing on a turn of the group's journey. */
+  entrancesOnTurnShare: number;
+  /** Distinct exit turns written that are no turn of the group's journey. */
+  plannedOffTurn: number;
+  /** Group spans out and home, in bars and in seconds at the row's tempo. */
+  timeOut: Spread;
+  timeHome: Spread;
+  timeOutSeconds: Spread;
+  timeHomeSeconds: Spread;
+  /** Stays per 1,000 measures per world, and their lengths in measures: an Active robot with no exit turn. */
+  staysPer1000: number;
+  stayLength: Spread;
   /** Each robot's heard share, lowest and highest across the grid. */
   heardShare: { lowest: number; highest: number };
 }
 
-/** One row the cover sim is asked for: its label, and the battery-size band its rosters carry (the shipped one if
- *  omitted; 'flat' for none). */
-export interface CoverSimRowSpec {
-  label: string;
-  band?: SimBand;
-}
+/** The shift step's stay (spec §1.9): Active with no exit turn. */
+const isShiftStaying = (r: CoverSnapshot & { exitsAtMeasure?: number }) => r.docking === DockingState.Active && r.exitsAtMeasure === undefined;
+
+/** Whether `measure` is a turn of `robot`'s group's journey in `worldKey`. */
+const turnReaderFor =
+  (worldKey: string): TurnReader =>
+  (robot, measure) =>
+    journeyTurns(groupJourneyKey(worldKey, robot), measure, measure).length === 1;
 
 /**
- * The cover sim (spec §1.5): for each row asked, every world's buildSimRoster on that row's band stepped through the
- * real stepRobotLifecycle for `measures`, fed to a cover tally, then pooled into one row. Rows come back in the order
- * asked; with none asked, one row on the shipped band. Pure: no store, no BeatClock.
+ * The cover sim on the shift step at each tempo (spec §5.3): every world's roster stepped `measures` times, fed to a
+ * cover tally and a group tally, pooled into one row per tempo. Pure: no store, no BeatClock.
  */
-export function runCoverSim(options: {
+export function runShiftCoverSim(options: {
   coords?: ReadonlyArray<{ x: number; y: number }>;
   measures?: number;
-  rows?: readonly CoverSimRowSpec[];
-} = {}): CoverSimRow[] {
-  const { coords = SIM_SEED_COORDS, measures = SIM_MEASURES, rows = [{ label: 'shipped' }] } = options;
-  return rows.map(({ label, band }) => coverSimRow(coords, measures, label, band));
+  bpms?: readonly number[];
+} = {}): ShiftCoverRow[] {
+  const { coords = SIM_SEED_COORDS, measures = SIM_MEASURES, bpms = [60] } = options;
+  return bpms.map((bpm) => shiftCoverRow(coords, measures, bpm));
 }
 
-function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: number, label: string, band: SimBand | undefined): CoverSimRow {
+/** A row's two spans in seconds at its own tempo. */
+function withSeconds(row: ShiftCoverRow): ShiftCoverRow {
+  const toSeconds = (s: Spread): Spread => {
+    const k = (BEATS_PER_MEASURE * 60) / row.bpm;
+    return { median: s.median * k, p90: s.p90 * k, longest: s.longest * k };
+  };
+  return { ...row, timeOutSeconds: toSeconds(row.timeOut), timeHomeSeconds: toSeconds(row.timeHome) };
+}
+
+function shiftCoverRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: number, bpm: number): ShiftCoverRow {
   const sounding: number[] = [];
   const stays: number[] = [];
-  const cycles: number[] = [];
-  const sharing: number[] = [];
   const heard: number[] = [];
+  const timesOut: number[] = [];
+  const timesHome: number[] = [];
+  const counts = { companySounding: 0, companyApart: 0, companyExits: 0, groupExits: 0, exits: 0, exitsOnTurn: 0, entrances: 0, entrancesOnTurn: 0 };
   let silentMeasures = 0;
   let worldsWithSilence = 0;
-  let stayMeasures = 0;
-  let worldsWithStay = 0;
+  let plannedOffTurn = 0;
 
   for (const { x, y } of coords) {
-    let roster = buildSimRoster(simNoiseMap(x, y), band);
-    const tally = createCoverTally(roster);
+    const worldKey = `${x}:${y}`;
+    const env = { bpm, worldKey };
+    const noiseMap = simNoiseMap(x, y);
+    const isTurn = turnReaderFor(worldKey);
+    let roster = buildShiftSimRoster(noiseMap, env);
+    const cover = createCoverTally(roster, isShiftStaying);
+    const groups = createGroupTally(roster, isTurn);
+    const planned = new Set<string>();
     for (let measure = 1; measure <= measures; measure++) {
-      roster = stepRobotLifecycle(roster, measure);
-      tally.observe(roster);
+      roster = stepShiftLifecycle(roster, measure, env);
+      cover.observe(roster);
+      groups.observe(roster);
+      for (const r of roster) {
+        if (r.exitsAtMeasure === undefined) continue;
+        const key = `${groupIdOf(r)}@${r.exitsAtMeasure}`;
+        if (planned.has(key)) continue;
+        planned.add(key);
+        if (!isTurn(r, r.exitsAtMeasure)) plannedOffTurn++;
+      }
     }
-    const t = tally.result();
-    t.soundingHistogram.forEach((count, n) => {
+    const c = cover.result();
+    c.soundingHistogram.forEach((count, n) => {
       for (let i = 0; i < count; i++) sounding.push(n);
     });
-    silentMeasures += t.silentMeasures;
-    if (t.silentMeasures > 0) worldsWithSilence++;
-    stays.push(...t.stays);
-    stayMeasures += t.stayMeasures;
-    if (t.stays.length > 0) worldsWithStay++;
-    const groups = new Map<number, number>();
-    for (const r of t.robots) {
-      heard.push(r.heardShare);
-      if (r.cycle === undefined) continue;
-      cycles.push(r.cycle);
-      groups.set(r.cycle, (groups.get(r.cycle) ?? 0) + 1);
-    }
-    sharing.push(Math.max(0, ...groups.values()));
+    silentMeasures += c.silentMeasures;
+    if (c.silentMeasures > 0) worldsWithSilence++;
+    stays.push(...c.stays);
+    for (const r of c.robots) heard.push(r.heardShare);
+    const g = groups.result();
+    for (const k of Object.keys(counts) as (keyof typeof counts)[]) counts[k] += g[k];
+    timesOut.push(...g.timesOut);
+    timesHome.push(...g.timesHome);
   }
 
   const samples = coords.length * measures;
-  const orZero = (values: readonly number[], p: number) => (values.length > 0 ? percentile(values, p) : 0);
-  return {
-    label,
+  const spread = (values: readonly number[]): Spread =>
+    values.length > 0 ? { median: percentile(values, 50), p90: percentile(values, 90), longest: percentile(values, 100) } : { median: 0, p90: 0, longest: 0 };
+  const share = (n: number, of: number) => (of > 0 ? n / of : 0);
+  return withSeconds({
+    bpm,
     worlds: coords.length,
     measures,
-    silentShare: samples > 0 ? silentMeasures / samples : 0,
+    silentShare: share(silentMeasures, samples),
     worldsWithSilence,
-    worldsWithStay,
-    staysPer1000: samples > 0 ? (stays.length / samples) * 1000 : 0,
-    stayLength: { median: orZero(stays, 50), p90: orZero(stays, 90), longest: orZero(stays, 100) },
-    stayShare: samples > 0 ? stayMeasures / samples : 0,
     sounding: {
       mean: sounding.length > 0 ? sounding.reduce((s, v) => s + v, 0) / sounding.length : 0,
-      p10: orZero(sounding, 10),
-      p90: orZero(sounding, 90),
+      p10: sounding.length > 0 ? percentile(sounding, 10) : 0,
+      p90: sounding.length > 0 ? percentile(sounding, 90) : 0,
     },
-    cycles: { shortest: cycles.length > 0 ? Math.min(...cycles) : 0, longest: Math.max(0, ...cycles), distinct: new Set(cycles).size },
-    sharing: { median: orZero(sharing, 50), max: Math.max(0, ...sharing) },
+    apartShare: share(counts.companyApart, counts.companySounding),
+    companyExits: counts.companyExits,
+    groupExitShare: share(counts.groupExits, counts.companyExits),
+    exits: counts.exits,
+    exitsOnTurnShare: share(counts.exitsOnTurn, counts.exits),
+    entrances: counts.entrances,
+    entrancesOnTurnShare: share(counts.entrancesOnTurn, counts.entrances),
+    plannedOffTurn,
+    timeOut: spread(timesOut),
+    timeHome: spread(timesHome),
+    timeOutSeconds: spread([]),
+    timeHomeSeconds: spread([]),
+    staysPer1000: share(stays.length, samples) * 1000,
+    stayLength: spread(stays),
     heardShare: { lowest: heard.length > 0 ? Math.min(...heard) : 0, highest: Math.max(0, ...heard) },
-  };
+  });
 }
 
-/** The cover rows as a markdown table — for the stop-and-report and Results. */
-export function formatCoverReport(rows: readonly CoverSimRow[]): string {
-  const pct = (v: number) => `${(v * 100).toFixed(2)} %`;
+/** The shift cover rows as a markdown table — for Results. Seconds at the row's tempo. */
+export function formatShiftCoverReport(rows: readonly ShiftCoverRow[]): string {
+  const pct = (v: number) => `${(v * 100).toFixed(1)} %`;
+  const bars = (s: Spread) => `${s.median}, ${s.p90}, ${s.longest}`;
+  const secs = (s: Spread) => `${Math.round(s.median)}, ${Math.round(s.p90)}, ${Math.round(s.longest)}`;
   const lines = [
-    '| Row | Silent measures | Worlds with a silence | Worlds with a stay | Stays / 1,000 measures | Stay length (median, p90, longest) | In a stay | Sounding (mean, p10–p90) | Cycles (shortest–longest, distinct) | Largest group sharing a cycle (median, max) | Heard share (lowest–highest) |',
-    '|---|---|---|---|---|---|---|---|---|---|---|',
+    '| BPM | Silent | Sounding (mean, p10–p90) | Apart | Group exits | Exits on a turn | Entrances on a turn | Time out, bars (median, p90, longest) | Time out, s | Time home, bars | Time home, s | Stays / 1,000 | Stay length | Heard share (lowest–highest) |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
   ];
   for (const r of rows) {
     lines.push(
-      `| ${r.label} | ${pct(r.silentShare)} | ${r.worldsWithSilence} / ${r.worlds} | ${r.worldsWithStay} / ${r.worlds} | ${r.staysPer1000.toFixed(2)} | ${r.stayLength.median}, ${r.stayLength.p90}, ${r.stayLength.longest} | ${pct(r.stayShare)} | ${r.sounding.mean.toFixed(2)}, ${r.sounding.p10}–${r.sounding.p90} | ${r.cycles.shortest}–${r.cycles.longest}, ${r.cycles.distinct} | ${r.sharing.median}, ${r.sharing.max} | ${pct(r.heardShare.lowest)}–${pct(r.heardShare.highest)} |`,
+      `| ${r.bpm} | ${pct(r.silentShare)} | ${r.sounding.mean.toFixed(2)}, ${r.sounding.p10}–${r.sounding.p90} | ${pct(r.apartShare)} | ${pct(r.groupExitShare)} of ${r.companyExits} | ${pct(r.exitsOnTurnShare)} | ${pct(r.entrancesOnTurnShare)} | ${bars(r.timeOut)} | ${secs(r.timeOutSeconds)} | ${bars(r.timeHome)} | ${secs(r.timeHomeSeconds)} | ${r.staysPer1000.toFixed(2)} | ${bars(r.stayLength)} | ${pct(r.heardShare.lowest)}–${pct(r.heardShare.highest)} |`,
     );
   }
   return lines.join('\n');
@@ -453,7 +543,7 @@ export function buildLoopWorld(actors: Actor[], noiseMap: NoiseFunction2D): Loop
 // LOOP SIM — ONE WORLD
 // ========================================
 
-/** One lifecycle measure over the roster — stepRobotLifecycle in the grid sim; scripted in tests. */
+/** One lifecycle measure over the roster — stepShiftLifecycle in the grid sim; scripted in tests. */
 export type LifecycleStep = (roster: RobotLifecycleSnapshot[], measure: number) => RobotLifecycleSnapshot[];
 
 export interface LoopSimOptions {
@@ -468,6 +558,11 @@ export interface LoopSimOptions {
   cooldown?: (eligibleSiteCount: number) => number;
   /** Called on every activity change. */
   trace?: (event: LoopSimEvent) => void;
+  /** The wait at the door (roadmap 94 Task 19, spec §1.11): a robot reaching its port while Recalled waits there,
+   *  'entering' and visible, until the last bar of its hold and goes in on the hold's bar line; one arriving with under
+   *  half a measure left, or Docked already, is late and takes today's rule, the next bar line (at once with half a
+   *  measure or more left, after a hold to it otherwise). Off: the entry is STATION_ARC_SECONDS from arrival. */
+  door?: boolean;
 }
 
 export interface LoopSimEvent {
@@ -499,6 +594,14 @@ export interface LoopSimResult {
   /** Seconds a robot was still visible while the lifecycle had it Docked or Undocking. */
   dockedVisibleSeconds: number;
   longestDockedVisible: number;
+  /** With the door on: every robot reaching its port on the way in. */
+  arrivals: number;
+  /** Of those, the company members (a robot with a companyId). */
+  memberExits: number;
+  /** Of the members, the late ones: under half a measure before the hold's bar line, or Docked already. */
+  lateMembers: number;
+  /** Every arrival's wait at the door before its fade begins, in seconds. */
+  doorWaits: number[];
 }
 
 /** Activities that count as out on shift (they hold a job — plan correction 4). */
@@ -533,7 +636,7 @@ interface SimRobot {
  * the measure, then to roster order. Pure: no store, no BeatClock, no GSAP.
  */
 export function runLoopSim(options: LoopSimOptions): LoopSimResult {
-  const { world, roster, bpm, seconds, rand, step, cooldown = siteCooldown, trace } = options;
+  const { world, roster, bpm, seconds, rand, step, cooldown = siteCooldown, trace, door = false } = options;
   const measureSeconds = (BEATS_PER_MEASURE * 60) / bpm;
   const rest = cooldown(world.sites.length);
   const siteState = new Map(world.sites.map((s) => [s.id, { heldBy: undefined as string | undefined, readyAt: 0 }]));
@@ -550,6 +653,10 @@ export function runLoopSim(options: LoopSimOptions): LoopSimResult {
     chargingWhileVisible: 0,
     dockedVisibleSeconds: 0,
     longestDockedVisible: 0,
+    arrivals: 0,
+    memberExits: 0,
+    lateMembers: 0,
+    doorWaits: [],
   };
 
   let lifecycle = roster;
@@ -696,6 +803,28 @@ export function runLoopSim(options: LoopSimOptions): LoopSimResult {
     setActivity(r, 'transit', t);
   };
 
+  /** The door (roadmap 94 Task 19): when a robot reaching its port at `t` goes in, counting its wait and whether it is
+   *  late. On time: the bar line of its hold, its fade over the hold's last bar (or what is left of it). Late: the next
+   *  bar line with half a measure or more left, else the one after. */
+  const atTheDoor = (r: SimRobot, t: number): number => {
+    const snapshot = lifecycle[robots.indexOf(r)] as ShiftLifecycleSnapshot;
+    const member = snapshot.companyId !== undefined;
+    const half = measureSeconds / 2;
+    result.arrivals++;
+    if (member) result.memberExits++;
+    const hold = snapshot.dockingHoldUntilMeasure;
+    if (snapshot.docking === DockingState.Recalled && hold !== undefined && hold * measureSeconds - t >= half - 1e-9) {
+      const end = hold * measureSeconds;
+      result.doorWaits.push(Math.max(0, end - measureSeconds - t));
+      return end;
+    }
+    if (member) result.lateMembers++;
+    const nextBar = (Math.floor(t / measureSeconds + 1e-9) + 1) * measureSeconds;
+    const atOnce = nextBar - t >= half - 1e-9;
+    result.doorWaits.push(atOnce ? 0 : nextBar - t);
+    return atOnce ? nextBar : nextBar + measureSeconds;
+  };
+
   /** The current activity ran out. */
   const finish = (r: SimRobot, t: number) => {
     r.until = Infinity;
@@ -716,7 +845,7 @@ export function runLoopSim(options: LoopSimOptions): LoopSimResult {
       case 'returning':
         land(r);
         setActivity(r, 'entering', t);
-        r.until = t + STATION_ARC_SECONDS;
+        r.until = door ? atTheDoor(r, t) : t + STATION_ARC_SECONDS;
         break;
       case 'entering':
         r.visible = false;
@@ -835,6 +964,11 @@ export interface ReadinessRow {
   turnBacks: number;
   chargingWhileVisible: number;
   longestDockedVisible: number;
+  /** The door (roadmap 94 Task 19): company members reaching their port, the late ones, and every arrival's wait at
+   *  the door in seconds. */
+  memberExits: number;
+  lateMembers: number;
+  doorWait: Spread;
 }
 
 export interface ReadinessSeedRow {
@@ -851,21 +985,20 @@ export interface ReadinessSeedRow {
 
 /**
  * Every candidate × tempo over every placed world, `seconds` each, on the real roster, lifecycle,
- * sites and stations. Each world's rand is seeded by coordinates and tempo, so candidates are
- * compared on the same draws. The rosters carry battery sizes on `band` (the shipped one if omitted;
- * 'flat' for none, no-silence spec §1.6). Store-free once the worlds are placed.
+ * sites and stations: buildShiftSimRoster at each tempo, stepShiftLifecycle, and the door on (roadmap 94). Each
+ * world's rand is seeded by coordinates and tempo, so candidates are compared on the same draws. Store-free once the
+ * worlds are placed.
  */
 export function runReadinessSim(options: {
   worlds: ReadonlyArray<{ x: number; y: number; actors: Actor[] }>;
   seconds?: number;
   bpms?: readonly number[];
   candidates?: readonly CooldownCandidate[];
-  band?: SimBand;
 }): { rows: ReadinessRow[]; seeds: ReadinessSeedRow[] } {
-  const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES, band } = options;
+  const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES } = options;
   const prepared = worlds.map(({ x, y, actors }) => {
     const noiseMap = simNoiseMap(x, y);
-    return { x, y, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap, band) };
+    return { x, y, noiseMap, world: buildLoopWorld(actors, noiseMap) };
   });
 
   const rows: ReadinessRow[] = [];
@@ -879,16 +1012,24 @@ export function runReadinessSim(options: {
       let turnBacks = 0;
       let chargingWhileVisible = 0;
       let longestDockedVisible = 0;
+      let memberExits = 0;
+      let lateMembers = 0;
+      const doorWaits: number[] = [];
       for (const w of prepared) {
+        const env = { bpm, worldKey: `${w.x}:${w.y}` };
         const r = runLoopSim({
           world: w.world,
-          roster: w.roster,
+          roster: buildShiftSimRoster(w.noiseMap, env),
           bpm,
           seconds,
           rand: alea(`loop-sim:${w.x}:${w.y}:${bpm}`),
-          step: (roster, measure) => stepRobotLifecycle(roster, measure),
+          step: (roster, measure) => stepShiftLifecycle(roster as ShiftLifecycleSnapshot[], measure, env),
           cooldown,
+          door: true,
         });
+        memberExits += r.memberExits;
+        lateMembers += r.lateMembers;
+        doorWaits.push(...r.doorWaits);
         const share = r.activeSeconds > 0 ? r.waitingSeconds / r.activeSeconds : 0;
         shares.push(share);
         waits.push(...r.waits);
@@ -920,10 +1061,32 @@ export function runReadinessSim(options: {
         turnBacks,
         chargingWhileVisible,
         longestDockedVisible,
+        memberExits,
+        lateMembers,
+        doorWait:
+          doorWaits.length > 0
+            ? { median: percentile(doorWaits, 50), p90: percentile(doorWaits, 90), longest: percentile(doorWaits, 100) }
+            : { median: 0, p90: 0, longest: 0 },
       });
     }
   }
   return { rows, seeds };
+}
+
+/** The door rows (roadmap 94 Task 19) as a markdown table — for Results. */
+export function formatDoorReport(rows: readonly ReadinessRow[]): string {
+  const sec = (v: number) => `${v.toFixed(1)} s`;
+  const lines = [
+    '| BPM | Member exits | Late members | Door wait (median, p90, longest) | Turn-backs | Charging visible | Longest Docked visible |',
+    '|---|---|---|---|---|---|---|',
+  ];
+  for (const r of rows) {
+    const late = r.memberExits > 0 ? `${r.lateMembers} (${((r.lateMembers / r.memberExits) * 100).toFixed(1)} %)` : '0';
+    lines.push(
+      `| ${r.bpm} | ${r.memberExits} | ${late} | ${sec(r.doorWait.median)}, ${sec(r.doorWait.p90)}, ${sec(r.doorWait.longest)} | ${r.turnBacks} | ${r.chargingWhileVisible} | ${sec(r.longestDockedVisible)} |`,
+    );
+  }
+  return lines.join('\n');
 }
 
 /** Seeds listed per candidate × tempo in the report. */

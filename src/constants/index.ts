@@ -196,24 +196,9 @@ export const SEND_STEP_PERCENT = 1;
  * See docs/specs/archive/ROBOT_SYSTEMS_ENGINE.md and src/systems/robotSystems.ts.
  */
 
-/** Seeded count of robots that start Active (rest start Docked) when a locale's roster is created. */
-export const INITIAL_ACTIVE_ROBOTS_MIN = 2;
-export const INITIAL_ACTIVE_ROBOTS_MAX = 4;
-
 /**
- * Battery drain, percent per measure, while a robot is Active, before the robot's battery size divides it — the same
- * base for every robot and every job (Phase 43: the job is live visual state, not part of the replayed lifecycle). 6 keeps
- * the mean Active count closest to the old per-job surcharge rule's (lifecycleSim.ts, 121 seeds ×
- * 2000 measures: old rule 5.05, flat 6 5.14).
- */
-export const BATTERY_DRAIN_ACTIVE = 6;
-
-/** Battery recharge, percent per measure, while a robot is Docked, before the robot's battery size divides it. */
-export const BATTERY_RECHARGE_RATE = 5;
-
-/**
- * A robot's battery size when it carries none (a hand-built robot or snapshot): the flat rates. The step divides both
- * the drain and the recharge by the size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3).
+ * A robot's battery size when it carries none (a hand-built robot or snapshot). A company's founder's size scales its
+ * shift windows (roadmap 94, shiftPlan.ts's groupSize).
  */
 export const DEFAULT_BATTERY_SIZE = 1;
 
@@ -225,10 +210,49 @@ export const DEFAULT_BATTERY_SIZE = 1;
 export const BATTERY_SIZE_MIN = 0.67;
 export const BATTERY_SIZE_MAX = 1.5;
 
-/** Active robot at or below this battery level is Recalled (sent back to dock). */
+/** The battery gauge's level on the bar line after a robot's exit turn (roadmap 94: the gauge follows the plan). */
 export const BATTERY_CRITICAL_THRESHOLD = 10;
-/** Docked robot at or above this battery level begins Undocking (redeploy-eligible). */
+/** The battery gauge's level on a robot's entrance. */
 export const BATTERY_FULL_THRESHOLD = 100;
+
+/**
+ * The pace of a shift (roadmap 94, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.5, §4): every length is written
+ * in bars at SHIFT_REFERENCE_BPM and scaled by bpm ÷ 60 at the live tempo (Crawford, 2026-11-20: "numbers given are for
+ * 60bpm and we should scale them for faster and slower tempos"). First cuts for Gate A unless dated.
+ */
+export const SHIFT_REFERENCE_BPM = 60;
+/** The least time out and home for a group of battery size 1. A group's size multiplies them. First cut 15 and 20
+ *  (the old size-1 robot); 20 % shorter at Crawford's ear, 2026-11-21 ("robots linger slightly too long, and it takes a
+ *  little too long for them to reappear. by like, 20%"). */
+export const SHIFT_OUT_BASE_BARS = 12;
+export const SHIFT_HOME_BASE_BARS = 16;
+/** The most time out and home, whatever the size. First cut 40 and 50 (Crawford, 2026-11-20); 20 % shorter with the
+ *  bases, 2026-11-21. */
+export const SHIFT_OUT_MAX_BARS = 32;
+export const SHIFT_HOME_MAX_BARS = 40;
+/** How many seconds before its exit turn a robot is recalled: the longest trip home on record (~22 s, backlog 84's
+ *  loop sim) and a little over (§1.11). Turned into bars by the tempo, never by a robot's own trip. */
+export const RECALL_LEAD_SECONDS = 24;
+/** The odds a group leaves on a candidate turn of its out window (§1.6): from MIN after the smallest move to MAX after a
+ *  move weighing 1 (half the journey's range or more), always after a drop. */
+export const SHIFT_LEAVE_ODDS_MIN = 0.35;
+export const SHIFT_LEAVE_ODDS_MAX = 0.95;
+/** The odds a company's exit is a group exit, on the same weight (§1.6; Crawford, 2026-11-20: "never worse than a coin
+ *  flip", near certain after a big move); always after a drop. */
+export const GROUP_EXIT_ODDS_MIN = 0.5;
+export const GROUP_EXIT_ODDS_MAX = 0.95;
+/** The odds a group comes out on a candidate turn of its home window, whatever the move (§1.7). */
+export const SHIFT_ENTER_ODDS = 0.5;
+/** The odds a company comes out together; otherwise its members land ENTRANCE_STAGGER_BARS apart (§1.7, one chord
+ *  change, so a company of four is all in within six bars). */
+export const ENTRANCE_TOGETHER_ODDS = 0.7;
+export const ENTRANCE_STAGGER_BARS = 2;
+/** The battery is a gauge (§1.10): where a robot has no move to aim at (staying, or home with no entrance yet), it loses
+ *  this share of its level, or gains this share of what is missing, each measure, so it never sits still or jumps. */
+export const BATTERY_EASE_SHARE = 0.125;
+/** The odds a group starts a world out (§1.13), on its even 'roster.groupStartsOut' draw; when none does, the group
+ *  earliest in the roster does. */
+export const SHIFT_START_OUT_ODDS = 0.45;
 
 // ========================================
 // THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)

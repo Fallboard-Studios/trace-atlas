@@ -235,6 +235,39 @@ function pairAt(key: string, maxTime: number, measure: number): { i: number; end
   return { i: lo, ends };
 }
 
+/** One turn of a journey (roadmap 94, spec §1.4): the measure pair `index` ends on, how far the pair travelled in
+ *  shares, and whether it is a drop. */
+export interface JourneyTurn {
+  /** The turning measure. */
+  measure: number;
+  /** The pair's index, which a group's shift draws are read by. */
+  index: number;
+  /** |share[i].intensity − share[i−1].intensity|, from 0 to 2 (the first pair from home): the shares' distance, which
+   *  every robot on the key shares, never one robot's scaled pairs. */
+  move: number;
+  /** Whether the pair is a drop (it turns one measure after the turn before it). */
+  drop: boolean;
+}
+
+/**
+ * The turning measures of `key`'s journey from `fromMeasure` to `toMeasure`, both included, at JOURNEY_TIME_MAX (the
+ * max time every robot travels at), in order (roadmap 94, spec §1.4). Reads the memo pairAt keeps; draws nothing a
+ * journey would not. Empty for a range with no turn. Pure.
+ */
+export function journeyTurns(key: string, fromMeasure: number, toMeasure: number): JourneyTurn[] {
+  if (!(toMeasure >= fromMeasure) || !Number.isFinite(toMeasure)) return [];
+  const { ends } = pairAt(key, JOURNEY_TIME_MAX, toMeasure);
+  const shares = sharesOf(key, ends.length);
+  // The first pair turning at or after fromMeasure: the pair measure fromMeasure − 1 falls in.
+  const first = Number.isFinite(fromMeasure) ? pairAt(key, JOURNEY_TIME_MAX, fromMeasure - 1).i : 0;
+  const turns: JourneyTurn[] = [];
+  for (let i = first; i < ends.length && ends[i] <= toMeasure; i++) {
+    const before = i === 0 ? 0 : shares[i - 1].intensity;
+    turns.push({ measure: ends[i], index: i, move: Math.abs(shares[i].intensity - before), drop: shares[i].drop });
+  }
+  return turns;
+}
+
 /** Where a robot is on its journey at one measure: its position, its trip and its level. */
 export interface JourneyRead {
   /** Whole changes from home: busier above 0, calmer below it. */

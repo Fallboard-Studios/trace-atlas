@@ -687,8 +687,24 @@ company lines up organically.
 - **The spec's six questions** (its §7.2) stand at their defaults since his approval, bar one: deleting the drain
   machinery waits for his yes (the plan's Task 27). The last bar and a staggered entrance's spacing are heard at
   Gate B.
-- **Not started.** The intent, spec and plan merged 2026-11-20 (PR #657). The build is on `feature/companies-together`,
-  from main; the plan stops at Gate A (the sims' numbers, before any wiring) and Gate B (his eye and ear).
+- **Built 2026-11-20 on `feature/companies-together`** (from main, unpushed), Tasks 1 to 26 and 28 to 29, at
+  Crawford's word to build the whole plan without pausing while he was away. **Gate A and Gate B were not held:** the
+  sims' numbers (the plan's Results) and the eye-and-ear listening list wait for his read. Every first-cut constant
+  ships unmoved. Against spec §5.5: never silent at any tempo, every exit and group entrance on a turn, group exits
+  82–85 % (today 4 %), robots sounding 5.3–5.9, no late member at the door, the seconds criterion met; **missed:** the
+  apart share at 20 BPM (25.1 %) and 40 BPM (20.4 %) against 20 %. Also for his read: stays are far commoner than
+  today's (17–46 robot-stays per 1,000 measures a world), and the wait at the door runs a median of 16–18 s.
+- **Gates A and B passed 2026-11-22** on Crawford's listen ("i'm happy with everything"), after his two ear moves of
+  2026-11-21 (shifts out and home 20 % shorter; the minimum shift removed). Nothing further moved.
+- **Reviewed 2026-11-21** (five axes; the plan's Results): three faults found by experiment and fixed at his word. A
+  slow tempo drag pushed every plan far off (the rescale now scales an unsnapped aim); a company holding every robot
+  never left (it now comes and goes robot by robot, the last robot staying: "last robot stays"); a company of five or
+  more could split for a whole shift at a slow tempo (the stagger narrows, and the entrance waits for a member still
+  coming out). The step was split into named helpers. The sims' rows are unchanged.
+- **Task 27, the removals, built 2026-11-22** on his yes: the old battery step, the drain machinery and the
+  roster-index start are gone (the plan's Results).
+- **CLAUDE.md's lifecycle line changed 2026-11-22** on his yes (the spec's "As built" wording).
+- **Still to do:** his PR, then Task 30 (the archive) after the merge.
 - It changes every world's comings and goings, so it lands before backlog
   [45](backlog.md#45-off-screen-crawfords-three-preset-links).
 

@@ -28,7 +28,9 @@ import { chargingColorsKey } from '../components/stations/stationOccupancy';
 import { setRef, clearRefs } from '../utils/refs';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
-import { BATTERY_CRITICAL_THRESHOLD, BATTERY_DRAIN_ACTIVE, BATTERY_FULL_THRESHOLD, BATTERY_RECHARGE_RATE } from '../constants';
+import { recallLeadBars, shiftWindow } from './shiftPlan';
+import { isDockMuted } from '../utils/robotAudibility';
+import { AudioEngine } from '../engine/AudioEngine';
 import type { Actor } from '../types/Actor';
 import type { Locale } from '../types/locale';
 import type { DockingState, Robot, RobotActivity } from '../types/Robot';
@@ -66,8 +68,11 @@ const gem = getRobotGem(GEM_SEED);
 const COLOR = '#88ccff';
 /** One frame of GSAP time. */
 const DT = 1 / 30;
-/** Measures from a critical recall back to Active: the Recalled hold, the recharge, the Undocking hold. */
-const MEASURES_TO_ACTIVE = 1 + Math.ceil((BATTERY_FULL_THRESHOLD - BATTERY_CRITICAL_THRESHOLD) / BATTERY_RECHARGE_RATE) + 1;
+/** Measures from a recall back to Active at `bpm` (roadmap 94: the plan, not the battery): the lead to the exit turn,
+ *  the bar after it, the longest home window for a size-1 robot, and the Undocking hold. */
+const measuresToActive = (bpm: number) => recallLeadBars(bpm) + 2 + shiftWindow('home', 1, bpm).most + 1;
+/** Far enough off that the plan never recalls a robot during a case. */
+const FAR = 100_000;
 
 let WORLD: Actor[] = [];
 /** The placed world's locale record, kept so each test can rebuild LOCALE from it. */
@@ -118,16 +123,20 @@ const get = (id: string) => useLocaleStore.getState().getRobotById(LOCALE, id)!;
  * The world with r1 (mounted, exiting its station) and two body-less companions on the other station.
  * Returns the stepping controls and r1's trace.
  */
-function simulate(bpm: number) {
+function simulate(bpm: number, { company = false }: { company?: boolean } = {}) {
   useAudioStore.setState({ bpm });
   const locale = WORLD_LOCALE;
   useLocaleStore.setState({ locales: { [LOCALE]: { ...locale, id: LOCALE, name: LOCALE, actors: WORLD, robots: [] } } });
   const [s0, s1] = getStations(LOCALE);
+  // With `company` (roadmap 94 Task 25), r1 to r3 are one company and a freelancer, r4, stays out beside them.
+  const co = company ? { companyId: 'co' } : {};
   useLocaleStore.getState().setLocaleData(LOCALE, {
+    // Exit turns far off (roadmap 94): nobody is recalled until a case sets r1's exit turn near.
     robots: [
-      robot('r1', s0.port, { activity: 'exiting', stationId: s0.id }),
-      robot('r2', s1.port, { activity: 'exiting', stationId: s1.id }),
-      robot('r3', s1.port, { activity: 'exiting', stationId: s1.id }),
+      robot('r1', s0.port, { activity: 'exiting', stationId: s0.id, exitsAtMeasure: FAR, shiftBpm: bpm, ...co }),
+      robot('r2', s1.port, { activity: 'exiting', stationId: s1.id, compositionSeed: 0.25, exitsAtMeasure: FAR, shiftBpm: bpm, ...co }),
+      robot('r3', s1.port, { activity: 'exiting', stationId: s1.id, compositionSeed: 0.75, exitsAtMeasure: FAR, shiftBpm: bpm, ...co }),
+      ...(company ? [robot('r4', s0.port, { activity: 'exiting', stationId: s0.id, compositionSeed: 0.125, exitsAtMeasure: FAR, shiftBpm: bpm })] : []),
     ],
   });
 
@@ -176,6 +185,17 @@ function simulate(bpm: number) {
   };
   onRobotMounted(LOCALE, 'r1');
   record();
+  // With a company (roadmap 94 Task 25), r2 and r3 get plain bodies too, so the whole company works out in the world.
+  if (company) {
+    for (const id of ['r2', 'r3']) {
+      const body = document.body.appendChild(document.createElement('div'));
+      body.className = 'mover mover--robot';
+      body.appendChild(document.createElementNS(SVG_NS, 'svg')).appendChild(document.createElementNS(SVG_NS, 'g'));
+      gsap.set(body, { x: get(id).position.x, y: get(id).position.y, immediateRender: true });
+      setRef(`robot-${id}`, body);
+      onRobotMounted(LOCALE, id);
+    }
+  }
 
   /** One GSAP frame; the Transport moves `rate` times as far, running the station fade grid at each sixteenth it
    *  crosses and the lifecycle tick first at each measure. */
@@ -198,8 +218,15 @@ function simulate(bpm: number) {
     return done();
   };
   const activity = () => get('r1').activity;
+  /** Sets the exit turn of `ids` (r1 by default) so the next measure's tick recalls them, the rest still Active. */
+  const recallNext = (ids: readonly string[] = ['r1']) => {
+    const next = Math.floor(sixteenth / 16) + 1;
+    for (const id of ids) useLocaleStore.getState().updateRobot(LOCALE, id, { exitsAtMeasure: next + recallLeadBars(bpm), shiftBpm: bpm });
+  };
+  /** The Transport's sixteenth count so far. */
+  const sixteenths = () => sixteenth;
 
-  return { el, row, trace, charging, decorate, runUntil, activity, measureSeconds, unsubscribe };
+  return { el, row, trace, charging, decorate, runUntil, activity, measureSeconds, unsubscribe, recallNext, sixteenths };
 }
 
 /** `wanted` appears in order (not necessarily adjacent) among the trace's activities. */
@@ -273,10 +300,10 @@ describe('the work loop under the real lifecycle tick (Phase 43 Task 24)', () =>
       sim = simulate(bpm);
       expect(sim.runUntil(() => sim!.activity() === 'working', 120)).toBe(true);
       // The next measure crosses critical: a recall, with r2 and r3 still Active.
-      useLocaleStore.getState().updateRobot(LOCALE, 'r1', { batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
+      sim.recallNext();
       const recalledFrom = sim.trace.length;
       expect(sim.runUntil(() => sim!.activity() === 'charging', 120)).toBe(true);
-      expect(sim.runUntil(() => sim!.activity() === 'working', (MEASURES_TO_ACTIVE + 4) * sim!.measureSeconds + 60)).toBe(true);
+      expect(sim.runUntil(() => sim!.activity() === 'working', (measuresToActive(bpm) + 4) * sim!.measureSeconds + 60)).toBe(true);
 
       expect(hasSubsequence(sim.trace, ['exiting', 'transit', 'working', 'returning', 'entering', 'charging', 'exiting', 'transit', 'working'])).toBe(true);
       // It goes home only once the tick has recalled it.
@@ -300,14 +327,14 @@ describe('the work loop under the real lifecycle tick (Phase 43 Task 24)', () =>
   it('200 BPM, a hidden tab on the swim home: Active lands before it gets there, and it turns back to work without entering', () => {
     sim = simulate(200);
     expect(sim.runUntil(() => sim!.activity() === 'working', 120)).toBe(true);
-    useLocaleStore.getState().updateRobot(LOCALE, 'r1', { batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
+    sim.recallNext();
     expect(sim.runUntil(() => sim!.activity() === 'returning', 60)).toBe(true);
     const home = getTimeline('swim-r1')!.duration();
     expect(home).toBeGreaterThan(0.5); // a real swim, so there's time to turn back in
     const from = sim.trace.length - 1;
 
     // Throttled until it lands Active: the whole recharge passes in the first half of the swim.
-    const rate = Math.ceil((MEASURES_TO_ACTIVE + 1) * sim.measureSeconds / (home / 2));
+    const rate = Math.ceil((measuresToActive(200) + 1) * sim.measureSeconds / (home / 2));
     expect(sim.runUntil(() => get('r1').docking === 'active', home * 0.9, rate)).toBe(true);
     expect(sim.activity()).not.toBe('returning'); // turned back on the spot
     expect(sim.runUntil(() => sim!.activity() === 'working', 60)).toBe(true);
@@ -321,13 +348,13 @@ describe('the work loop under the real lifecycle tick (Phase 43 Task 24)', () =>
   it('200 BPM, a hidden tab during the entry: it turns back from the port to work, never exiting or charging (backlog 84 Task 13)', () => {
     sim = simulate(200);
     expect(sim.runUntil(() => sim!.activity() === 'working', 120)).toBe(true);
-    useLocaleStore.getState().updateRobot(LOCALE, 'r1', { batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
+    sim.recallNext();
     expect(sim.runUntil(() => sim!.activity() === 'entering', 120)).toBe(true);
     const from = sim.trace.length - 1;
 
     // Throttled only until it lands Active (in the hold or the arc) — any longer and the fast Transport would drain it
     // into a second recall before it is back at work.
-    const rate = Math.ceil((MEASURES_TO_ACTIVE + 1) * sim.measureSeconds / 0.5);
+    const rate = Math.ceil((measuresToActive(200) + 1) * sim.measureSeconds / 0.5);
     expect(sim.runUntil(() => get('r1').docking === 'active', 0.9, rate)).toBe(true);
     // At once from the hold; from the arc, once the reverse has run back to its start (at most the arc's length).
     expect(sim.runUntil(() => sim!.activity() !== 'entering', sim.measureSeconds + 0.5)).toBe(true);
@@ -338,6 +365,71 @@ describe('the work loop under the real lifecycle tick (Phase 43 Task 24)', () =>
     expect(after).not.toContain('exiting');
     expect(sim.charging).toEqual([]);
   }, 30_000);
+});
+
+// ========================================
+// A COMPANY GOES IN ON ONE BAR LINE (roadmap 94 Task 25, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.11)
+// ========================================
+describe('a company goes in on one bar line (roadmap 94 Task 25)', () => {
+  const MEMBERS = ['r1', 'r2', 'r3'];
+  const OUT = new Set<RobotActivity | undefined>(['transit', 'working', 'waiting']);
+
+  it.each([60, 200])(
+    'at %i BPM: recalled together from out in the world, each waits at its port, and all three go in on one bar line',
+    (bpm) => {
+      sim = simulate(bpm, { company: true });
+      // Until the three are spread over the world: all out of the station, in at least two different activities.
+      expect(
+        sim.runUntil(() => {
+          const acts = MEMBERS.map((id) => get(id).activity);
+          return acts.every((a) => OUT.has(a)) && new Set(acts).size >= 2;
+        }, 240),
+      ).toBe(true);
+
+      const arrivedAt: Record<string, number> = {};
+      let mutedEarly = false;
+      // The engine's side of the fade, read at the call: the start and length the fade system hands it.
+      const fades: { id: string; time: number; seconds: number }[] = [];
+      const realFade = AudioEngine.scheduleStationFade.bind(AudioEngine);
+      const fadeSpy = vi.spyOn(AudioEngine, 'scheduleStationFade').mockImplementation((id, time, seconds) => {
+        fades.push({ id, time, seconds });
+        return realFade(id, time, seconds);
+      });
+      sim.recallNext(MEMBERS);
+      const exitTurn = get('r1').exitsAtMeasure!;
+      const barLine = (exitTurn + 1) * 16;
+      const unsubscribe = useLocaleStore.subscribe(() => {
+        for (const id of MEMBERS) {
+          const r = get(id);
+          if (r.activity === 'entering' && arrivedAt[id] === undefined) arrivedAt[id] = sim!.sixteenths();
+          if (sim!.sixteenths() < barLine && isDockMuted(r.docking, r.activity)) mutedEarly = true;
+        }
+      });
+      try {
+        expect(sim.runUntil(() => MEMBERS.every((id) => get(id).activity === 'charging'), (recallLeadBars(bpm) + 4) * sim.measureSeconds + 30)).toBe(true);
+      } finally {
+        unsubscribe();
+        fadeSpy.mockRestore();
+        // The engine keeps a fade's record until the robot next lands Active; the next case reuses these ids.
+        for (const id of MEMBERS) AudioEngine.cancelStationFade(id);
+      }
+
+      // Each reached its port before the hold's last bar, the three at different times, and waited there.
+      for (const id of MEMBERS) expect(arrivedAt[id], id).toBeLessThan(exitTurn * 16);
+      expect(new Set(MEMBERS.map((id) => arrivedAt[id])).size).toBeGreaterThan(1);
+      // One fade each, all started on the bar line of the exit turn's measure and ending on the hold's bar line.
+      expect(fades.map((f) => f.id).sort()).toEqual([...MEMBERS].sort());
+      for (const f of fades) {
+        expect(f.time, f.id).toBeCloseTo(exitTurn * 16 * (sim.measureSeconds / 16), 9);
+        expect(f.time + f.seconds, f.id).toBeCloseTo(barLine * (sim.measureSeconds / 16), 9);
+      }
+      // All three in their station ('charging') once the run is done; none muted by the dock before the bar line, and
+      // the freelancer still out.
+      expect(mutedEarly).toBe(false);
+      expect(get('r4').docking).toBe('active');
+    },
+    60_000,
+  );
 });
 
 // ========================================

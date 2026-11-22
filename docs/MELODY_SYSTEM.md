@@ -397,6 +397,13 @@ drift went with this piece.
   the trip and the level, without walking there: each key's turning measures are memoised per max time, drawn one pair
   at a time as a read needs them, and searched by halving. A max intensity of 0, measure 0 and a negative or
   non-finite measure give `{ position: 0, trip: 0, level: 0 }` without drawing.
+- **The turns, for the lifecycle** (roadmap 94). `journeyTurns(key, from, to)` lists the turning measures of `key`'s
+  journey in `[from, to]` at `JOURNEY_TIME_MAX`, each with its pair `index`, its `move` (the shares' distance,
+  `|share[i] − share[i−1]|`, the first pair's from home, 0 to 2, never one robot's scaled pairs) and whether it is a
+  `drop`. It reads the same memo `journeyAt` does and draws nothing a journey would not. The robot lifecycle reads it
+  to plan when a group comes and goes: a company leaves and comes back on turns of its company's journey, a freelancer
+  on the fleet's ([ROBOT_LIFECYCLE.md](ROBOT_LIFECYCLE.md#the-plan-roadmap-94)). The lifecycle only reads the journey;
+  nothing it does changes a journey or a melody.
 - **The stored robot's journey.** `robotJourney(robot, worldKey, bpmTop)` turns a stored robot into a `RobotJourney`:
   the key its Journey setting names, its max intensity (absent reads as `DEFAULT_JOURNEY_MAX_INTENSITY`, 0),
   `JOURNEY_TIME_MAX`, and the things the changes read: the floor, the seed and the octave range (absent when the robot

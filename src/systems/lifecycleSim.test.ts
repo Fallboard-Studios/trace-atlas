@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import alea from 'alea';
 import gsap from 'gsap';
 
@@ -13,14 +13,9 @@ vi.mock('../engine/beatClock', async (importOriginal) => {
 import {
   SIM_SEED_COORDS,
   SIM_MEASURES,
-  DRAIN_CANDIDATES,
   simNoiseMap,
-  buildSimRoster,
-  flatDrain,
-  activeCountsOverTime,
+  buildShiftSimRoster,
   percentile,
-  runDrainSim,
-  formatDrainReport,
   SIM_LOOP_SECONDS,
   SIM_LOOP_BPMS,
   COOLDOWN_CANDIDATES,
@@ -29,10 +24,14 @@ import {
   runLoopSim,
   runReadinessSim,
   formatReadinessReport,
+  formatDoorReport,
   createCoverTally,
-  runCoverSim,
-  formatCoverReport,
-  type CoverSimRow,
+  createGroupTally,
+  type GroupSnapshot,
+  type GroupTallyResult,
+  type TurnReader,
+  formatShiftCoverReport,
+  runShiftCoverSim,
   type CoverSnapshot,
   type CoverTallyResult,
   type LifecycleStep,
@@ -42,10 +41,15 @@ import {
   type LoopSimWorld,
   type ReadinessRow,
   type ReadinessSeedRow,
-  type SimBand,
 } from './lifecycleSim';
-import { activeDrain, stepRobotLifecycle, type RobotLifecycleSnapshot } from './robotSystems';
-import { generateBatterySize, spawnInitialRoster } from './spawnSystem';
+import { stepShiftLifecycle, type RobotLifecycleSnapshot, type ShiftLifecycleSnapshot } from './robotSystems';
+import {
+  generateCompanyId,
+  generateCompanyMembership,
+  generateRosterStart,
+  spawnInitialCompanies,
+  spawnInitialRoster,
+} from './spawnSystem';
 import { placeDistrict } from './districts';
 import { getWorkSite } from './workSites';
 import { isWorkSiteEligible } from './jobHosts';
@@ -59,16 +63,12 @@ import { DockingState, JobType, type Robot } from '../types/Robot';
 import type { Actor } from '../types/Actor';
 import {
   MAX_ROBOTS,
-  INITIAL_ACTIVE_ROBOTS_MIN,
-  INITIAL_ACTIVE_ROBOTS_MAX,
   SWIM_SPEED,
   STATION_ARC_SECONDS,
   WAIT_RETRY_SECONDS,
   BEATS_PER_MEASURE,
   BACK_HOSTS_ENABLED,
   BATTERY_CRITICAL_THRESHOLD,
-  BATTERY_SIZE_MIN,
-  BATTERY_SIZE_MAX,
 } from '../constants';
 
 // ========================================
@@ -100,7 +100,7 @@ afterEach(() => {
 // TESTS
 // ========================================
 
-describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening it)', () => {
+describe('lifecycleSim', () => {
   describe('the seed grid', () => {
     it('is the districts 121-coordinate grid: x and y each over -200..200 in steps of 40', () => {
       expect(SIM_SEED_COORDS).toHaveLength(121);
@@ -115,25 +115,9 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
     });
   });
 
-  describe('buildSimRoster', () => {
-    it(`builds ${MAX_ROBOTS} robots, a seeded ${INITIAL_ACTIVE_ROBOTS_MIN}-${INITIAL_ACTIVE_ROBOTS_MAX} of them Active at full battery, the rest Docked below 100 — no job anywhere (Task 3)`, () => {
-      for (const { x, y } of FEW_COORDS) {
-        const roster = buildSimRoster(simNoiseMap(x, y));
-        expect(roster).toHaveLength(MAX_ROBOTS);
-        const active = roster.filter((r) => r.docking === DockingState.Active);
-        expect(active.length).toBeGreaterThanOrEqual(INITIAL_ACTIVE_ROBOTS_MIN);
-        expect(active.length).toBeLessThanOrEqual(INITIAL_ACTIVE_ROBOTS_MAX);
-        for (const r of active) expect(r.batteryLevel).toBe(100);
-        for (const r of roster.filter((s) => s.docking === DockingState.Docked)) {
-          expect(r.batteryLevel).toBeGreaterThanOrEqual(0);
-          expect(r.batteryLevel).toBeLessThan(100);
-        }
-        for (const r of roster) expect('job' in r).toBe(false);
-        expect(new Set(roster.map((r) => r.id)).size).toBe(MAX_ROBOTS);
-      }
-    });
-
-    it('matches the real spawn path robot for robot — spawnInitialRoster, same coordinates', () => {
+  describe('the sim roster against the real spawn', () => {
+    // Roadmap 94 Task 23: spawn starts by groups, and buildShiftSimRoster matches it.
+    it('the shift sim roster matches the real spawn path robot for robot — spawnInitialRoster, same coordinates', () => {
       const x = 40;
       const y = -80;
       const localeId = 'lifecycle-sim-parity';
@@ -141,8 +125,15 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       spawnInitialRoster(localeId);
       const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
 
-      const sim = buildSimRoster(simNoiseMap(x, y));
-      const fields = (s: RobotLifecycleSnapshot | Robot) => ({ docking: s.docking, batteryLevel: s.batteryLevel, batterySize: s.batterySize });
+      const sim = buildShiftSimRoster(simNoiseMap(x, y), { bpm: 60, worldKey: `${x}:${y}` });
+      const fields = (s: ShiftLifecycleSnapshot | Robot) => ({
+        docking: s.docking,
+        batteryLevel: s.batteryLevel,
+        batterySize: s.batterySize,
+        entersAtMeasure: s.entersAtMeasure,
+        exitsAtMeasure: s.exitsAtMeasure,
+        shiftBpm: s.shiftBpm,
+      });
       expect(sim.map(fields)).toEqual(real.map(fields));
 
       // Guard against a coincidental pass on defaults: this seed must actually vary, and carry real sizes.
@@ -151,71 +142,28 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(new Set(real.map((r) => r.batterySize)).size).toBe(MAX_ROBOTS);
     });
 
-    // Even World Draws T3 (docs/specs/EVEN_WORLD_DRAWS.md §1.1): the roster's two draws are even, so the written shares
-    // mean their numbers. 3,000 worlds (a 60 x 50 block of plots): each share's tolerance is over 3 standard deviations.
-    describe('the roster draws even (Even World Draws T3)', () => {
-      // Built once, before these cases only (about 10 s), not at collection.
-      let ROSTERS: RobotLifecycleSnapshot[][] = [];
-      beforeAll(() => {
-        ROSTERS = Array.from({ length: 3000 }, (_, i) => buildSimRoster(simNoiseMap(i % 60, Math.floor(i / 60)), 'flat'));
-      }, 60_000);
-
-      it('two, three and four Active robots each start 33 % of worlds (+/-3 points)', () => {
-        const counts = ROSTERS.map((roster) => roster.filter((r) => r.docking === DockingState.Active).length);
-        for (const n of [2, 3, 4]) {
-          const share = counts.filter((c) => c === n).length / counts.length;
-          expect(share, `${n} Active`).toBeGreaterThanOrEqual(0.303);
-          expect(share, `${n} Active`).toBeLessThanOrEqual(0.363);
-        }
-      });
-
-      it('the docked batteries fill 0-99: 8-12 % in each outer tenth, and every whole value from 0 to 99 occurs', () => {
-        const batteries = ROSTERS.flatMap((roster) => roster.filter((r) => r.docking === DockingState.Docked).map((r) => r.batteryLevel));
-        const bottom = batteries.filter((b) => b <= 9).length / batteries.length;
-        const top = batteries.filter((b) => b >= 90).length / batteries.length;
-        for (const [tenth, share] of [['bottom', bottom], ['top', top]] as const) {
-          expect(share, `${tenth} tenth`).toBeGreaterThanOrEqual(0.08);
-          expect(share, `${tenth} tenth`).toBeLessThanOrEqual(0.12);
-        }
-        expect(new Set(batteries)).toEqual(new Set(Array.from({ length: 100 }, (_, i) => i)));
-      });
-
-      it('spawn and the sim make the same two draws: docking and battery agree index for index on 30 grid worlds, every Active count among them', () => {
-        const fields = (s: RobotLifecycleSnapshot | Robot) => ({ docking: s.docking, batteryLevel: s.batteryLevel });
+    // Even World Draws T3 (docs/specs/EVEN_WORLD_DRAWS.md §1.1), re-pinned at roadmap 94 Task 23: spawn starts by
+    // groups, so it agrees with the shift sim roster. (The old roster-index start's two draws went with Task 27.)
+    describe('the roster draws (Even World Draws T3)', () => {
+      it('spawn and the shift sim make the same draws: docking, battery and moves agree index for index on 30 grid worlds', () => {
+        const fields = (s: ShiftLifecycleSnapshot | Robot) => ({
+          docking: s.docking,
+          batteryLevel: s.batteryLevel,
+          entersAtMeasure: s.entersAtMeasure,
+          exitsAtMeasure: s.exitsAtMeasure,
+        });
         const activeCounts = new Set<number>();
         for (const [i, { x, y }] of SIM_SEED_COORDS.slice(0, 30).entries()) {
           const localeId = `even-world-roster-parity-${i}`;
           registerLocale(localeId, x, y);
           spawnInitialRoster(localeId);
           const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
-          expect(buildSimRoster(simNoiseMap(x, y)).map(fields), `${x}:${y}`).toEqual(real.map(fields));
+          expect(buildShiftSimRoster(simNoiseMap(x, y), { bpm: 60, worldKey: `${x}:${y}` }).map(fields), `${x}:${y}`).toEqual(real.map(fields));
           activeCounts.add(real.filter((r) => r.docking === DockingState.Active).length);
         }
-        // Not vacuous: the worlds compared start with two, three and four Active robots.
-        expect(activeCounts).toEqual(new Set([2, 3, 4]));
+        // Not vacuous: the worlds compared start with several different numbers of robots out.
+        expect(activeCounts.size).toBeGreaterThan(3);
       });
-    });
-
-    it('draws every size on the band it is given, from the same even draw (no-silence Task 8)', () => {
-      for (const { x, y } of FEW_COORDS) {
-        const noiseMap = simNoiseMap(x, y);
-        const banded = buildSimRoster(noiseMap, [0.67, 1.5]);
-        banded.forEach((r, i) => {
-          expect(r.batterySize).toBe(generateBatterySize(noiseMap, i, 0.67, 1.5));
-          expect(r.batterySize).toBeGreaterThanOrEqual(0.67);
-          expect(r.batterySize).toBeLessThan(1.5);
-        });
-        // The band changes the sizes only: docking and battery are the default roster's.
-        const strip = ({ batterySize: _size, ...rest }: RobotLifecycleSnapshot) => rest;
-        expect(banded.map(strip)).toEqual(buildSimRoster(noiseMap).map(strip));
-      }
-    });
-
-    it("'flat' builds today's fleet: the same roster with no size on any robot", () => {
-      const noiseMap = simNoiseMap(-40, 80);
-      const flat = buildSimRoster(noiseMap, 'flat');
-      for (const r of flat) expect('batterySize' in r).toBe(false);
-      expect(flat).toEqual(buildSimRoster(noiseMap).map(({ batterySize: _size, ...rest }) => rest));
     });
 
     it('uses the same noise map the live locale would (no attenuation-style override)', () => {
@@ -223,54 +171,45 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       const sim = simNoiseMap(120, 160);
       for (const [a, b] of [[0, 0], [3.7, -12.1], [100, 42]]) expect(sim(a, b)).toBe(live(a, b));
     });
-  });
 
-  describe('flatDrain', () => {
-    it('returns the same number for every snapshot, whatever its battery or docking', () => {
-      const [a, b] = buildSimRoster(simNoiseMap(0, 0));
-      expect(flatDrain(6)(a)).toBe(6);
-      expect(flatDrain(6)({ ...b, batteryLevel: 1, docking: DockingState.Docked })).toBe(6);
-    });
-  });
-
-  describe('DRAIN_CANDIDATES', () => {
-    it('is flat 5, 6 and 7, in that order — today\'s per-job rule is gone (Task 3), and flat 6 is the shipped default', () => {
-      expect(DRAIN_CANDIDATES.map((c) => c.label)).toEqual(['flat 5', 'flat 6', 'flat 7']);
-      const [r] = buildSimRoster(simNoiseMap(0, 0));
-      expect(DRAIN_CANDIDATES.map((c) => c.drain(r))).toEqual([5, 6, 7]);
-      expect(activeDrain(r)).toBe(DRAIN_CANDIDATES[1].drain(r));
-    });  });
-
-  describe('activeCountsOverTime', () => {
-    it('returns one Active count per measure, never above the roster', () => {
-      const noiseMap = simNoiseMap(-40, 80);
-      const counts = activeCountsOverTime(buildSimRoster(noiseMap), flatDrain(6), 300);
-      expect(counts).toHaveLength(300);
-      for (const n of counts) {
-        expect(n).toBeGreaterThanOrEqual(0);
-        expect(n).toBeLessThanOrEqual(MAX_ROBOTS);
+    // Roadmap 94 Task 15: the sim robots carry their groups.
+    it("carries each robot's company and composition seed as the real spawn seeds them", () => {
+      for (const [i, { x, y }] of [{ x: 40, y: -80 }, { x: -200, y: 80 }, { x: 160, y: 0 }].entries()) {
+        const localeId = `lifecycle-sim-groups-${i}`;
+        registerLocale(localeId, x, y);
+        spawnInitialRoster(localeId);
+        spawnInitialCompanies(localeId);
+        const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+        const sim = buildShiftSimRoster(simNoiseMap(x, y), { bpm: 60, worldKey: `${x}:${y}` });
+        const group =(r: { companyId?: string; compositionSeed: number }) => ({ companyId: r.companyId, compositionSeed: r.compositionSeed });
+        expect(sim.map(group), `${x}:${y}`).toEqual(real.map(group));
+        // Not vacuous: the world has companies and freelancers.
+        expect(sim.some((r) => r.companyId !== undefined)).toBe(true);
+        expect(sim.some((r) => r.companyId === undefined)).toBe(true);
+        // generateCompanyMembership's indices, company by company.
+        const noiseMap = simNoiseMap(x, y);
+        generateCompanyMembership(noiseMap, MAX_ROBOTS).forEach((members, c) => {
+          for (const m of members) expect(sim[m].companyId).toBe(generateCompanyId(noiseMap, c));
+        });
       }
     });
+  });
 
-    // The last Active robot stays up (no-silence Task 12, spec §5.1 case 7): over real seeded rosters, the shipped
-    // drain and band, the Active count never reaches zero — in 100 of 121 worlds it did before the rule.
-    it('over every world of the grid at SIM_MEASURES, the Active count never reaches zero (case 7)', () => {
-      const zeroWorlds = SIM_SEED_COORDS.filter(({ x, y }) => {
-        return activeCountsOverTime(buildSimRoster(simNoiseMap(x, y)), activeDrain, SIM_MEASURES).some((n) => n === 0);
-      });
-      expect(zeroWorlds).toEqual([]);
-    }, 60_000);
-
-    it('a heavier drain keeps fewer robots Active on average', () => {
-      const noiseMap = simNoiseMap(-40, 80);
-      const mean = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
-      const light = mean(activeCountsOverTime(buildSimRoster(noiseMap), flatDrain(3), 600));
-      const heavy = mean(activeCountsOverTime(buildSimRoster(noiseMap), flatDrain(9), 600));
-      expect(heavy).toBeLessThan(light);
-    });
-
-    it('zero measures is an empty series', () => {
-      expect(activeCountsOverTime(buildSimRoster(simNoiseMap(0, 0)), flatDrain(6), 0)).toEqual([]);
+  describe('buildShiftSimRoster (roadmap 94 Task 15)', () => {
+    it('is generateRosterStart, robot for robot, as snapshots for the new step', () => {
+      for (const { x, y } of FEW_COORDS) {
+        for (const bpm of [20, 60, 200]) {
+          const env = { bpm, worldKey: `${x}:${y}` };
+          const roster = buildShiftSimRoster(simNoiseMap(x, y), env);
+          const start = generateRosterStart(simNoiseMap(x, y), { ...env, startMeasure: 0 });
+          expect(roster).toHaveLength(MAX_ROBOTS);
+          roster.forEach((r, i) => {
+            expect(r.id).toBe(`sim-${i}`);
+            const { id: _id, ...rest } = r;
+            expect(rest).toEqual(start[i]);
+          });
+        }
+      }
     });
   });
 
@@ -292,62 +231,6 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
 
     it('throws on an empty list rather than returning undefined as a number', () => {
       expect(() => percentile([], 50)).toThrow();
-    });
-  });
-
-  describe('runDrainSim', () => {
-    it('returns one row per candidate, in order, with p10 <= mean <= p90 inside [1, MAX_ROBOTS]', () => {
-      const rows = runDrainSim({ coords: FEW_COORDS, measures: 300 });
-      expect(rows.map((r) => r.label)).toEqual(DRAIN_CANDIDATES.map((c) => c.label));
-      for (const r of rows) {
-        expect(r.p10).toBeLessThanOrEqual(r.mean);
-        expect(r.mean).toBeLessThanOrEqual(r.p90);
-        expect(r.p10).toBeGreaterThanOrEqual(1);
-        expect(r.p90).toBeLessThanOrEqual(MAX_ROBOTS);
-      }
-    });
-
-    it('is deterministic — the same table twice', () => {
-      expect(runDrainSim({ coords: FEW_COORDS, measures: 200 })).toEqual(runDrainSim({ coords: FEW_COORDS, measures: 200 }));
-    });
-
-    it('touches no store and no BeatClock', () => {
-      const getState = vi.spyOn(useLocaleStore, 'getState');
-      vi.mocked(subscribeToMeasure).mockClear();
-      vi.mocked(getCurrentMeasure).mockClear();
-      runDrainSim({ coords: FEW_COORDS, measures: 100 });
-      expect(getState).not.toHaveBeenCalled();
-      expect(subscribeToMeasure).not.toHaveBeenCalled();
-      expect(getCurrentMeasure).not.toHaveBeenCalled();
-    });
-
-    it('over the full grid and 2000 measures, reports every candidate — flat 6 at 5.10 mean Active on sized robots', () => {
-      const rows = runDrainSim();
-      expect(rows.map((r) => r.label)).toEqual(['flat 5', 'flat 6', 'flat 7']);
-      for (const r of rows) expect(Number.isFinite(r.mean)).toBe(true);
-      // Flat drains are ordered: more drain, fewer robots out.
-      expect(rows[0].mean).toBeGreaterThan(rows[1].mean);
-      expect(rows[1].mean).toBeGreaterThan(rows[2].mean);
-      // The base drains Crawford chose from were 5.70, 5.14 and 4.60 (commit 5bbbff3f) on unsized robots. Each robot's
-      // battery size now divides its drain and its charge, with the stay-up rule, on Gate A's 0.67-1.5 band
-      // (no-silence Task 14): 5.7136, 5.1025, 4.6633. On 0.8-1.25 they were 5.7069, 5.1035, 4.6512 (Task 12).
-      expect(rows.map((r) => r.mean.toFixed(2))).toEqual(['5.71', '5.10', '4.66']);
-      if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatDrainReport(rows)}`);
-    }, 60_000);
-  });
-
-  describe('formatDrainReport', () => {
-    it('renders a markdown table — header, separator, one row per candidate with two-decimal mean', () => {
-      const text = formatDrainReport([
-        { label: 'today', mean: 4.123, p10: 3, p90: 5 },
-        { label: 'flat 6', mean: 4.2, p10: 3, p90: 6 },
-      ]);
-      const lines = text.trim().split('\n');
-      expect(lines[0]).toMatch(/^\| Drain \| Mean Active \| p10 \| p90 \|$/);
-      expect(lines[1]).toMatch(/^\|[-| ]+\|$/);
-      expect(lines[2]).toBe('| today | 4.12 | 3 | 5 |');
-      expect(lines[3]).toBe('| flat 6 | 4.20 | 3 | 6 |');
-      expect(lines).toHaveLength(4);
     });
   });
 });
@@ -522,184 +405,192 @@ describe('createCoverTally (no-silence Task 1)', () => {
   });
 });
 
-// ========================================
-// COVER SIM (no-silence Task 2 — spec §1.5)
-// ========================================
+// Roadmap 94 Task 16 (spec §5.3): the group tally, on hand-built series.
+describe('createGroupTally (roadmap 94 Task 16)', () => {
+  /** A roster for the group tally: id, docking and company. */
+  const grp = (...robots: [string, DockingState, string?][]): GroupSnapshot[] =>
+    robots.map(([id, docking, companyId]) => ({ id, docking, ...(companyId ? { companyId } : {}) }));
+  const noTurns = () => false;
+  const run = (start: GroupSnapshot[], series: GroupSnapshot[][], isTurn: TurnReader = noTurns): GroupTallyResult => {
+    const tally = createGroupTally(start, isTurn);
+    for (const roster of series) tally.observe(roster);
+    return tally.result();
+  };
 
-/** The cover report's run length (spec §5.3): 6,000 measures a world, under LIFECYCLE_SIM_REPORT only. */
-const COVER_REPORT_MEASURES = 6000;
-
-/** The rows the reports print (plan Tasks 10 and 13): today's flat fleet and the three candidate bands. */
-const REPORT_BANDS: ReadonlyArray<{ label: string; band: SimBand }> = [
-  { label: 'flat', band: 'flat' },
-  { label: '0.9–1.1', band: [0.9, 1.1] },
-  { label: '0.8–1.25', band: [0.8, 1.25] },
-  { label: '0.67–1.5', band: [0.67, 1.5] },
-];
-
-describe('runCoverSim (no-silence Task 2)', () => {
-  it('one row with every field finite, shares inside 0-1, p10 <= mean <= p90, and stays counted with their lengths in order', () => {
-    // The whole grid, but short. Since the rule (Task 12) no world goes silent; the stays are what this case
-    // exercises: enough of them, of more than one length, to order.
-    const [row] = runCoverSim({ measures: 300 });
-    expect(row.worldsWithSilence).toBe(0);
-    expect(row.worldsWithStay).toBeGreaterThan(5);
-    expect(row.stayLength.median).toBeLessThanOrEqual(row.stayLength.p90);
-    expect(row.stayLength.p90).toBeLessThanOrEqual(row.stayLength.longest);
-    expect(row.stayLength.longest).toBeGreaterThan(row.stayLength.median);
-    expect(row.staysPer1000).toBeGreaterThan(0);
-    expect(row.stayShare).toBeGreaterThan(0);
-    expect(row.worlds).toBe(SIM_SEED_COORDS.length);
-    expect(row.measures).toBe(300);
-    const numbers = [
-      row.silentShare, row.worldsWithSilence, row.worldsWithStay, row.staysPer1000, row.stayShare,
-      row.stayLength.median, row.stayLength.p90, row.stayLength.longest,
-      row.sounding.mean, row.sounding.p10, row.sounding.p90,
-      row.cycles.shortest, row.cycles.longest, row.cycles.distinct,
-      row.sharing.median, row.sharing.max, row.heardShare.lowest, row.heardShare.highest,
-    ];
-    for (const n of numbers) expect(Number.isFinite(n)).toBe(true);
-    for (const share of [row.silentShare, row.stayShare, row.heardShare.lowest, row.heardShare.highest]) {
-      expect(share).toBeGreaterThanOrEqual(0);
-      expect(share).toBeLessThanOrEqual(1);
-    }
-    expect(row.sounding.p10).toBeLessThanOrEqual(row.sounding.mean);
-    expect(row.sounding.mean).toBeLessThanOrEqual(row.sounding.p90);
-    expect(row.heardShare.lowest).toBeLessThanOrEqual(row.heardShare.highest);
-    expect(row.cycles.shortest).toBeLessThanOrEqual(row.cycles.longest);
-    expect(row.worldsWithSilence).toBeLessThanOrEqual(row.worlds);
+  it('a company of three with one member home for 4 of its 10 sounding measures is 40 % apart', () => {
+    const series: GroupSnapshot[][] = [];
+    for (let m = 1; m <= 10; m++) series.push(grp(['a', A, 'co'], ['b', m <= 4 ? D : A, 'co'], ['c', R, 'co'], ['f', A]));
+    // Then two measures with the whole company home: not sounding, so neither apart nor together.
+    series.push(grp(['a', D, 'co'], ['b', D, 'co'], ['c', D, 'co'], ['f', A]));
+    series.push(grp(['a', D, 'co'], ['b', D, 'co'], ['c', D, 'co'], ['f', A]));
+    const result = run(grp(['a', A, 'co'], ['b', A, 'co'], ['c', A, 'co'], ['f', A]), series);
+    expect(result.companySounding).toBe(10);
+    expect(result.companyApart).toBe(4);
   });
 
-  it('agrees with its own count, world by world: silent measures, stays, measures in a stay and robots sounding off the real step', () => {
-    const SOUNDING = new Set<DockingState>([DockingState.Active, DockingState.Recalled]);
-    let stayWorlds = 0;
-    for (const { x, y } of SIM_SEED_COORDS) {
-      let roster = buildSimRoster(simNoiseMap(x, y));
-      let silent = 0;
-      let soundingTotal = 0;
-      let stays = 0;
-      let stayMeasures = 0;
-      let inStay = new Set<string>();
-      for (let measure = 1; measure <= 300; measure++) {
-        roster = stepRobotLifecycle(roster, measure);
-        const sounding = roster.filter((r) => SOUNDING.has(r.docking)).length;
-        soundingTotal += sounding;
-        if (sounding === 0) silent++;
-        // A stay: a robot Active at or below critical after a tick; consecutive measures are one stay.
-        const staying = new Set(roster.filter((r) => r.docking === DockingState.Active && r.batteryLevel <= BATTERY_CRITICAL_THRESHOLD).map((r) => r.id));
-        for (const id of staying) if (!inStay.has(id)) stays++;
-        if (staying.size > 0) stayMeasures++;
-        inStay = staying;
+  it('three members docking on one measure are one group exit; on two measures, one exit that is not', () => {
+    const together = run(grp(['a', R, 'co'], ['b', R, 'co'], ['c', R, 'co'], ['f', A]), [
+      grp(['a', D, 'co'], ['b', D, 'co'], ['c', D, 'co'], ['f', A]),
+    ]);
+    expect(together.companyExits).toBe(1);
+    expect(together.groupExits).toBe(1);
+    const apart = run(grp(['a', R, 'co'], ['b', R, 'co'], ['c', A, 'co'], ['f', A]), [
+      grp(['a', D, 'co'], ['b', D, 'co'], ['c', R, 'co'], ['f', A]),
+      grp(['a', D, 'co'], ['b', D, 'co'], ['c', D, 'co'], ['f', A]),
+    ]);
+    expect(apart.companyExits).toBe(1);
+    expect(apart.groupExits).toBe(0);
+  });
+
+  it("an exit on a turning measure counts as on a turn and one a bar off does not: a robot docks on the bar line after its exit turn", () => {
+    // Turns at 3 and 9 for every group.
+    const isTurn: TurnReader = (_robot, measure) => measure === 3 || measure === 9;
+    const series = [
+      grp(['a', R], ['f', A]), // 1
+      grp(['a', R], ['f', A]), // 2
+      grp(['a', R], ['f', A]), // 3
+      grp(['a', D], ['f', R]), // 4: a docks after its exit turn 3, on a turn
+      grp(['a', D], ['f', R]), // 5
+      grp(['a', D], ['f', D]), // 6: f docks after 5, no turn
+    ];
+    const result = run(grp(['a', A], ['f', A]), series, isTurn);
+    expect(result.exits).toBe(2);
+    expect(result.exitsOnTurn).toBe(1);
+  });
+
+  it("a group's first entrance counts on a turn; a staggered member's later landing is not another entrance", () => {
+    const isTurn: TurnReader = (_robot, measure) => measure === 2;
+    const result = run(grp(['a', D, 'co'], ['b', D, 'co']), [
+      grp(['a', U, 'co'], ['b', D, 'co']), // 1
+      grp(['a', A, 'co'], ['b', U, 'co']), // 2: the company comes out on a turn
+      grp(['a', A, 'co'], ['b', U, 'co']), // 3
+      grp(['a', A, 'co'], ['b', A, 'co']), // 4: the second member, staggered
+    ], isTurn);
+    expect(result.entrances).toBe(1);
+    expect(result.entrancesOnTurn).toBe(1);
+    // A company landing together is one entrance too.
+    const together = run(grp(['a', U, 'co'], ['b', U, 'co']), [grp(['a', A, 'co'], ['b', A, 'co'])], isTurn);
+    expect(together.entrances).toBe(1);
+  });
+
+  it('measures each group span out and home, counting only spans that began after the start', () => {
+    const series = [
+      grp(['a', A], ['b', D]), // 1
+      grp(['a', R], ['b', U]), // 2
+      grp(['a', D], ['b', A]), // 3: a home; b out from 3
+      grp(['a', D], ['b', A]), // 4
+      grp(['a', U], ['b', R]), // 5
+      grp(['a', A], ['b', D]), // 6: a out from 6 (home 3 -> 6 = 3); b home from 6 (out 3 -> 6 = 3)
+      grp(['a', A], ['b', D]), // 7
+      grp(['a', R], ['b', D]), // 8
+      grp(['a', D], ['b', D]), // 9: a home from 9 (out 6 -> 9 = 3)
+      grp(['a', D], ['b', U]), // 10
+      grp(['a', D], ['b', A]), // 11: b out from 11 (home 6 -> 11 = 5)
+    ];
+    const result = run(grp(['a', A], ['b', D]), series);
+    expect([...result.timesOut].sort((x, y) => x - y)).toEqual([3, 3]);
+    expect([...result.timesHome].sort((x, y) => x - y)).toEqual([3, 5]);
+  });
+
+  it('reads a company as one group: a span out runs from its first member out to its last member home', () => {
+    const series = [
+      grp(['a', A, 'co'], ['b', D, 'co'], ['f', A]), // 1: co out from 1
+      grp(['a', A, 'co'], ['b', A, 'co'], ['f', A]), // 2
+      grp(['a', D, 'co'], ['b', A, 'co'], ['f', A]), // 3
+      grp(['a', D, 'co'], ['b', D, 'co'], ['f', A]), // 4: co home from 4 (out 1 -> 4 = 3)
+    ];
+    const result = run(grp(['a', D, 'co'], ['b', D, 'co'], ['f', A]), series);
+    expect(result.timesOut).toEqual([3]);
+  });
+
+  it('does not mutate what it is handed, and gives the same result twice', () => {
+    const start = grp(['a', A, 'co'], ['b', A, 'co'], ['f', D]);
+    const series = [grp(['a', R, 'co'], ['b', A, 'co'], ['f', U]), grp(['a', D, 'co'], ['b', R, 'co'], ['f', A])];
+    const copy = structuredClone([start, series]);
+    const tally = createGroupTally(start, noTurns);
+    for (const r of series) tally.observe(r);
+    expect(tally.result()).toEqual(tally.result());
+    expect([start, series]).toEqual(copy);
+  });
+});
+
+// Roadmap 94 Task 17 (spec §5.3, §5.5): the cover sim on the shift step, at a tempo.
+describe('runShiftCoverSim (roadmap 94 Task 17)', () => {
+  const ONE = [{ x: 40, y: -80 }];
+  const SHIFT_TEMPOS = [20, 40, 60, 100, 200] as const;
+  /** A world's key, as the sim reads it. */
+  const keyOf = ({ x, y }: { x: number; y: number }) => `${x}:${y}`;
+
+  it('one world: the row equals the counts the test makes itself', () => {
+    const measures = 400;
+    const env = { bpm: 60, worldKey: keyOf(ONE[0]) };
+    const noiseMap = simNoiseMap(ONE[0].x, ONE[0].y);
+    let roster: ShiftLifecycleSnapshot[] = buildShiftSimRoster(noiseMap, env);
+    let silent = 0;
+    let sounding = 0;
+    let companySounding = 0;
+    let companyApart = 0;
+    for (let m = 1; m <= measures; m++) {
+      roster = stepShiftLifecycle(roster, m, env);
+      const out = roster.filter((r) => r.docking === A || r.docking === R);
+      sounding += out.length;
+      if (out.length === 0) silent++;
+      const companies = new Set(roster.map((r) => r.companyId).filter(Boolean));
+      for (const c of companies) {
+        const members = roster.filter((r) => r.companyId === c);
+        const n = members.filter((r) => r.docking === A || r.docking === R).length;
+        if (n > 0) companySounding++;
+        if (n > 0 && n < members.length) companyApart++;
       }
-      const [row] = runCoverSim({ coords: [{ x, y }], measures: 300 });
-      expect(row.silentShare * 300).toBeCloseTo(silent, 9);
-      expect(row.worldsWithSilence).toBe(silent > 0 ? 1 : 0);
-      expect(row.sounding.mean).toBeCloseTo(soundingTotal / 300, 9);
-      expect((row.staysPer1000 * 300) / 1000).toBeCloseTo(stays, 9);
-      expect(row.stayShare * 300).toBeCloseTo(stayMeasures, 9);
-      expect(row.worldsWithStay).toBe(stays > 0 ? 1 : 0);
-      if (stays > 0) stayWorlds++;
     }
-    // Guard against a coincidental pass on all-zero counts: some of these worlds must hold a stay.
-    expect(stayWorlds).toBeGreaterThan(0);
-  }, 30_000);
+    const [row] = runShiftCoverSim({ coords: ONE, measures, bpms: [60] });
+    expect(row.bpm).toBe(60);
+    expect(row.silentShare).toBe(silent / measures);
+    expect(row.sounding.mean).toBeCloseTo(sounding / measures, 12);
+    expect(row.apartShare).toBeCloseTo(companyApart / companySounding, 12);
+  });
 
-  // The last Active robot stays up (no-silence Task 12, spec §5.1 case 17): the always-on grid pass.
-  it('over the grid at SIM_MEASURES on the shipped band, no world has a silent measure (case 17)', () => {
-    const [row] = runCoverSim();
-    expect(row.measures).toBe(SIM_MEASURES);
+  it('the shift step is never silent over the grid at 60 BPM for 2,000 measures, and every exit and group entrance lands on a turn', () => {
+    const [row] = runShiftCoverSim({ measures: SIM_MEASURES, bpms: [60] });
     expect(row.worlds).toBe(SIM_SEED_COORDS.length);
-    expect(row.worldsWithSilence).toBe(0);
     expect(row.silentShare).toBe(0);
-  }, 60_000);
+    expect(row.exits).toBeGreaterThan(1000);
+    expect(row.exitsOnTurnShare).toBe(1);
+    expect(row.entrancesOnTurnShare).toBe(1);
+    expect(row.plannedOffTurn).toBe(0);
+  }, 120_000);
 
-  it('pools the tally over worlds: staysPer1000 and the shares are per measure per world', () => {
-    const [one] = runCoverSim({ coords: [FEW_COORDS[0]], measures: 300 });
-    const [two] = runCoverSim({ coords: [FEW_COORDS[0], FEW_COORDS[0]], measures: 300 });
-    expect(two.silentShare).toBeCloseTo(one.silentShare, 12);
-    expect(two.staysPer1000).toBeCloseTo(one.staysPer1000, 12);
-    expect(two.stayShare).toBeCloseTo(one.stayShare, 12);
-    expect(two.sounding.mean).toBeCloseTo(one.sounding.mean, 12);
-    expect(two.worldsWithSilence).toBe(2 * one.worldsWithSilence);
-  });
+  it('the shift step is never silent, and lands on turns, over a few worlds at 20, 40, 100 and 200 BPM', () => {
+    const rows = runShiftCoverSim({ coords: SIM_SEED_COORDS.slice(0, 121).filter((_, i) => i % 20 === 0), measures: SIM_MEASURES, bpms: [20, 40, 100, 200] });
+    expect(rows.map((r) => r.bpm)).toEqual([20, 40, 100, 200]);
+    for (const r of rows) {
+      expect(r.silentShare, `${r.bpm}`).toBe(0);
+      expect(r.exitsOnTurnShare, `${r.bpm}`).toBe(1);
+      expect(r.entrancesOnTurnShare, `${r.bpm}`).toBe(1);
+      expect(r.plannedOffTurn, `${r.bpm}`).toBe(0);
+    }
+  }, 120_000);
 
-  it('is deterministic — the same rows twice', () => {
-    const rows = [{ label: 'flat', band: 'flat' as const }, { label: 'wide', band: [0.67, 1.5] as const }];
-    expect(runCoverSim({ coords: FEW_COORDS, measures: 200, rows })).toEqual(runCoverSim({ coords: FEW_COORDS, measures: 200, rows }));
-  });
-
-  describe('rows on a band each (no-silence Task 9)', () => {
-    const rows = [
-      { label: 'flat', band: 'flat' as const },
-      { label: '0.9-1.1', band: [0.9, 1.1] as const },
-      { label: '0.67-1.5', band: [0.67, 1.5] as const },
-    ];
-
-    it('come back in the order asked, labelled, each built on its own band', () => {
-      const result = runCoverSim({ coords: FEW_COORDS, measures: 300, rows });
-      expect(result.map((r) => r.label)).toEqual(['flat', '0.9-1.1', '0.67-1.5']);
-      rows.forEach((spec, i) => expect(result[i]).toEqual(runCoverSim({ coords: FEW_COORDS, measures: 300, rows: [spec] })[0]));
-      expect(result[1]).not.toEqual({ ...result[2], label: result[1].label });
-    });
-
-    it('with no rows asked, one row labelled shipped on the shipped band', () => {
-      const result = runCoverSim({ coords: FEW_COORDS, measures: 300 });
-      expect(result).toHaveLength(1);
-      const shipped = runCoverSim({ coords: FEW_COORDS, measures: 300, rows: [{ label: 'shipped', band: [BATTERY_SIZE_MIN, BATTERY_SIZE_MAX] }] });
-      expect(result).toEqual(shipped);
-    });
-
-    it("the 'flat' row has one cycle length, every robot's 35 measures; a banded row has several", () => {
-      const [flat, narrow, wide] = runCoverSim({ coords: FEW_COORDS, measures: 300, rows });
-      expect(flat.cycles).toEqual({ shortest: 35, longest: 35, distinct: 1 });
-      expect(narrow.cycles.distinct).toBeGreaterThan(1);
-      expect(wide.cycles.distinct).toBeGreaterThan(narrow.cycles.distinct);
-      expect(wide.cycles.shortest).toBeLessThan(35);
-      expect(wide.cycles.longest).toBeGreaterThan(35);
-    });
-  });
-
-  it('touches no store and no BeatClock', () => {
-    const getState = vi.spyOn(useLocaleStore, 'getState');
-    vi.mocked(subscribeToMeasure).mockClear();
-    vi.mocked(getCurrentMeasure).mockClear();
-    runCoverSim({ coords: FEW_COORDS, measures: 100 });
-    expect(getState).not.toHaveBeenCalled();
+  it('is deterministic, and reads no store and no clock', () => {
+    const a = runShiftCoverSim({ coords: ONE, measures: 300, bpms: [97] });
+    const b = runShiftCoverSim({ coords: ONE, measures: 300, bpms: [97] });
+    expect(a).toEqual(b);
     expect(subscribeToMeasure).not.toHaveBeenCalled();
     expect(getCurrentMeasure).not.toHaveBeenCalled();
   });
 
-  it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)(`the report: the full grid at ${COVER_REPORT_MEASURES} measures a world`, () => {
-    const rows = runCoverSim({ measures: COVER_REPORT_MEASURES, rows: REPORT_BANDS });
-    console.log(`\n${formatCoverReport(rows)}`);
-  }, 300_000);
-});
-
-describe('formatCoverReport', () => {
-  const row: CoverSimRow = {
-    label: 'today',
-    worlds: 121,
-    measures: 6000,
-    silentShare: 0.034,
-    worldsWithSilence: 79,
-    worldsWithStay: 0,
-    staysPer1000: 0,
-    stayLength: { median: 0, p90: 0, longest: 0 },
-    stayShare: 0,
-    sounding: { mean: 5.5, p10: 2, p90: 9 },
-    cycles: { shortest: 35, longest: 35, distinct: 1 },
-    sharing: { median: 12, max: 12 },
-    heardShare: { lowest: 0.457, highest: 0.458 },
-  };
-
-  it('renders a header, a separator and one line per row, and nothing after', () => {
-    const lines = formatCoverReport([row, { ...row, label: 'size only' }]).trim().split('\n');
-    expect(lines[0]).toMatch(/^\| Row \| Silent measures \|/);
-    expect(lines[1]).toMatch(/^\|[-| ]+\|$/);
-    expect(lines[2]).toMatch(/^\| today \| 3\.40 % \| 79 \/ 121 \|/);
-    expect(lines[3]).toMatch(/^\| size only \|/);
-    expect(lines).toHaveLength(4);
+  it('formatShiftCoverReport renders one line per row, under a header', () => {
+    const rows = runShiftCoverSim({ coords: ONE, measures: 200, bpms: [60, 200] });
+    const lines = formatShiftCoverReport(rows).split('\n');
+    expect(lines).toHaveLength(2 + rows.length);
+    expect(lines[2].startsWith('| 60 |')).toBe(true);
+    expect(lines[3].startsWith('| 200 |')).toBe(true);
   });
+
+  it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)('the report: the grid at 20, 40, 60, 100 and 200 BPM, 2,000 measures a world', () => {
+    const rows = runShiftCoverSim({ measures: SIM_MEASURES, bpms: SHIFT_TEMPOS });
+    console.log(`\n${formatShiftCoverReport(rows)}`);
+  }, 600_000);
 });
 
 // ========================================
@@ -902,6 +793,81 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       const { trace } = runScenario({ world, roster: [snap('r0', DockingState.Active), snap('r1', DockingState.Docked)], step });
       const r1 = eventsOf(trace, 'r1').map((e) => [e.activity, +e.t.toFixed(3), e.siteId]);
       expect(r1.slice(1, 3)).toEqual([['exiting', 3, undefined], ['transit', 3 + STATION_ARC_SECONDS, 'a']]);
+    });
+  });
+
+  // Roadmap 94 Task 19 (spec §1.11): with the door on, a Recalled robot at its port waits for its hold's last bar and
+  // goes in on the hold's bar line; one arriving with under half a measure left, or Docked already, is late.
+  describe('runLoopSim — the wait at the door (roadmap 94 Task 19)', () => {
+    const port: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [] };
+    const far: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [{ id: 'a', jobs: [VENT], park: { x: 1200, y: 0 } }] };
+    /** A member of 'co', Active. */
+    const member = (id: string): RobotLifecycleSnapshot => ({ ...snap(id, DockingState.Active), companyId: 'co' } as RobotLifecycleSnapshot);
+    /** A lifecycle that sets docking and the hold where the script says, at that measure. */
+    const holds = (plan: Record<number, Record<string, [DockingState, number?]>>): LifecycleStep => (roster, measure) =>
+      roster.map((r) => {
+        const s = plan[measure]?.[r.id];
+        return s ? { ...r, docking: s[0], dockingHoldUntilMeasure: s[1] } : r;
+      });
+    const entering = (trace: LoopSimEvent[]) => eventsOf(trace, 'r0').filter((e) => e.activity === 'entering' || e.activity === 'charging').map((e) => [e.activity, +e.t.toFixed(3)]);
+
+    it('an early arrival waits at the door, visible, until the last bar of its hold, and goes in on the bar line', () => {
+      // 240 BPM, a measure a second. Recalled at 3 with its hold at 6 (its exit turn 5), at its port already: it
+      // enters at 3, waits to 5, fades over the last bar and is charging at 6, as the hold lands.
+      const step = holds({ 3: { r0: [DockingState.Recalled, 6] }, 6: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: port, roster: [member('r0')], step, door: true });
+      expect(entering(trace)).toEqual([['entering', 3], ['charging', 6]]);
+      expect(result.doorWaits.map((w) => +w.toFixed(3))).toEqual([2]);
+      expect(result.memberExits).toBe(1);
+      expect(result.lateMembers).toBe(0);
+      expect(result.chargingWhileVisible).toBe(0);
+      expect(result.longestDockedVisible).toBe(0);
+    });
+
+    it('an arrival inside the first half of the last bar fades over what is left and goes in on the bar line', () => {
+      // 192 BPM, a measure 1.25 s. Recalled at measure 2 (2.5 s) 180 px out: home at 4.0, inside the last bar
+      // 3.75 to 5.0 with 1.0 s left (over half). Its hold is 4: charging at 5.0, no wait.
+      const step = holds({ 2: { r0: [DockingState.Recalled, 4] }, 4: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: far, roster: [member('r0')], step, bpm: 192, door: true });
+      expect(entering(trace)).toEqual([['entering', 4], ['charging', 5]]);
+      expect(result.doorWaits).toEqual([0]);
+      expect(result.lateMembers).toBe(0);
+    });
+
+    it('a late arrival, Docked already, takes the next bar line: at once with half a measure or more left', () => {
+      // As above with its hold at 3 (3.75 s): home at 4.0, Docked already; 1.0 s to the next bar line, so at once.
+      const step = holds({ 2: { r0: [DockingState.Recalled, 3] }, 3: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: far, roster: [member('r0')], step, bpm: 192, door: true });
+      expect(entering(trace)).toEqual([['entering', 4], ['charging', 5]]);
+      expect(result.doorWaits).toEqual([0]);
+      expect(result.memberExits).toBe(1);
+      expect(result.lateMembers).toBe(1);
+    });
+
+    it('a late arrival with under half a measure left before its hold holds to that bar line, then fades over the next measure', () => {
+      // 300 BPM, a measure 0.8 s. Recalled at measure 2 (1.6 s) 72 px out with its hold at 3 (2.4 s): home at 2.2,
+      // 0.2 s before the hold's bar line (under 0.4), so it is late: it holds to 2.4 and goes in on 3.2.
+      const step = holds({ 2: { r0: [DockingState.Recalled, 3] }, 3: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: far, roster: [member('r0')], step, bpm: 300, door: true });
+      expect(entering(trace)).toEqual([['entering', 2.2], ['charging', 3.2]]);
+      expect(result.doorWaits.map((w) => +w.toFixed(3))).toEqual([0.2]);
+      expect(result.lateMembers).toBe(1);
+    });
+
+    it('counts a freelancer arrival, but not as a member exit', () => {
+      const step = holds({ 3: { r0: [DockingState.Recalled, 6] }, 6: { r0: [DockingState.Docked] } });
+      const { result } = runScenario({ world: port, roster: [snap('r0', DockingState.Active)], step, door: true });
+      expect(result.arrivals).toBe(1);
+      expect(result.memberExits).toBe(0);
+      expect(result.doorWaits).toHaveLength(1);
+    });
+
+    it('with the door off, nothing changes: the entry is the arc, and no door is counted', () => {
+      const step = holds({ 3: { r0: [DockingState.Recalled, 6] }, 6: { r0: [DockingState.Docked] } });
+      const { result, trace } = runScenario({ world: port, roster: [member('r0')], step });
+      expect(entering(trace)).toEqual([['entering', 3], ['charging', 3 + STATION_ARC_SECONDS]]);
+      expect(result.doorWaits).toEqual([]);
+      expect(result.arrivals).toBe(0);
     });
   });
 
@@ -1111,29 +1077,6 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       expect(b).toEqual(a);
     });
 
-    it('runs on the band it is given, and with none on the shipped one (no-silence Task 9)', () => {
-      const candidates = COOLDOWN_CANDIDATES.slice(0, 1);
-      const run = (band?: SimBand) => runReadinessSim({ worlds, seconds: 600, bpms: [200], candidates, band });
-      const byDefault = run();
-      expect(byDefault).toEqual(run([BATTERY_SIZE_MIN, BATTERY_SIZE_MAX]));
-      // A different roster moves the loop: 'flat' and another band each differ from the shipped band and from each other.
-      const flat = run('flat');
-      const other = run([0.8, 1.25]);
-      expect(flat.seeds).not.toEqual(byDefault.seeds);
-      expect(other.seeds).not.toEqual(byDefault.seeds);
-      expect(other.seeds).not.toEqual(flat.seeds);
-    }, 30_000);
-
-    it('at 200 BPM the lifecycle docks a recalled robot sooner, so it is visible-while-Docked longer than at 20 BPM', () => {
-      // Turn-backs are not compared: on the shipped 0.67-1.5 band the shortest Docked stay is 14 measures (a size-0.67
-      // robot's 11-measure shift, then 1.2 × 11 rounded up), 16.8 s at 200 BPM, and it still outlasts the longest walk
-      // home: the loop sim measured 0 turn-backs at 20, 110 and 200 BPM on every band (no-silence Task 13).
-      const { rows } = runReadinessSim({ worlds, seconds: 600 });
-      const at = (bpm: number) => rows.find((r) => r.bpm === bpm)!;
-      expect(Number.isFinite(at(200).longestDockedVisible)).toBe(true);
-      expect(at(200).longestDockedVisible).toBeGreaterThan(at(20).longestDockedVisible);
-    }, 30_000);
-
     it('over the full grid at 20, 110 and 200 BPM for 10 minutes: zero robots charging while visible (the report is printed with LIFECYCLE_SIM_REPORT)', () => {
       const grid = SIM_SEED_COORDS.map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
       const { rows, seeds } = runReadinessSim({ worlds: grid });
@@ -1141,20 +1084,28 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatReadinessReport(rows, seeds)}`);
     }, 120_000);
 
-    it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)('the report: the full grid at 20, 110 and 200 BPM for 10 minutes on each band', () => {
+    // Roadmap 94 Task 19: the shift step with the door on.
+    it('a few worlds at 110 BPM: members reach their ports, nobody charges while visible', () => {
+      const few = SIM_SEED_COORDS.slice(0, 121).filter((_, i) => i % 30 === 0).map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
+      const { rows } = runReadinessSim({ worlds: few, bpms: [110], candidates: COOLDOWN_CANDIDATES.slice(0, 1) });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].memberExits).toBeGreaterThan(0);
+      expect(rows[0].chargingWhileVisible).toBe(0);
+      expect(rows[0].doorWait.longest).toBeGreaterThan(0);
+      expect(formatDoorReport(rows).split('\n')).toHaveLength(3);
+    }, 120_000);
+
+    it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)('the door report: the full grid at 20, 110 and 200 BPM for 10 minutes', () => {
       const grid = SIM_SEED_COORDS.map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
-      const candidates = COOLDOWN_CANDIDATES.slice(0, 1);
-      for (const { label, band } of REPORT_BANDS) {
-        const { rows, seeds } = runReadinessSim({ worlds: grid, candidates, band });
-        console.log(`\n### Band ${label}\n\n${formatReadinessReport(rows, seeds)}`);
-      }
+      const { rows } = runReadinessSim({ worlds: grid, candidates: COOLDOWN_CANDIDATES.slice(0, 1) });
+      console.log(`\n${formatDoorReport(rows)}\n\n${formatReadinessReport(rows, [])}`);
     }, 600_000);
   });
 
   describe('formatReadinessReport', () => {
     it('renders the overall table, then the worst seeds by waiting share', () => {
       const rows: ReadinessRow[] = [
-        { label: 'c', bpm: 20, meanWaitingShare: 0.05, p95WaitingShare: 0.12, longestWait: 14, p95Wait: 6, switchesPerStint: 1.5, turnBacks: 0, chargingWhileVisible: 0, longestDockedVisible: 0 },
+        { label: 'c', bpm: 20, meanWaitingShare: 0.05, p95WaitingShare: 0.12, longestWait: 14, p95Wait: 6, switchesPerStint: 1.5, turnBacks: 0, chargingWhileVisible: 0, longestDockedVisible: 0, memberExits: 0, lateMembers: 0, doorWait: { median: 0, p90: 0, longest: 0 } },
       ];
       const seeds: ReadinessSeedRow[] = [
         { label: 'c', bpm: 20, x: 0, y: 0, sites: 9, waitingShare: 0.01, longestWait: 2, switchesPerStint: 1, turnBacks: 0 },

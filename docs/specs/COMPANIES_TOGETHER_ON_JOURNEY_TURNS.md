@@ -21,6 +21,9 @@ five phases, awaiting his approval. The plan departs from §1.8 and §2 in one w
 function beside `stepRobotLifecycle`, which stays until the removals task, so today's rows can be run at any point
 before then (not only "first", as §3 and §5.3 word it).
 
+**Built 2026-11-20** on `feature/companies-together` without Gate A or Gate B (Crawford away, at his word): see §8, "As
+built". Both gates passed 2026-11-22 on his listen (§8.1).
+
 **Where the facts come from.** Everything marked **(code)** was read on 2026-11-20 on `docs/companies-together-intent`,
 which sat on `feature/journey-dynamics` (roadmap 93; both reached main on 2026-11-20 with PR #657). Numbers marked **(measured)** are from
 [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md) or the intent's scratch probe. Every new number in this spec is a **first
@@ -130,8 +133,9 @@ Every length below is written in bars at `SHIFT_REFERENCE_BPM` (60, where a bar 
 
 `SHIFT_OUT_BASE_BARS` 15 and `SHIFT_HOME_BASE_BARS` 20 are today's size-1 robot (15 measures out, 20 from recall to
 `Active` again); `SHIFT_OUT_MAX_BARS` 40 and `SHIFT_HOME_MAX_BARS` 50 are Crawford's stuck limits; `SHIFT_MIN_BARS` 8
-is his floor. The "most" is never less than 16 measures past the "least", so a window always holds a turn. For a
-size-1 group:
+is his floor. The "most" is never less than 16 measures past the "least", so a window always holds a turn. (The four
+lengths became 12, 16, 32 and 40 on 2026-11-21, 20 % shorter at his ear, and the floor went the same day: §8.1. The
+table below is the first cut.) For a size-1 group:
 
 | Tempo | A bar | Out, least to most | Home, least to most | Least out in seconds |
 |---|---|---|---|---|
@@ -245,7 +249,8 @@ charge rate no longer exist as rates (§7.2 Q3).
   and takes today's rule: the next bar line. Its sound ends a bar or more after its mates'. The loop sim counts
   these (§5.3).
 - A soloed robot gets the arc and no fade, as today. A turn-back needs no new rule: an entrance is never less than
-  `SHIFT_MIN_BARS` after an exit, so the only path is still the hidden tab.
+  `SHIFT_MIN_BARS` after an exit, so the only path is still the hidden tab. (Since 2026-11-21 there is no
+  `SHIFT_MIN_BARS`; the home window's least, about 43 s at the smallest size, does the same: §8.1.)
 
 ### 1.12 A tempo change
 
@@ -413,11 +418,11 @@ The constants, beside the battery's in `src/constants/index.ts`, every value a f
 
 ```typescript
 export const SHIFT_REFERENCE_BPM = 60;
-export const SHIFT_OUT_BASE_BARS = 15;
-export const SHIFT_HOME_BASE_BARS = 20;
-export const SHIFT_OUT_MAX_BARS = 40;   // Crawford, 2026-11-20
-export const SHIFT_HOME_MAX_BARS = 50;  // Crawford, 2026-11-20
-export const SHIFT_MIN_BARS = 8;        // Crawford, 2026-11-20
+export const SHIFT_OUT_BASE_BARS = 15;  // 12 since 2026-11-21 (§8.1)
+export const SHIFT_HOME_BASE_BARS = 20; // 16 since 2026-11-21
+export const SHIFT_OUT_MAX_BARS = 40;   // Crawford, 2026-11-20; 32 since 2026-11-21
+export const SHIFT_HOME_MAX_BARS = 50;  // Crawford, 2026-11-20; 40 since 2026-11-21
+export const SHIFT_MIN_BARS = 8;        // Crawford, 2026-11-20; removed 2026-11-21 (§8.1)
 export const SHIFT_LEAVE_ODDS_MIN = 0.35;
 export const SHIFT_LEAVE_ODDS_MAX = 0.95;
 export const GROUP_EXIT_ODDS_MIN = 0.5; // "never worse than a coin flip"
@@ -593,3 +598,116 @@ First cuts; Gate A may move any of them.
 - **Q6. CLAUDE.md.** Its ROBOT_LIFECYCLE.md line describes "a seeded battery size that divides drain and recharge,
   the stay-up rule that keeps the last Active robot out". This spec rewrites that line in the docs task. Confirming,
   because the file's guardrails are his.
+
+---
+
+## 8. As built
+
+Built 2026-11-20 on `feature/companies-together`, Tasks 1 to 26 and 28 to 29 of
+[the plan](../tasks/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md), at Crawford's word to build the whole plan without
+pausing while he was away. The plan's Results holds every measured number.
+
+### 8.1 What the gates moved
+
+**Nothing.** Gate A and Gate B were not held: he was away. Every constant of §4 ships at its first cut, with the value
+§4 gives: `SHIFT_REFERENCE_BPM` 60, `SHIFT_OUT_BASE_BARS` 15, `SHIFT_HOME_BASE_BARS` 20, `SHIFT_OUT_MAX_BARS` 40,
+`SHIFT_HOME_MAX_BARS` 50, `SHIFT_MIN_BARS` 8, `RECALL_LEAD_SECONDS` 24, `SHIFT_LEAVE_ODDS_MIN` / `MAX` 0.35 / 0.95,
+`GROUP_EXIT_ODDS_MIN` / `MAX` 0.5 / 0.95, `SHIFT_ENTER_ODDS` 0.5, `ENTRANCE_TOGETHER_ODDS` 0.7,
+`ENTRANCE_STAGGER_BARS` 2, `BATTERY_EASE_SHARE` 0.125, `SHIFT_START_OUT_ODDS` 0.45. The questions of §7.2 stand at
+their defaults; Q3 (the removals) and Q6 (CLAUDE.md, §8.4) wait for his yes. (Q3: yes, 2026-11-22, built as the plan's
+Task 27.)
+
+**2026-11-21, at his ear:** "robots linger slightly too long, and it takes a little too long for them to reappear. by
+like, 20%". `SHIFT_OUT_BASE_BARS` 15 → 12, `SHIFT_OUT_MAX_BARS` 40 → 32, `SHIFT_HOME_BASE_BARS` 20 → 16,
+`SHIFT_HOME_MAX_BARS` 50 → 40. `SHIFT_MIN_BARS` (his floor) and the 16-bar window width stay, so at 20 BPM the windows
+do not move and at 40 BPM they move less than 20 %. The re-run rows are in the plan's Results; §8.2 below is the
+first cut's.
+
+**2026-11-21, later:** "let's get rid of the minimum shift". `SHIFT_MIN_BARS` is gone: a window's least is the paced
+base × size with no floor (§1.5's `max(SHIFT_MIN_BARS, …)` is now just the `round(…)`). The least out still passes the
+recall lead at every tempo from 20 to 200 BPM, and a turn-back still needs the hidden tab (§1.11): from a recall to
+`Active` again is the lead and the home least, about 24 s + 43 s at the least, longer than any trip home. The stagger
+cap moved with it (§8.3).
+
+**2026-11-22, Gates A and B passed:** "i listened, i'm happy with everything" ("yes, includes 94 too"). Nothing
+further moved: the constants stand as the two moves above left them, the misses of §8.2 included, and Q1 and Q2 stand
+at their defaults.
+
+### 8.2 §5.5, criterion by criterion
+
+| Criterion | As measured |
+|---|---|
+| No silent measure, any grid world, any of five tempos | Met (always-on test at 60 BPM over the grid; six worlds at the others; the report at all five). |
+| Every exit turn and group entrance on a turn | Met: 100 % at all five tempos (always-on test). |
+| Apart share at or under 20 % | **Missed at 20 BPM (25.1 %) and 40 BPM (20.4 %)**; met at 60, 100, 200 (15.9, 11.2, 6.3 %). Today 91.9 %. |
+| Group exits at or over 75 % | Met: 82.2–85.4 %. Today 4.2 %. |
+| Median time out within a third of 60 BPM's at 40, 100, 200 | Met: 114, 89 and 76 s against 100 s. 20 BPM: 180 s. |
+| No time out past its most but in a stay; no time home past its most | Home met. Out not separable from the report's row (it holds drift and stays); its p90 is over the most only at 20 BPM. |
+| Robots sounding, a mean of 4.5 to 6 | Met: 5.29–5.85. |
+| Late members under 5 % | Met: 0 of 1,320 / 2,812 / 3,124 member exits at 20 / 110 / 200 BPM. |
+| A battery never moves the wrong way or repeats | Met (a test over 600 measures at three tempos). |
+| Live tick and replay identical | Met (the prove-it, through a stay, its relief, a group exit and a drifting exit). |
+| Gate B passed; docs updated; archived after the merge | Gate B passed on his listen (2026-11-22); docs updated (Tasks 28, 29); the archive waits for the merge. |
+
+### 8.3 Where the build departed from this spec
+
+- **New beside old** (the plan's architecture decision): the step is a new function, `stepShiftLifecycle(roster,
+  measure, env)`, with its own snapshot type `ShiftLifecycleSnapshot`; `stepRobotLifecycle`, `DrainRule`,
+  `activeDrain`, the drain sim and `buildSimRoster`'s roster-index start stay, read by the sims' "today" rows only,
+  until the removals (Q3). `ShiftEnv` lives in `shiftPlan.ts`. `replayLifecycle` takes the shift step's `env` in
+  place of a drain rule.
+- **The recall is decided per group, not robot by robot:** the first member due is recalled with every other member
+  due on that measure, in one pass, so two interleaved groups due together with no third out are never split (the
+  earlier goes whole, the later stays whole). §1.8's row reads robot by robot; §1.9 asks for the group whole.
+- **"Has stayed until it docks"** (§1.10) is read as "out and at or under 10": the state has no flag for a past stay.
+- **A robot moved to another group** (§1.14) has no group record to compare against, so two tests stand in for it: a
+  `Docked` robot's entrance is dropped while a mate is out and it carries no exit (a staggered member always carries
+  the group's), and an `Active` robot's exit turn is dropped when no mate shares it, it is no turn of the group's
+  journey, and a mate is out on one of its own. An exit that happens to fall on a turn of the new group's journey is
+  kept.
+- **The rescale's least:** an exit is never nearer than the lead + 1 and an entrance never nearer than 2, so nothing
+  changes docking on the tick of a tempo change (§1.12 says "never nearer than the lead allows").
+- **The start's first entrance** is never under 1 measure in (`max(1, round(u × …))`).
+- **The tempo at spawn** is handed to `spawnInitialRoster` by `initializeLocale` (`{ bpm }`), not read in
+  `spawnSystem.ts`, which gains no import of the audio store.
+- **The group's draws** are used in the order leave (or enter), together, order, and one spare.
+- **The roster start's tests** are in a new `spawnSystem.rosterStart.test.ts` (the old file mocks the seeded draws
+  module-wide); `runLoopSim` gained a `door` option and `runReadinessSim` a `step` option, for Task 19's run.
+- **The integration harness** cannot time an entry arc started late in a run (GSAP's global timeline is paused and
+  stepped by hand, and such an arc completes on its first frame), so Task 25's case reads the bar line from the fade
+  the engine is handed.
+
+From the review of 2026-11-21 (the plan's Results), each fix at Crawford's word:
+
+- **A tempo change scales an aim** (§1.12, §4): each move carries an unsnapped aim after a change (`entersAim`,
+  `exitsAim` on the robot, live state like the moves); `rescaleAim` scales it by new ÷ old, keeping the seconds to go
+  exactly, and the move is the turn at or after it (`turnAtOrAfter`). §1.12's "the bars still to go, rounded, then
+  the first turn" scaled the snapped turn, so every tick of a slider drag snapped forward again: an exit 20 bars off
+  sat at about 115 after a drag from 60 to 200 BPM and back. `rescaleMove` stays, as one change's composition.
+- **A whole-roster company** (§1.9): when one company holds every robot, the step groups each member alone, so the
+  last `Active` robot stays and each member's entrance is drawn when it docks (Crawford: "last robot stays"). §1.9's
+  "the last `Active` group is never recalled" held such a company out for ever.
+- **A big company's stagger** (§1.7): `ENTRANCE_STAGGER_BARS` narrows to `floor(out least ÷ (members − 1))` bars
+  (together at 0), so the last member is out by the out window's least. And the entrance (§1.8, §1.14) waits until
+  every member is `Docked`: a member still `Undocking` keeps the group's exit and goes in on it. A company of five or
+  more at a slow tempo otherwise split for a whole shift (one of eight at 20 BPM: apart for runs of 41–79 measures).
+  Spawn's companies of three and four never reach either rule, so the sims' rows are unchanged (re-run 2026-11-21).
+  **Later the same day**, with `SHIFT_MIN_BARS` gone, the cap became `floor((out least − lead) ÷ (members − 1))`,
+  never under 0: the last member must be out by the company's first possible recall, not by its exit. A member
+  landing on or after the recall came out alone and docked a bar late, off the turn (the 20 BPM sim found one in
+  about 2,800 dockings). This one does reach companies of three and four with small batteries.
+- **A locale with no coordinates** is not handled: `Locale.coordinates` is required and nothing makes one without,
+  so the tick's fallback to (0, 0) and the Task 21 criterion that asked for it went.
+
+### 8.4 Waiting for Crawford
+
+- **Q3, the removals** (the plan's Task 27): done 2026-11-22 on his yes; the list is in the plan's Results.
+- **Q6, CLAUDE.md's ROBOT_LIFECYCLE.md line.** Changed 2026-11-22 on his yes ("yes, update the CLAUDE.md line"),
+  to this wording:
+
+  > - `docs/ROBOT_LIFECYCLE.md`: The two robot state machines — docking (on the measure tick: the fixed 12-robot
+  >   roster started by groups, each company or freelancer coming and going on its journey's turns by a plan drawn
+  >   ahead at a pace scaled by the tempo, a company recalled together and ending on one bar line, the battery a gauge
+  >   that follows the plan, the last group out staying whole, the transition hold, replay) and activity (the work loop
+  >   on wall-clock time: work sites, charging stations, recall, the wait at the port and turn-back), and what a
+  >   power-off pause freezes (the measures and the loop's clock) and leaves running (the day).

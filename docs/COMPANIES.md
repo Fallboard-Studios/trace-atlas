@@ -40,9 +40,9 @@ Freelance robot is always an original: the 30 % roll that once let any robot cop
   `lfoLinks` and the five sends (`reverbSend`, `delaySend`, `gritSend`, `shimmerSend`, `doubleSend`), so a section
   sits in one space.
 - **A member keeps its own** id, name, identity colour, gem, `compositionSeed`, master volume (drawn as an original's,
-  over the inherited register), pan (Auto at centre, as every robot starts), battery size and start state. Its own
-  composition seed gives it its own notes; its own battery and start mean a company lines up now and then and parts
-  again, as the lifecycle moves it ([ROBOT_LIFECYCLE.md](ROBOT_LIFECYCLE.md)).
+  over the inherited register), pan (Auto at centre, as every robot starts) and battery size. Its own composition seed
+  gives it its own notes. It does not keep its own coming and going: since roadmap 94 a company comes and goes as one
+  (see "A company comes and goes as one", below).
 - **The rhythm follows from the settings.** A rhythm belongs to the world and the rhythm shape, the onsets that a
   robot's Density and Motif Length make of a measure ([MELODY_SYSTEM.md](MELODY_SYSTEM.md), "The rhythm stream"), so
   a member, whose density and motif are its founder's, plays the founder's onsets and note lengths exactly; with the
@@ -191,6 +191,32 @@ dimmed while Max Intensity is 0. Their handlers, `onJourneyMaxIntensityChange` a
   so it stays the theme's draw. Journey is not dealt.
 
 Broadcast-not-link applies as everywhere else.
+
+## A company comes and goes as one (roadmap 94)
+
+A company is a **group** for the robot lifecycle ([ROBOT_LIFECYCLE.md](ROBOT_LIFECYCLE.md#the-plan-roadmap-94),
+[spec](specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md)); a freelancer is a group of one. Any company counts, a seeded one
+or one made by hand.
+
+- **A world starts by groups.** A company starts out whole or home whole (`generateRosterStart`).
+- **Its moves are planned on its company's journey's turns**, whatever each member's Journey setting says (Journey
+  decides what a member plays, nothing else): when its first member comes out, every member's exit turn is drawn; when
+  its last member is home, every member's entrance. Most exits are **group exits**, every member on one turn, the
+  likelier the bigger the move that ends there and always after a drop; the rest drift, the members leaving on
+  successive turns. Most entrances are together; the rest are staggered 2 bars apart, narrower for a company of five
+  or more so its last member is out before its mates can be home again. The odds are
+  [ROBOT_LIFECYCLE.md](ROBOT_LIFECYCLE.md#the-plan-roadmap-94)'s.
+- **It ends together.** Its members are recalled on one measure, the lead before the exit turn, swim home and wait at
+  their ports, still playing, so their fades end on one bar line.
+- **Its pace** is set by its founder's battery size (the member earliest in the roster) and scaled by the tempo.
+- **The last group out stays whole.** A company due to leave with no robot outside it out stays, every member, until
+  someone else comes out. A company that holds every robot has nobody outside it, so its members come and go one by
+  one and the last `Active` robot stays (Crawford, 2026-11-21).
+- **A member moved in or out** takes its new group's moves: a robot moved into a company that is out, while it is
+  home, waits and comes out at the company's next entrance.
+- **Nothing is added to `Company` or the snapshot**: the plan lives on each robot (`entersAtMeasure`,
+  `exitsAtMeasure`, `shiftBpm`, and `entersAim` / `exitsAim` after a tempo change), live lifecycle state, never saved
+  or linked. No control and no readout belong to it.
 
 ## Company Membership
 

@@ -21,10 +21,13 @@ import { AudioEngine } from '../engine/AudioEngine';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
 import {
-  DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
+  DEV_TUNING, MAX_ROBOTS,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, FREELANCERS_MIN,
   BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, DEFAULT_JOURNEY_MAX_INTENSITY,
+  JOURNEY_TIME_MAX, SHIFT_HOME_MAX_BARS, SHIFT_REFERENCE_BPM, SHIFT_START_OUT_ODDS,
 } from '../constants';
+import { journeyTurns, worldKeyOf } from '../engine/melodyJourney';
+import { groupJourneyKey, planExit } from './shiftPlan';
 import { recordByField, robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
 import type { RobotAspects } from '../data/bands/dealAspects';
@@ -243,7 +246,7 @@ function generateRobotId(noiseMap: NoiseFunction2D, spawnCount: number): string 
  * per robot: computed unconditionally in spawnRobot, a company member's included, never inherited
  * from its founder (same treatment as id/name/melody itself).
  */
-function generateCompositionSeed(noiseMap: NoiseFunction2D, spawnCount: number): number {
+export function generateCompositionSeed(noiseMap: NoiseFunction2D, spawnCount: number): number {
   return getUniformSeededVal(noiseMap, 'robot.compositionSeed', spawnCount, 0, 1);
 }
 
@@ -780,66 +783,169 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   AudioEngine.registerRobotMelody(robot.id, robot.melody, robot);
 }
 
+// ========================================
+// THE START OF A WORLD (roadmap 94, docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md §1.13)
+// ========================================
+
+/** One roster index's start: its group (companyId; compositionSeed and batterySize as spawn draws them at that spawn
+ *  count), its docking and battery, and its first move at the tempo it was planned at. */
+export interface RosterStartEntry {
+  companyId?: string;
+  compositionSeed: number;
+  batterySize: number;
+  docking: DockingState;
+  batteryLevel: number;
+  entersAtMeasure?: number;
+  exitsAtMeasure?: number;
+  shiftBpm: number;
+}
+
+/** A group's two start draws at its earliest member's roster index, both even (spec §1.13): whether it starts out
+ *  ('roster.groupStartsOut', under SHIFT_START_OUT_ODDS), and how far in its first entrance is
+ *  ('roster.groupFirstEntrance', a share of SHIFT_HOME_MAX_BARS). */
+export function rosterGroupDraws(noiseMap: NoiseFunction2D, earliest: number): { startsOut: number; firstEntrance: number } {
+  return {
+    startsOut: getUniformSeededVal(noiseMap, 'roster.groupStartsOut', earliest, 0, 1),
+    firstEntrance: getUniformSeededVal(noiseMap, 'roster.groupFirstEntrance', earliest, 0, 1),
+  };
+}
+
+/** Each seeded company member's company id, by roster index: generateCompanyMembership's companies (handed in when
+ *  the caller has them) named by generateCompanyId, as spawnInitialCompanies names them. Pure. */
+export function companyIdsByIndex(
+  noiseMap: NoiseFunction2D,
+  membership: readonly (readonly number[])[] = generateCompanyMembership(noiseMap, MAX_ROBOTS),
+): Map<number, string> {
+  const companyOf = new Map<number, string>();
+  membership.forEach((members, c) => {
+    const id = generateCompanyId(noiseMap, c);
+    for (const i of members) companyOf.set(i, id);
+  });
+  return companyOf;
+}
+
+/**
+ * The start of a world by groups, per roster index (spec §1.13). Pure, from the noise map alone. The groups are
+ * generateCompanyMembership's companies and each freelancer alone. A group starts out when its startsOut draw is under
+ * SHIFT_START_OUT_ODDS; when none does, the group earliest in the roster does. A group starting out has every member
+ * Active at 100, its exit drawn by planExit as if it came out on `startMeasure`; a group starting home has every member
+ * Docked at its own 'roster.dockedBattery' draw and one entrance: the first turn of its journey at or after
+ * max(1, round(firstEntrance × SHIFT_HOME_MAX_BARS × bpm ÷ 60)) measures in.
+ */
+export function generateRosterStart(
+  noiseMap: NoiseFunction2D,
+  { bpm, worldKey, startMeasure }: { bpm: number; worldKey: string; startMeasure: number },
+): RosterStartEntry[] {
+  const membership = generateCompanyMembership(noiseMap, MAX_ROBOTS);
+  const companyOf = companyIdsByIndex(noiseMap, membership);
+  const robots = Array.from({ length: MAX_ROBOTS }, (_, i) => ({
+    id: `roster-${i}`,
+    companyId: companyOf.get(i),
+    compositionSeed: generateCompositionSeed(noiseMap, i),
+    batterySize: generateBatterySize(noiseMap, i),
+  }));
+  // Each group's members in roster order, the groups by their earliest member.
+  const groups = [
+    ...membership.map((members) => [...members].sort((a, b) => a - b)),
+    ...robots.flatMap((r, i) => (r.companyId === undefined ? [[i]] : [])),
+  ].sort((a, b) => a[0] - b[0]);
+
+  const startsOut = groups.map((g) => rosterGroupDraws(noiseMap, g[0]).startsOut < SHIFT_START_OUT_ODDS);
+  if (!startsOut.some(Boolean)) startsOut[0] = true;
+
+  const entries = new Array<RosterStartEntry>(MAX_ROBOTS);
+  groups.forEach((group, g) => {
+    const members = group.map((i) => robots[i]);
+    if (startsOut[g]) {
+      const exits = planExit({ worldKey, members, from: startMeasure, bpm });
+      group.forEach((i, n) => {
+        entries[i] = { ...withoutId(robots[i]), docking: DockingState.Active, batteryLevel: 100, exitsAtMeasure: exits[n], shiftBpm: bpm };
+      });
+    } else {
+      const offset = Math.max(1, Math.round((rosterGroupDraws(noiseMap, group[0]).firstEntrance * SHIFT_HOME_MAX_BARS * bpm) / SHIFT_REFERENCE_BPM));
+      const from = startMeasure + offset;
+      const entrance = journeyTurns(groupJourneyKey(worldKey, members[0]), from, from + JOURNEY_TIME_MAX)[0].measure;
+      group.forEach((i) => {
+        entries[i] = {
+          ...withoutId(robots[i]),
+          docking: DockingState.Docked,
+          batteryLevel: Math.floor(getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)),
+          entersAtMeasure: entrance,
+          shiftBpm: bpm,
+        };
+      });
+    }
+  });
+  return entries;
+}
+
+/** A start robot's fields less its placeholder id. */
+function withoutId({ companyId, compositionSeed, batterySize }: { companyId?: string; compositionSeed: number; batterySize: number }) {
+  return { ...(companyId !== undefined ? { companyId } : {}), compositionSeed, batterySize };
+}
+
 /**
  * Create the full fixed-size roster (MAX_ROBOTS robots) once, at locale load.
- * A seeded count within [INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX]
- * start Active (full battery); the rest start Docked with varied seeded
- * starting battery so they don't all finish recharging in lockstep. Then
+ * The world starts by groups (generateRosterStart, roadmap 94): each company
+ * and freelancer whole, out or home, with its first move. Then
  * every robot is placed at its station's port (placeRosterAtStations). Does
  * NOT assign jobs — worldTransition.ts's initializeLocale does that for the
  * initially-Active robots immediately after this returns (see
  * docs/specs/archive/ROBOT_SYSTEMS_ENGINE.md's Architecture Decisions on why job
  * assignment isn't done here: avoids an import cycle with robotSystems.ts).
  */
-export function spawnInitialRoster(localeId: string): void {
+export function spawnInitialRoster(localeId: string, { bpm = SHIFT_REFERENCE_BPM }: { bpm?: number } = {}): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
   const noiseMap = locale ? getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y) : null;
-
-  const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
-    noiseMap
-      ? getUniformSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
-      : alea(`${localeId}:activeCount`)() * (INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
-  );
 
   // The companies first (Company Families §1.11): each member spawns from its founder, which has the
   // lower index and so is already in the store. spawnInitialCompanies makes the same companies after.
   const founders = noiseMap ? companyFounders(generateCompanyMembership(noiseMap, MAX_ROBOTS)) : new Map<number, number>();
 
+  // A world starts by groups (roadmap 94, spec §1.13): each company and freelancer whole, out or home, with its first
+  // move, from the noise map at the tempo the caller hands in, the world's key and the measure it was created at.
+  const start =
+    noiseMap && locale
+      ? generateRosterStart(noiseMap, { bpm, worldKey: worldKeyOf(locale.coordinates), startMeasure: locale.createdAtMeasure ?? 0 })
+      : undefined;
+
+  // No locale, nothing to spawn into: the store drops a robot with no locale.
+  if (!start) return;
+
   for (let i = 0; i < MAX_ROBOTS; i++) {
-    const founderIndex = founders.get(i);
-    if (i < activeCount) {
-      spawnRobot(localeId, { docking: DockingState.Active, batteryLevel: 100, founderIndex });
-    } else {
-      const dockedBattery = Math.floor(
-        noiseMap
-          ? getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)
-          : alea(`${localeId}:dockedBattery:${i}`)() * 100
-      );
-      spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: dockedBattery, founderIndex });
-    }
+    spawnRobot(localeId, { docking: start[i].docking, batteryLevel: start[i].batteryLevel, founderIndex: founders.get(i) });
   }
 
-  placeRosterAtStations(localeId);
+  placeRosterAtStations(localeId, start);
 }
 
 /**
  * Phase 43 (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6, correction 2): every robot starts at its
  * station's port — assigned by roster index modulo station count — Docked ones 'charging', Active
- * ones 'exiting'. One store write for the whole roster, after the last spawn.
+ * ones 'exiting'. With a start (roadmap 94), each robot carries its first move too. One store write
+ * for the whole roster, after the last spawn.
  */
-function placeRosterAtStations(localeId: string): void {
+function placeRosterAtStations(localeId: string, start?: readonly RosterStartEntry[]): void {
   const robots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
   const stations = getStations(localeId);
   const stationById = new Map(stations.map((s) => [s.id, s]));
   const assigned = assignStationsAtLoad(robots.map((r) => r.id), stations);
   useLocaleStore.getState().setLocaleData(localeId, {
-    robots: robots.map((r) => {
+    robots: robots.map((r, i) => {
       const station = stationById.get(assigned[r.id])!;
+      const move = start?.[i];
       return {
         ...r,
         stationId: station.id,
         position: positionForCentre(station.port, getRobotGem(r.gemSeed)),
         activity: r.docking === DockingState.Docked ? 'charging' : 'exiting',
+        ...(move
+          ? {
+              ...(move.entersAtMeasure !== undefined ? { entersAtMeasure: move.entersAtMeasure } : {}),
+              ...(move.exitsAtMeasure !== undefined ? { exitsAtMeasure: move.exitsAtMeasure } : {}),
+              shiftBpm: move.shiftBpm,
+            }
+          : {}),
       };
     }),
   });
