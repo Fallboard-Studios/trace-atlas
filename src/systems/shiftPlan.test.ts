@@ -30,7 +30,6 @@ import {
   SHIFT_ENTER_ODDS,
   SHIFT_LEAVE_ODDS_MAX,
   SHIFT_LEAVE_ODDS_MIN,
-  SHIFT_MIN_BARS,
 } from '../constants';
 
 // ========================================
@@ -73,7 +72,7 @@ const exitCandidates = (c: (typeof CASES)[number]): JourneyTurn[] => {
 describe('shiftWindow and paceBars (spec §1.5)', () => {
   it("gives the spec's ten windows for a group of size 1, row by row", () => {
     const table: Record<(typeof TEMPOS)[number], { out: [number, number]; home: [number, number] }> = {
-      20: { out: [8, 24], home: [8, 24] },
+      20: { out: [4, 20], home: [5, 21] },
       40: { out: [8, 24], home: [11, 27] },
       60: { out: [12, 32], home: [16, 40] },
       100: { out: [20, 53], home: [27, 67] },
@@ -96,20 +95,18 @@ describe('shiftWindow and paceBars (spec §1.5)', () => {
     expect(shiftWindow('home', 1.5, 200)).toEqual({ least: 80, most: 133 });
   });
 
-  it('never gives a least under SHIFT_MIN_BARS, at any size and tempo', () => {
-    expect(shiftWindow('out', 0.67, 20).least).toBe(SHIFT_MIN_BARS);
-    expect(shiftWindow('home', 0.67, 20).least).toBe(SHIFT_MIN_BARS);
+  it('has no floor on the least (Crawford, 2026-11-21), and the least out still passes the recall lead at every tempo', () => {
+    expect(shiftWindow('out', 0.67, 20).least).toBe(3);
+    expect(shiftWindow('home', 0.67, 20).least).toBe(4);
     expect(shiftWindow('home', 1, 40).least).toBe(11);
-    for (const phase of ['out', 'home'] as const) {
-      for (const size of [0.67, 1, 1.5]) {
-        for (const bpm of [...TEMPOS, 1, 5, 33]) expect(shiftWindow(phase, size, bpm).least).toBeGreaterThanOrEqual(SHIFT_MIN_BARS);
-      }
+    for (const size of [0.67, 1, 1.5]) {
+      for (const bpm of TEMPOS) expect(shiftWindow('out', size, bpm).least, `${size} ${bpm}`).toBeGreaterThan(recallLeadBars(bpm));
     }
   });
 
   it('keeps every most at least JOURNEY_TIME_MAX past its least, so a window always holds a turn', () => {
-    // 1.5 at 100 BPM: out least 30, the limit 53 is 23 past it; 1.5 at 20: 8 and 24, exactly 16.
-    expect(shiftWindow('out', 1.5, 20)).toEqual({ least: 8, most: 8 + JOURNEY_TIME_MAX });
+    // 1.5 at 100 BPM: out least 30, the limit 53 is 23 past it; 1.5 at 20: 6 and 22, exactly 16.
+    expect(shiftWindow('out', 1.5, 20)).toEqual({ least: 6, most: 6 + JOURNEY_TIME_MAX });
     expect(shiftWindow('home', 1.5, 40)).toEqual({ least: 16, most: 32 });
     for (const phase of ['out', 'home'] as const) {
       for (const size of [0.67, 1, 1.5, 3]) {
@@ -397,25 +394,33 @@ describe('planEntrance (spec §1.7)', () => {
     expect(staggered).toBeGreaterThan(20);
   });
 
-  it("narrows a big company's stagger so its last member is out by the out window's least, never past the first exit", () => {
+  it("narrows a company's stagger so its last member is out by the first recall: the out window's least less the lead", () => {
     for (const bpm of TEMPOS) {
-      const least = shiftWindow('out', 1, bpm).least;
-      for (const n of [5, 6, 8, 12]) {
-        const spacing = Math.min(ENTRANCE_STAGGER_BARS, Math.floor(least / (n - 1)));
-        let staggered = 0;
-        for (let k = 0; k < 60; k++) {
-          const c = { worldKey: `${k}:big`, members: company('co-big', n), from: 0, bpm };
-          const t = walked(c);
-          const entrances = planEntrance(c);
-          expect(Math.max(...entrances) - t.measure, `${bpm} BPM, ${n} members`).toBeLessThanOrEqual(least);
-          if (groupDraws(c.worldKey, c.members[0], t.index)[1] >= ENTRANCE_TOGETHER_ODDS) {
-            staggered++;
-            const want = Array.from({ length: n }, (_, i) => t.measure + i * spacing);
-            expect([...entrances].sort((a, b) => a - b), `${bpm} BPM, ${n} members`).toEqual(want);
+      for (const size of [0.67, 1, 1.5]) {
+        const room = shiftWindow('out', size, bpm).least - recallLeadBars(bpm);
+        for (const n of [3, 4, 5, 6, 8, 12]) {
+          const spacing = Math.min(ENTRANCE_STAGGER_BARS, Math.floor(room / (n - 1)));
+          const label = `${bpm} BPM, size ${size}, ${n} members`;
+          let staggered = 0;
+          for (let k = 0; k < 60; k++) {
+            const c = { worldKey: `${k}:big`, members: company('co-big', n, size), from: 0, bpm };
+            const t = walked(c);
+            const entrances = planEntrance(c);
+            expect(Math.max(...entrances) - t.measure, label).toBeLessThanOrEqual(room);
+            if (groupDraws(c.worldKey, c.members[0], t.index)[1] >= ENTRANCE_TOGETHER_ODDS) {
+              staggered++;
+              const want = Array.from({ length: n }, (_, i) => t.measure + i * spacing);
+              expect([...entrances].sort((a, b) => a - b), label).toEqual(want);
+            }
           }
+          expect(staggered, label).toBeGreaterThan(0);
         }
-        expect(staggered).toBeGreaterThan(0);
       }
+    }
+    // At 1 BPM the least (0) is under the lead (1): no room, so every company comes out on its turn, together.
+    for (let k = 0; k < 40; k++) {
+      const entrances = planEntrance({ worldKey: `${k}:crawl`, members: company('co-c', 4, 0.67), from: 0, bpm: 1 });
+      expect(new Set(entrances).size, `${k}`).toBe(1);
     }
   });
 

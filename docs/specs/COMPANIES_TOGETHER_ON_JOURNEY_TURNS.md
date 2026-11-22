@@ -134,8 +134,8 @@ Every length below is written in bars at `SHIFT_REFERENCE_BPM` (60, where a bar 
 `SHIFT_OUT_BASE_BARS` 15 and `SHIFT_HOME_BASE_BARS` 20 are today's size-1 robot (15 measures out, 20 from recall to
 `Active` again); `SHIFT_OUT_MAX_BARS` 40 and `SHIFT_HOME_MAX_BARS` 50 are Crawford's stuck limits; `SHIFT_MIN_BARS` 8
 is his floor. The "most" is never less than 16 measures past the "least", so a window always holds a turn. (The four
-lengths became 12, 16, 32 and 40 on 2026-11-21, 20 % shorter at his ear: §8.1. The table below is the first cut.) For
-a size-1 group:
+lengths became 12, 16, 32 and 40 on 2026-11-21, 20 % shorter at his ear, and the floor went the same day: §8.1. The
+table below is the first cut.) For a size-1 group:
 
 | Tempo | A bar | Out, least to most | Home, least to most | Least out in seconds |
 |---|---|---|---|---|
@@ -249,7 +249,8 @@ charge rate no longer exist as rates (§7.2 Q3).
   and takes today's rule: the next bar line. Its sound ends a bar or more after its mates'. The loop sim counts
   these (§5.3).
 - A soloed robot gets the arc and no fade, as today. A turn-back needs no new rule: an entrance is never less than
-  `SHIFT_MIN_BARS` after an exit, so the only path is still the hidden tab.
+  `SHIFT_MIN_BARS` after an exit, so the only path is still the hidden tab. (Since 2026-11-21 there is no
+  `SHIFT_MIN_BARS`; the home window's least, about 43 s at the smallest size, does the same: §8.1.)
 
 ### 1.12 A tempo change
 
@@ -421,7 +422,7 @@ export const SHIFT_OUT_BASE_BARS = 15;  // 12 since 2026-11-21 (§8.1)
 export const SHIFT_HOME_BASE_BARS = 20; // 16 since 2026-11-21
 export const SHIFT_OUT_MAX_BARS = 40;   // Crawford, 2026-11-20; 32 since 2026-11-21
 export const SHIFT_HOME_MAX_BARS = 50;  // Crawford, 2026-11-20; 40 since 2026-11-21
-export const SHIFT_MIN_BARS = 8;        // Crawford, 2026-11-20
+export const SHIFT_MIN_BARS = 8;        // Crawford, 2026-11-20; removed 2026-11-21 (§8.1)
 export const SHIFT_LEAVE_ODDS_MIN = 0.35;
 export const SHIFT_LEAVE_ODDS_MAX = 0.95;
 export const GROUP_EXIT_ODDS_MIN = 0.5; // "never worse than a coin flip"
@@ -621,6 +622,12 @@ like, 20%". `SHIFT_OUT_BASE_BARS` 15 → 12, `SHIFT_OUT_MAX_BARS` 40 → 32, `SH
 do not move and at 40 BPM they move less than 20 %. The re-run rows are in the plan's Results; §8.2 below is the
 first cut's.
 
+**2026-11-21, later:** "let's get rid of the minimum shift". `SHIFT_MIN_BARS` is gone: a window's least is the paced
+base × size with no floor (§1.5's `max(SHIFT_MIN_BARS, …)` is now just the `round(…)`). The least out still passes the
+recall lead at every tempo from 20 to 200 BPM, and a turn-back still needs the hidden tab (§1.11): from a recall to
+`Active` again is the lead and the home least, about 24 s + 43 s at the least, longer than any trip home. The stagger
+cap moved with it (§8.3).
+
 ### 8.2 §5.5, criterion by criterion
 
 | Criterion | As measured |
@@ -680,6 +687,10 @@ From the review of 2026-11-21 (the plan's Results), each fix at Crawford's word:
   every member is `Docked`: a member still `Undocking` keeps the group's exit and goes in on it. A company of five or
   more at a slow tempo otherwise split for a whole shift (one of eight at 20 BPM: apart for runs of 41–79 measures).
   Spawn's companies of three and four never reach either rule, so the sims' rows are unchanged (re-run 2026-11-21).
+  **Later the same day**, with `SHIFT_MIN_BARS` gone, the cap became `floor((out least − lead) ÷ (members − 1))`,
+  never under 0: the last member must be out by the company's first possible recall, not by its exit. A member
+  landing on or after the recall came out alone and docked a bar late, off the turn (the 20 BPM sim found one in
+  about 2,800 dockings). This one does reach companies of three and four with small batteries.
 - **A locale with no coordinates** is not handled: `Locale.coordinates` is required and nothing makes one without,
   so the tick's fallback to (0, 0) and the Task 21 criterion that asked for it went.
 

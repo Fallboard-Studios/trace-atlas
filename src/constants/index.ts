@@ -245,8 +245,6 @@ export const SHIFT_HOME_BASE_BARS = 16;
  *  bases, 2026-11-21. */
 export const SHIFT_OUT_MAX_BARS = 32;
 export const SHIFT_HOME_MAX_BARS = 40;
-/** No shift is shorter than this, in bars at the live tempo (Crawford, 2026-11-20). */
-export const SHIFT_MIN_BARS = 8;
 /** How many seconds before its exit turn a robot is recalled: the longest trip home on record (~22 s, backlog 84's
  *  loop sim) and a little over (§1.11). Turned into bars by the tempo, never by a robot's own trip. */
 export const RECALL_LEAD_SECONDS = 24;

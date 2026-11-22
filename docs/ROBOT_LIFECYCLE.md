@@ -200,13 +200,13 @@ roster shape beyond what it is handed:
   drop. A turn's **weight** is 1 for a drop, else its move up to 1.
 - **The pace** (`shiftWindow`): lengths are written in bars at `SHIFT_REFERENCE_BPM` (60) and scaled
   by bpm ÷ 60. Out: at least `SHIFT_OUT_BASE_BARS` (12) × size, at most `SHIFT_OUT_MAX_BARS` (32);
-  home: at least `SHIFT_HOME_BASE_BARS` (16) × size, at most `SHIFT_HOME_MAX_BARS` (40); never under
-  `SHIFT_MIN_BARS` (8), and the most never under 16 past the least. (The four were 15, 40, 20 and 50
-  until 2026-11-21, when Crawford's ear took 20 % off.) A size-1 group:
+  home: at least `SHIFT_HOME_BASE_BARS` (16) × size, at most `SHIFT_HOME_MAX_BARS` (40); the most never
+  under 16 past the least. (The four were 15, 40, 20 and 50 until 2026-11-21, when Crawford's ear took
+  20 % off; the same day he removed `SHIFT_MIN_BARS`, an 8-bar floor on the least.) A size-1 group:
 
   | Tempo | Out, bars | Home, bars | The lead, bars |
   |---|---|---|---|
-  | 20 BPM | 8–24 | 8–24 | 2 |
+  | 20 BPM | 4–20 | 5–21 | 2 |
   | 40 BPM | 8–24 | 11–27 | 4 |
   | 60 BPM | 12–32 | 16–40 | 6 |
   | 100 BPM | 20–53 | 27–67 | 10 |
@@ -221,10 +221,11 @@ roster shape beyond what it is handed:
 - **The entrance** (`planEntrance`), drawn when a group's last member lands `Docked`: the turns in
   its home window walked at `SHIFT_ENTER_ODDS` (0.5) whatever the move, the last if none; together
   under `ENTRANCE_TOGETHER_ODDS` (0.7), else the members in a drawn order `ENTRANCE_STAGGER_BARS`
-  (2) apart from the turn on. A big company's stagger narrows so its last member is out by its out
-  window's least (`floor(least ÷ (members − 1))` bars apart, together at 0): a company of five or
-  more at a slow tempo otherwise had a member still coming out when its mates were home again
-  (review 2026-11-21). Spawn's companies of three and four always get the full 2 bars.
+  (2) apart from the turn on. The stagger narrows so the last member is out by the company's first
+  possible recall, the out window's least less the lead (`floor((least − lead) ÷ (members − 1))`
+  bars apart, together at 0 or under). A member landing later came out alone after its mates were
+  recalled and docked a bar late, off the turn (review 2026-11-21, then the lead once the 8-bar floor
+  went). A small battery at most tempos narrows a company of three or four to 1 bar, or together.
 - **The lead** (`recallLeadBars`): `RECALL_LEAD_SECONDS` (24) in bars at the tempo, rounded up.
 
 Every number above is spec §4's first cut; Gate A was not held (the plan's Results).
@@ -423,8 +424,9 @@ If a robot lands on `Active` again before it is inside its station, it turns bac
   `Active` guard (exit again) for a landing that skipped the seam.
 
 **A turn-back can't happen on its own.** From a recall back to Active takes the lead, the exit turn's
-bar and a home window of at least `SHIFT_MIN_BARS` (8) bars, longer than any robot's trip home at any
-tempo — the loop sim measures 0 turn-backs at 20, 110 and 200 BPM on the shift step. The only real
+bar and the home window's least: about 24 s plus at least 43 s (`SHIFT_HOME_BASE_BARS` × the smallest
+battery size, in seconds the same at any tempo), longer than any robot's trip home (~22 s) — the loop
+sim measures 0 turn-backs at 20, 110 and 200 BPM on the shift step. The only real
 path is
 a **hidden tab**: the browser slows GSAP, but the Transport keeps ticking, so the lifecycle runs
 ahead of the visuals. Because every decision reads `docking`, the visuals converge however far

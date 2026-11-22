@@ -25,7 +25,6 @@ import {
   SHIFT_LEAVE_ODDS_MIN,
   SHIFT_HOME_BASE_BARS,
   SHIFT_HOME_MAX_BARS,
-  SHIFT_MIN_BARS,
   SHIFT_OUT_BASE_BARS,
   SHIFT_OUT_MAX_BARS,
   SHIFT_REFERENCE_BPM,
@@ -62,13 +61,13 @@ export function paceBars(barsAtReference: number, bpm: number): number {
 
 /**
  * A group's window for `phase` at `bpm` (spec §1.5's table): the least is the base times the group's battery size,
- * never under SHIFT_MIN_BARS; the most is the phase's limit, never under JOURNEY_TIME_MAX past the least, so a window
- * always holds a turn.
+ * with no floor (Crawford, 2026-11-21); the most is the phase's limit, never under JOURNEY_TIME_MAX past the least, so
+ * a window always holds a turn.
  */
 export function shiftWindow(phase: ShiftPhase, size: number, bpm: number): ShiftWindow {
   const base = phase === 'out' ? SHIFT_OUT_BASE_BARS : SHIFT_HOME_BASE_BARS;
   const limit = phase === 'out' ? SHIFT_OUT_MAX_BARS : SHIFT_HOME_MAX_BARS;
-  const least = Math.max(SHIFT_MIN_BARS, paceBars(base * size, bpm));
+  const least = paceBars(base * size, bpm);
   return { least, most: Math.max(least + JOURNEY_TIME_MAX, paceBars(limit, bpm)) };
 }
 
@@ -296,11 +295,13 @@ export function planEntrance({ worldKey, members, from, bpm }: ShiftPlanInput): 
 }
 
 /**
- * How far apart a staggered company's members land: ENTRANCE_STAGGER_BARS, narrowed for a big company so its last
- * member is out by the out window's least (review 2026-11-21). The first member's landing draws the exit at least that
- * far on, so the last member lands before its mates can be home again; a wider stagger left it landing alone and
- * drawing a second exit for the company. 0 when even one bar is too wide: the company comes out together.
+ * How far apart a staggered company's members land: ENTRANCE_STAGGER_BARS, narrowed so the last member is out by the
+ * company's first possible recall, the out window's least less the recall lead (review 2026-11-21; the lead since
+ * SHIFT_MIN_BARS went, 2026-11-21). The first member's landing draws the exit at least `least` on and the recall comes
+ * `lead` before it, so the last member lands before the recall; a member landing after it came out alone, past its
+ * mates' recall, and docked a bar late, off the turn. 0 when even one bar is too wide: the company comes out together.
  */
 function staggerBars(count: number, size: number, bpm: number): number {
-  return Math.min(ENTRANCE_STAGGER_BARS, Math.floor(shiftWindow('out', size, bpm).least / (count - 1)));
+  const room = shiftWindow('out', size, bpm).least - recallLeadBars(bpm);
+  return Math.max(0, Math.min(ENTRANCE_STAGGER_BARS, Math.floor(room / (count - 1))));
 }

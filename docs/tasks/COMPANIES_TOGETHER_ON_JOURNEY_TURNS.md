@@ -151,7 +151,8 @@ per task.
 
   **Acceptance criteria:**
   - [ ] Size 1 gives the table's ten windows at 20, 40, 60, 100 and 200 BPM; sizes 0.67 and 1.5 scale the "least".
-  - [ ] No "least" is under `SHIFT_MIN_BARS`, and every "most" is at least `JOURNEY_TIME_MAX` past its "least".
+  - [ ] ~~No "least" is under `SHIFT_MIN_BARS`,~~ and every "most" is at least `JOURNEY_TIME_MAX` past its "least".
+        (The floor was removed 2026-11-21 at Crawford's word; see Results.)
   - [ ] `recallLeadBars` is 2, 4, 6, 10 and 20 at the five tempos.
   - [ ] Mutant killed: the window's 16-measure width dropped.
 
@@ -1099,3 +1100,24 @@ Filled in by Tasks 18, 19, 20 and 26, and by the review of 2026-11-21.
   1,000 measures, from 17–46). Task 19's door report re-run: 0 late members at all three tempos, door waits a median of
   16.1–18.4 s, nothing charging or Docked while visible. The listening list's bar numbers for (−200, 80) above are the
   first cut's and no longer hold.
+- **The floor removed** (2026-11-21, his word: "let's get rid of the minimum shift"). `SHIFT_MIN_BARS` is gone, so a
+  window's least is the paced base × size (Task 2's criterion "no least under `SHIFT_MIN_BARS`" is struck; its test now
+  pins the least out past the recall lead at every tempo). The always-on 20 BPM sim then caught one docking off a turn
+  in about 2,800: a company staggered 2 bars apart drew its exit 6 bars on, so its last member landed on the exit turn
+  after its mates' recall, came out alone and docked a bar late. The stagger cap now keeps the last member out by the
+  first possible recall, `floor((out least − lead) ÷ (members − 1))`, never under 0; RED first, and the 0 guard
+  checked by removing it. Task 18's report re-run (today's rows unchanged):
+
+  | Step | BPM | Silent | Sounding (mean, p10–p90) | Apart | Group exits | Exits on a turn | Entrances on a turn | Time out, bars (median, p90, longest) | Time out, s | Time home, bars | Time home, s | Stays / 1,000 | Stay length | Heard share (lowest–highest) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | shift | 20 | 0.0 % | 6.01, 3–10 | 23.2 % | 82.2 % of 19061 | 100.0 % | 100.0 % | 13, 24, 73 | 156, 288, 876 | 13, 20, 24 | 156, 240, 288 | 51.60 | 2, 8, 18 | 41.0 %–58.0 % |
+  | shift | 40 | 0.0 % | 5.66, 2–9 | 20.5 % | 83.3 % of 14280 | 100.0 % | 100.0 % | 17, 29, 77 | 102, 174, 462 | 19, 27, 32 | 114, 162, 192 | 61.24 | 4, 10, 24 | 39.1 %–54.9 % |
+  | shift | 60 | 0.0 % | 5.50, 2–9 | 16.4 % | 84.6 % of 10994 | 100.0 % | 100.0 % | 21, 36, 86 | 84, 144, 344 | 25, 37, 40 | 100, 148, 160 | 50.29 | 5, 14, 32 | 38.1 %–54.7 % |
+  | shift | 100 | 0.0 % | 5.39, 2–9 | 12.6 % | 84.7 % of 7590 | 100.0 % | 100.0 % | 31, 49, 113 | 74, 118, 271 | 37, 57, 67 | 89, 137, 161 | 36.90 | 8, 20, 45 | 37.6 %–52.8 % |
+  | shift | 200 | 0.0 % | 5.36, 2–9 | 7.8 % | 86.1 % of 4464 | 100.0 % | 100.0 % | 54, 78, 156 | 65, 94, 187 | 66, 90, 133 | 79, 108, 160 | 24.69 | 13, 35, 86 | 37.6 %–54.4 % |
+
+  The floor only bound at slow tempos, so 20 BPM moves most: time out 15 → 13 bars (180 → 156 s), time home 15 → 13.
+  40 BPM's medians hold (its least was over the floor at most sizes). The tighter stagger lowers the apart share at
+  20–60 BPM (23.2 %, 20.5 %, 16.4 %, from 25.3 %, 22.5 %, 17.4 %); stays rise at 20 BPM (51.6 per 1,000, from 40.6).
+  Every exit and entrance on a turn, no silent measure. Task 19's door report re-run: 0 late members and 0
+  turn-backs at 20, 110 and 200 BPM, door waits 16.1–18.4 s.
