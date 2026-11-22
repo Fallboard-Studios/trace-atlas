@@ -9,8 +9,9 @@ Source spec: [docs/specs/COMPANIES_TOGETHER_ON_JOURNEY_TURNS.md](../specs/COMPAN
 commit each, at Crawford's word to build the whole plan without pausing while he was away. **Gate A and Gate B were
 not held**: the numbers and the listening list are in Results for his read, and every first-cut constant ships
 unmoved. **Gates A and B passed 2026-11-22** on Crawford's listen ("i listened, i'm happy with everything"), with
-the constants as his two ear moves of 2026-11-21 left them (Results). **Waiting for him:** Task 27 (the removals, on
-his yes), CLAUDE.md's lifecycle line (the wording is in the spec's §8.4), and Task 30 (the archive, after the merge). A ticked task box means the task was
+the constants as his two ear moves of 2026-11-21 left them (Results). **Task 27 built 2026-11-22** on his yes
+(Results). **Waiting for him:** CLAUDE.md's lifecycle line (the wording is in the spec's §8.4), and Task 30 (the
+archive, after the merge). A ticked task box means the task was
 built and committed; its acceptance criteria are checked in its commit message. The checkpoints' "reviewed with
 Crawford" boxes are open. **Reviewed 2026-11-21** (code-review-and-quality, five axes): three faults fixed, the step
 split into named helpers, two nits; see Results.
@@ -821,7 +822,8 @@ per task.
 
 ### Phase 5: After the gate
 
-- [ ] **Task 27: The removals — today's step, the drain machinery and the roster-index start (on Crawford's yes)**
+- [x] **Task 27: The removals — today's step, the drain machinery and the roster-index start (on Crawford's yes)**
+  (2026-11-22, "yes, go ahead with task 27"; Results)
 
   **Description:** Spec Q3. **Stop and ask before starting.** With his yes: delete `stepRobotLifecycle`, `DrainRule`,
   `activeDrain`, `BATTERY_DRAIN_ACTIVE`, `BATTERY_RECHARGE_RATE`, the drain sim (`runDrainSim`, `DRAIN_CANDIDATES`,
@@ -833,12 +835,12 @@ per task.
   **Proof:** Read — the diff is deletions; the suite, types and lint stay green.
 
   **Acceptance criteria:**
-  - [ ] Nothing left in `src/` reads a removed name (`build:types` and `lint` say so).
-  - [ ] No test that exercises shipped behaviour is deleted; each deleted test is listed in the commit with what it
+  - [x] Nothing left in `src/` reads a removed name (`build:types` and `lint` say so).
+  - [x] No test that exercises shipped behaviour is deleted; each deleted test is listed in the commit with what it
         covered.
 
   **Verification:**
-  - [ ] `npm test`, `npm run build:types`, `npm run lint`, `npm run build` clean.
+  - [x] `npm test`, `npm run build:types`, `npm run lint`, `npm run build` clean.
 
   **Dependencies:** Gate B, and his yes.
 
@@ -1130,3 +1132,15 @@ Filled in by Tasks 18, 19, 20 and 26, and by the review of 2026-11-21.
   20–60 BPM (23.2 %, 20.5 %, 16.4 %, from 25.3 %, 22.5 %, 17.4 %); stays rise at 20 BPM (51.6 per 1,000, from 40.6).
   Every exit and entrance on a turn, no silent measure. Task 19's door report re-run: 0 late members and 0
   turn-backs at 20, 110 and 200 BPM, door waits 16.1–18.4 s.
+- **Task 27, the removals** (2026-11-22, Crawford: "yes, go ahead with task 27"). Gone: `stepRobotLifecycle`,
+  `DrainRule`, `activeDrain`, `BATTERY_DRAIN_ACTIVE`, `BATTERY_RECHARGE_RATE`, `INITIAL_ACTIVE_ROBOTS_MIN` / `MAX`;
+  in `lifecycleSim.ts` the roster-index start (`buildSimRoster`, `SimBand`), the drain sim (`flatDrain`,
+  `DRAIN_CANDIDATES`, `activeCountsOverTime`, `runDrainSim`, `formatDrainReport`), the old cover sim (`runCoverSim`,
+  `formatCoverReport`, `CoverSimRow`), the shift cover sim's today step (`SimStep`, the `steps` option, the report's
+  Step column) and the readiness sim's `band` and `step` options; `spawnInitialRoster`'s no-locale fallback (it
+  spawned robots the store then dropped). Two departures from the task's list, both forced by the old step going:
+  the readiness sim, whose default lifecycle was the old step, now runs only the shift step with the door on (its
+  always-on grid case, nobody charging while visible, passes there); and `createCoverTally` stays, the shift cover
+  sim's tally, keeping its battery-rule default for its own tests. The rows above that say "today" stay as the record.
+  Full suite 14,873 passed, 2 skipped (from 14,941 and 4: the deleted tests and two report-only cases), 0 failed;
+  `build:types`, `lint` (the 4 old warnings) and `build` clean. `lifecycleSim.test.ts` runs in 15 s.

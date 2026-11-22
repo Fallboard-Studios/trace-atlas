@@ -774,8 +774,10 @@ company lines up organically.
   never left (it now comes and goes robot by robot, the last robot staying: "last robot stays"); a company of five or
   more could split for a whole shift at a slow tempo (the stagger narrows, and the entrance waits for a member still
   coming out). The step was split into named helpers. The sims' rows are unchanged.
-- **Waiting for his yes:** Task 27, the removals (today's step, the drain machinery, the roster-index start), and
-  the CLAUDE.md lifecycle line, whose new wording is in the spec's "As built". Task 30 (the archive) after the merge.
+- **Task 27, the removals, built 2026-11-22** on his yes: the old battery step, the drain machinery and the
+  roster-index start are gone (the plan's Results).
+- **Waiting for his yes:** the CLAUDE.md lifecycle line, whose new wording is in the spec's "As built". Task 30 (the
+  archive) after the merge.
 - It changes every world's comings and goings, so it lands before backlog
   [45](backlog.md#45-off-screen-crawfords-three-preset-links).
 

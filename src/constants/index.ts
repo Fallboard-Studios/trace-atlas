@@ -196,24 +196,9 @@ export const SEND_STEP_PERCENT = 1;
  * See docs/specs/archive/ROBOT_SYSTEMS_ENGINE.md and src/systems/robotSystems.ts.
  */
 
-/** Seeded count of robots that start Active (rest start Docked) when a locale's roster is created. */
-export const INITIAL_ACTIVE_ROBOTS_MIN = 2;
-export const INITIAL_ACTIVE_ROBOTS_MAX = 4;
-
 /**
- * Battery drain, percent per measure, while a robot is Active, before the robot's battery size divides it — the same
- * base for every robot and every job (Phase 43: the job is live visual state, not part of the replayed lifecycle). 6 keeps
- * the mean Active count closest to the old per-job surcharge rule's (lifecycleSim.ts, 121 seeds ×
- * 2000 measures: old rule 5.05, flat 6 5.14).
- */
-export const BATTERY_DRAIN_ACTIVE = 6;
-
-/** Battery recharge, percent per measure, while a robot is Docked, before the robot's battery size divides it. */
-export const BATTERY_RECHARGE_RATE = 5;
-
-/**
- * A robot's battery size when it carries none (a hand-built robot or snapshot): the flat rates. The step divides both
- * the drain and the recharge by the size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3).
+ * A robot's battery size when it carries none (a hand-built robot or snapshot). A company's founder's size scales its
+ * shift windows (roadmap 94, shiftPlan.ts's groupSize).
  */
 export const DEFAULT_BATTERY_SIZE = 1;
 
@@ -225,9 +210,9 @@ export const DEFAULT_BATTERY_SIZE = 1;
 export const BATTERY_SIZE_MIN = 0.67;
 export const BATTERY_SIZE_MAX = 1.5;
 
-/** Active robot at or below this battery level is Recalled (sent back to dock). */
+/** The battery gauge's level on the bar line after a robot's exit turn (roadmap 94: the gauge follows the plan). */
 export const BATTERY_CRITICAL_THRESHOLD = 10;
-/** Docked robot at or above this battery level begins Undocking (redeploy-eligible). */
+/** The battery gauge's level on a robot's entrance. */
 export const BATTERY_FULL_THRESHOLD = 100;
 
 /**

@@ -21,7 +21,7 @@ import { AudioEngine } from '../engine/AudioEngine';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
 import {
-  DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
+  DEV_TUNING, MAX_ROBOTS,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, FREELANCERS_MIN,
   BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, DEFAULT_JOURNEY_MAX_INTENSITY,
   JOURNEY_TIME_MAX, SHIFT_HOME_MAX_BARS, SHIFT_REFERENCE_BPM, SHIFT_START_OUT_ODDS,
@@ -886,9 +886,8 @@ function withoutId({ companyId, compositionSeed, batterySize }: { companyId?: st
 
 /**
  * Create the full fixed-size roster (MAX_ROBOTS robots) once, at locale load.
- * A seeded count within [INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX]
- * start Active (full battery); the rest start Docked with varied seeded
- * starting battery so they don't all finish recharging in lockstep. Then
+ * The world starts by groups (generateRosterStart, roadmap 94): each company
+ * and freelancer whole, out or home, with its first move. Then
  * every robot is placed at its station's port (placeRosterAtStations). Does
  * NOT assign jobs — worldTransition.ts's initializeLocale does that for the
  * initially-Active robots immediately after this returns (see
@@ -910,22 +909,11 @@ export function spawnInitialRoster(localeId: string, { bpm = SHIFT_REFERENCE_BPM
       ? generateRosterStart(noiseMap, { bpm, worldKey: worldKeyOf(locale.coordinates), startMeasure: locale.createdAtMeasure ?? 0 })
       : undefined;
 
-  if (start) {
-    for (let i = 0; i < MAX_ROBOTS; i++) {
-      spawnRobot(localeId, { docking: start[i].docking, batteryLevel: start[i].batteryLevel, founderIndex: founders.get(i) });
-    }
-  } else {
-    // No noise map (no locale): the roster-index start, on its alea fallbacks.
-    const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
-      alea(`${localeId}:activeCount`)() * (INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
-    );
-    for (let i = 0; i < MAX_ROBOTS; i++) {
-      if (i < activeCount) {
-        spawnRobot(localeId, { docking: DockingState.Active, batteryLevel: 100 });
-      } else {
-        spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: Math.floor(alea(`${localeId}:dockedBattery:${i}`)() * 100) });
-      }
-    }
+  // No locale, nothing to spawn into: the store drops a robot with no locale.
+  if (!start) return;
+
+  for (let i = 0; i < MAX_ROBOTS; i++) {
+    spawnRobot(localeId, { docking: start[i].docking, batteryLevel: start[i].batteryLevel, founderIndex: founders.get(i) });
   }
 
   placeRosterAtStations(localeId, start);

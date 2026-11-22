@@ -20,12 +20,9 @@ import {
 } from './shiftPlan';
 import { journeyTurns, worldKeyOf } from '../engine/melodyJourney';
 import {
-  BATTERY_DRAIN_ACTIVE,
-  BATTERY_RECHARGE_RATE,
   BATTERY_CRITICAL_THRESHOLD,
   BATTERY_FULL_THRESHOLD,
   BATTERY_EASE_SHARE,
-  DEFAULT_BATTERY_SIZE,
   JOURNEY_TIME_MAX,
 } from '../constants';
 
@@ -73,70 +70,9 @@ export interface RobotLifecycleSnapshot {
   docking: DockingState;
   batteryLevel: number;
   dockingHoldUntilMeasure?: number;
-  /** Divides both the drain and the recharge; absent reads as DEFAULT_BATTERY_SIZE, the flat rates
-   *  (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3). */
+  /** The robot's seeded battery size; a company's founder's sizes the company's shift windows (roadmap 94). Absent
+   *  reads as DEFAULT_BATTERY_SIZE. */
   batterySize?: number;
-}
-
-/** The base drain of one Active measure, before the robot's battery size divides it — injectable so
- *  lifecycleSim.ts can compare candidate rules on the same replay code (Phase 43 Task 2). Pure. */
-export type DrainRule = (snapshot: RobotLifecycleSnapshot) => number;
-
-/** The default: a flat BATTERY_DRAIN_ACTIVE base for every Active robot, whatever it is doing. */
-export const activeDrain: DrainRule = () => BATTERY_DRAIN_ACTIVE;
-
-/**
- * One measure's worth of battery/docking transition for an entire roster, pure -- mirrors
- * tickRobotLifecycle's per-robot logic (the `drain` rule — default activeDrain —
- * BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD) exactly, reusing the same constants -- never a second copy of the arithmetic. Mutates a local working array as it iterates, in roster
- * array order, so within-measure ordering matches a real tick bit for bit. The last Active robot stays up
- * (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.2): a robot at or below critical is recalled only while
- * another robot in `working` is Active, so the fleet is never silent. Otherwise it stays Active and drains on
- * to the floor of 0 until one lands; because `working` is mutated in roster order, a robot landing earlier in
- * the roster relieves it in the same measure, one landing later in the next, and of two robots crossing
- * critical together with no third Active the earlier goes and the later stays. The rule reads docking only,
- * never audioMode. Imports neither useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
- */
-export function stepRobotLifecycle(
-  roster: RobotLifecycleSnapshot[],
-  measure: number,
-  drain: DrainRule = activeDrain,
-): RobotLifecycleSnapshot[] {
-  const working = roster.map((r) => ({ ...r }));
-
-  for (const robot of working) {
-    // One seeded number divides both rates: a big battery is a long shift and a long charge (spec §1.3).
-    const size = robot.batterySize ?? DEFAULT_BATTERY_SIZE;
-    if (robot.docking === DockingState.Active) {
-      robot.batteryLevel = Math.max(0, robot.batteryLevel - drain(robot) / size);
-      // The last robot stays up (spec §1.2): recalled only while another robot is Active.
-      const anotherActive = working.some((r) => r.id !== robot.id && r.docking === DockingState.Active);
-      if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD && anotherActive) {
-        robot.docking = DockingState.Recalled;
-        robot.dockingHoldUntilMeasure = measure + 1;
-      }
-    } else if (robot.docking === DockingState.Docked) {
-      robot.batteryLevel = Math.min(100, robot.batteryLevel + BATTERY_RECHARGE_RATE / size);
-      if (robot.batteryLevel >= BATTERY_FULL_THRESHOLD) {
-        robot.docking = DockingState.Undocking;
-        robot.dockingHoldUntilMeasure = measure + 1;
-      }
-    } else if (
-      (robot.docking === DockingState.Undocking || robot.docking === DockingState.Recalled) &&
-      robot.dockingHoldUntilMeasure !== undefined &&
-      measure >= robot.dockingHoldUntilMeasure
-    ) {
-      if (robot.docking === DockingState.Undocking) {
-        robot.docking = DockingState.Active;
-        robot.dockingHoldUntilMeasure = undefined;
-      } else {
-        robot.docking = DockingState.Docked;
-        robot.dockingHoldUntilMeasure = undefined;
-      }
-    }
-  }
-
-  return working;
 }
 
 /**

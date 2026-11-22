@@ -614,7 +614,8 @@ pausing while he was away. The plan's Results holds every measured number.
 `SHIFT_HOME_MAX_BARS` 50, `SHIFT_MIN_BARS` 8, `RECALL_LEAD_SECONDS` 24, `SHIFT_LEAVE_ODDS_MIN` / `MAX` 0.35 / 0.95,
 `GROUP_EXIT_ODDS_MIN` / `MAX` 0.5 / 0.95, `SHIFT_ENTER_ODDS` 0.5, `ENTRANCE_TOGETHER_ODDS` 0.7,
 `ENTRANCE_STAGGER_BARS` 2, `BATTERY_EASE_SHARE` 0.125, `SHIFT_START_OUT_ODDS` 0.45. The questions of §7.2 stand at
-their defaults; Q3 (the removals) and Q6 (CLAUDE.md, §8.4) wait for his yes.
+their defaults; Q3 (the removals) and Q6 (CLAUDE.md, §8.4) wait for his yes. (Q3: yes, 2026-11-22, built as the plan's
+Task 27.)
 
 **2026-11-21, at his ear:** "robots linger slightly too long, and it takes a little too long for them to reappear. by
 like, 20%". `SHIFT_OUT_BASE_BARS` 15 → 12, `SHIFT_OUT_MAX_BARS` 40 → 32, `SHIFT_HOME_BASE_BARS` 20 → 16,
@@ -700,7 +701,7 @@ From the review of 2026-11-21 (the plan's Results), each fix at Crawford's word:
 
 ### 8.4 Waiting for Crawford
 
-- **Q3, the removals** (the plan's Task 27): not done.
+- **Q3, the removals** (the plan's Task 27): done 2026-11-22 on his yes; the list is in the plan's Results.
 - **Q6, CLAUDE.md's ROBOT_LIFECYCLE.md line.** Not changed. The proposed wording, for his yes:
 
   > - `docs/ROBOT_LIFECYCLE.md`: The two robot state machines — docking (on the measure tick: the fixed 12-robot
